@@ -464,16 +464,20 @@
         let detail = floor(map(midEnergy, 40, 255, 3, 12));
         for (let i = 0; i < detail; i++) {
           let angle = random(TWO_PI);
+          // 始点の揺らぎを追加
           let r = baseRadius + random(-20, 20);
-          point(r * cos(angle), r * sin(angle));
+          let x = (random(2, 20)) * cos(angle);
+          let y = (random(2, 20)) * sin(angle);
+          point(x + (r - baseRadius) * cos(angle), y + (r - baseRadius) * sin(angle));
         }
         noFill();
         beginShape();
         for (let i = 0; i < detail + 2; i++) {
           let angle = map(i, 0, detail + 1, 0, TWO_PI) + frameCount * 0.03;
           let radius = baseRadius + sin(frameCount * 0.1 + i) * 30;
-          let x = radius * cos(angle);
-          let y = radius * sin(angle);
+          // 始点の揺らぎを追加
+          let x = (random(2, 20)) * cos(angle) + radius * cos(angle);
+          let y = (random(2, 20)) * sin(angle) + radius * sin(angle);
           curveVertex(x, y);
         }
         endShape(CLOSE);
@@ -492,7 +496,8 @@
         rotate(rot);
         let detail = floor(map(highEnergy, 50, 255, 2, 8));
         for (let i = 0; i < detail; i++) {
-          let x1 = random(-320, 320);
+          // 始点の揺らぎを狭める
+          let x1 = random(-20, 20);
           let y1 = random(-20, 20);
           let x2 = x1 + random(30, 70);
           let y2 = y1 + random(-10, 10);
@@ -513,8 +518,9 @@
         rotate(rot);
         let radiusBase = map(subBassEnergy, 30, 200, 50, 150);
         let shakeAmount = map(subBassEnergy, 30, 200, 10, 40);
-        let cx = (noise(time + 60) - 0.5) * shakeAmount;
-        let cy = (noise(time + 70) - 0.5) * shakeAmount;
+        // ellipse中心に揺らぎ追加
+        let cx = (noise(time + 60) - 0.5) * shakeAmount + random(-10, 10);
+        let cy = (noise(time + 70) - 0.5) * shakeAmount + random(-10, 10);
         let detail = floor(map(subBassEnergy, 30, 255, 1, 4));
         for (let i = 0; i < detail; i++) {
           ellipse(cx, cy, radiusBase * 2 - i * 16, radiusBase * 2 - i * 16);
@@ -537,7 +543,7 @@
           for (let i = 0; i < count; i++) {
             let angle = random(TWO_PI);
             // radiusの起点に揺らぎを加える
-            let radius = random(200, 350) + random(2, 20);
+            let radius = random(200, 350) + random(-30, 30);
             let x = radius * cos(angle);
             let y = radius * sin(angle);
             point(x, y);
@@ -593,8 +599,9 @@
           for (let t = 0; t < TWO_PI; t += 0.05) {
             let a = baseA + sin(t * waveCount + time * 2 + d) * waviness;
             let b = baseB + cos(t * waveCount + time * 2 + d) * (waviness * 0.6);
-            let x = a * cos(t);
-            let y = b * sin(t);
+            // wave中心を少しズラす
+            let x = (a + random(-8, 8)) * cos(t);
+            let y = (b + random(-8, 8)) * sin(t);
             curveVertex(x, y);
           }
           endShape(CLOSE);
