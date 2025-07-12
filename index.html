@@ -37,8 +37,7 @@
     let fft, mic;
 
     // --- UI要素のグローバル変数宣言 ---
-    let lowColorPicker, lowStrokeSlider;
-    let lowAlphaSlider;
+    let lowColorPicker, lowStrokeSlider, lowAlphaSlider;
     let midColorPicker, midStrokeSlider, midAlphaSlider;
     let highColorPicker, highStrokeSlider, highAlphaSlider;
     let subBassColorPicker, subBassStrokeSlider, subBassAlphaSlider;
@@ -46,6 +45,14 @@
     let presenceColorPicker, presenceStrokeSlider, presenceAlphaSlider;
     let lowMidColorPicker, lowMidStrokeSlider, lowMidAlphaSlider;
     let upperMidColorPicker, upperMidStrokeSlider, upperMidAlphaSlider;
+    let uiPanel;
+
+    // チェックボックスとUI管理
+    let lowEnabledCheckbox, midEnabledCheckbox, highEnabledCheckbox;
+    let subBassEnabledCheckbox, brillianceEnabledCheckbox, presenceEnabledCheckbox;
+    let lowMidEnabledCheckbox, upperMidEnabledCheckbox;
+    let uiElements = [];
+    let uiVisible = true;
 
     // 変更点1: マイクを使用するかどうかの状態を管理する変数
     let useMic = false;
@@ -62,55 +69,116 @@
 
       fft = new p5.FFT(0.9, 512); // FFTオブジェクトを作成。0.9はスムージング係数、512はFFTのバンド数（解析精度）
 
+      // --- UIパネルの初期化 ---
+      uiPanel = createDiv();
+      uiPanel.position(10, 10);
+      uiPanel.style('color', 'white');
+      uiPanel.style('background', 'rgba(0, 0, 0, 0.6)');
+      uiPanel.style('padding', '10px');
+      uiPanel.style('border-radius', '8px');
+      uiPanel.style('max-width', '90vw');
+      uiPanel.style('overflow-y', 'auto');
+      uiPanel.style('max-height', '90vh');
+      uiPanel.style('font-family', 'sans-serif');
+      uiElements.push(uiPanel);
+
       // --- UI要素の初期化 ---
-      lowColorPicker = createColorPicker('#ff0000');
-      lowColorPicker.position(10, 10);
-      lowStrokeSlider = createSlider(0.1, 5, 1, 0.1);
-      lowStrokeSlider.position(10, 40);
-      lowAlphaSlider = createSlider(0, 255, 40, 1);
-      lowAlphaSlider.position(10, 70);
+      createDiv('Low Energy').parent(uiPanel).style('color', 'white');
+      lowColorPicker = createColorPicker('#ff0000').parent(uiPanel);
+      uiElements.push(lowColorPicker);
+      lowStrokeSlider = createSlider(0.1, 5, 1, 0.1).parent(uiPanel);
+      uiElements.push(lowStrokeSlider);
+      lowAlphaSlider = createSlider(0, 255, 40, 1).parent(uiPanel);
+      uiElements.push(lowAlphaSlider);
 
-      // midEnergy UI
-      createDiv('Mid Energy').position(200, 10);
-      midColorPicker = createColorPicker('#ffa500'); midColorPicker.position(200, 30);
-      midStrokeSlider = createSlider(0.1, 5, 1, 0.1); midStrokeSlider.position(200, 60);
-      midAlphaSlider = createSlider(0, 255, 50, 1); midAlphaSlider.position(200, 90);
+      createDiv('Mid Energy').parent(uiPanel).style('color', 'white');
+      midColorPicker = createColorPicker('#ffa500').parent(uiPanel);
+      uiElements.push(midColorPicker);
+      midStrokeSlider = createSlider(0.1, 5, 1, 0.1).parent(uiPanel);
+      uiElements.push(midStrokeSlider);
+      midAlphaSlider = createSlider(0, 255, 50, 1).parent(uiPanel);
+      uiElements.push(midAlphaSlider);
 
-      // highEnergy UI
-      createDiv('High Energy').position(330, 10);
-      highColorPicker = createColorPicker('#ffff00'); highColorPicker.position(330, 30);
-      highStrokeSlider = createSlider(0.1, 5, 1, 0.1); highStrokeSlider.position(330, 60);
-      highAlphaSlider = createSlider(0, 255, 50, 1); highAlphaSlider.position(330, 90);
+      createDiv('High Energy').parent(uiPanel).style('color', 'white');
+      highColorPicker = createColorPicker('#ffff00').parent(uiPanel);
+      uiElements.push(highColorPicker);
+      highStrokeSlider = createSlider(0.1, 5, 1, 0.1).parent(uiPanel);
+      uiElements.push(highStrokeSlider);
+      highAlphaSlider = createSlider(0, 255, 50, 1).parent(uiPanel);
+      uiElements.push(highAlphaSlider);
 
-      // subBassEnergy UI
-      createDiv('SubBass Energy').position(460, 10);
-      subBassColorPicker = createColorPicker('#00ff00'); subBassColorPicker.position(460, 30);
-      subBassStrokeSlider = createSlider(0.1, 5, 1, 0.1); subBassStrokeSlider.position(460, 60);
-      subBassAlphaSlider = createSlider(0, 255, 30, 1); subBassAlphaSlider.position(460, 90);
+      createDiv('SubBass Energy').parent(uiPanel).style('color', 'white');
+      subBassColorPicker = createColorPicker('#00ff00').parent(uiPanel);
+      uiElements.push(subBassColorPicker);
+      subBassStrokeSlider = createSlider(0.1, 5, 1, 0.1).parent(uiPanel);
+      uiElements.push(subBassStrokeSlider);
+      subBassAlphaSlider = createSlider(0, 255, 30, 1).parent(uiPanel);
+      uiElements.push(subBassAlphaSlider);
 
-      // brillianceEnergy UI
-      createDiv('Brilliance Energy').position(590, 10);
-      brillianceColorPicker = createColorPicker('#00ffff'); brillianceColorPicker.position(590, 30);
-      brillianceStrokeSlider = createSlider(0.1, 5, 1, 0.1); brillianceStrokeSlider.position(590, 60);
-      brillianceAlphaSlider = createSlider(0, 255, 40, 1); brillianceAlphaSlider.position(590, 90);
+      createDiv('Brilliance Energy').parent(uiPanel).style('color', 'white');
+      brillianceColorPicker = createColorPicker('#00ffff').parent(uiPanel);
+      uiElements.push(brillianceColorPicker);
+      brillianceStrokeSlider = createSlider(0.1, 5, 1, 0.1).parent(uiPanel);
+      uiElements.push(brillianceStrokeSlider);
+      brillianceAlphaSlider = createSlider(0, 255, 40, 1).parent(uiPanel);
+      uiElements.push(brillianceAlphaSlider);
 
-      // presenceEnergy UI
-      createDiv('Presence Energy').position(720, 10);
-      presenceColorPicker = createColorPicker('#0000ff'); presenceColorPicker.position(720, 30);
-      presenceStrokeSlider = createSlider(0.1, 5, 1, 0.1); presenceStrokeSlider.position(720, 60);
-      presenceAlphaSlider = createSlider(0, 255, 40, 1); presenceAlphaSlider.position(720, 90);
+      createDiv('Presence Energy').parent(uiPanel).style('color', 'white');
+      presenceColorPicker = createColorPicker('#0000ff').parent(uiPanel);
+      uiElements.push(presenceColorPicker);
+      presenceStrokeSlider = createSlider(0.1, 5, 1, 0.1).parent(uiPanel);
+      uiElements.push(presenceStrokeSlider);
+      presenceAlphaSlider = createSlider(0, 255, 40, 1).parent(uiPanel);
+      uiElements.push(presenceAlphaSlider);
 
-      // lowMidEnergy UI
-      createDiv('LowMid Energy').position(850, 10);
-      lowMidColorPicker = createColorPicker('#800080'); lowMidColorPicker.position(850, 30);
-      lowMidStrokeSlider = createSlider(0.1, 5, 1, 0.1); lowMidStrokeSlider.position(850, 60);
-      lowMidAlphaSlider = createSlider(0, 255, 50, 1); lowMidAlphaSlider.position(850, 90);
+      createDiv('LowMid Energy').parent(uiPanel).style('color', 'white');
+      lowMidColorPicker = createColorPicker('#800080').parent(uiPanel);
+      uiElements.push(lowMidColorPicker);
+      lowMidStrokeSlider = createSlider(0.1, 5, 1, 0.1).parent(uiPanel);
+      uiElements.push(lowMidStrokeSlider);
+      lowMidAlphaSlider = createSlider(0, 255, 50, 1).parent(uiPanel);
+      uiElements.push(lowMidAlphaSlider);
 
-      // upperMidEnergy UI
-      createDiv('UpperMid Energy').position(980, 10);
-      upperMidColorPicker = createColorPicker('#ff00ff'); upperMidColorPicker.position(980, 30);
-      upperMidStrokeSlider = createSlider(0.1, 5, 1, 0.1); upperMidStrokeSlider.position(980, 60);
-      upperMidAlphaSlider = createSlider(0, 255, 50, 1); upperMidAlphaSlider.position(980, 90);
+      createDiv('UpperMid Energy').parent(uiPanel).style('color', 'white');
+      upperMidColorPicker = createColorPicker('#ff00ff').parent(uiPanel);
+      uiElements.push(upperMidColorPicker);
+      upperMidStrokeSlider = createSlider(0.1, 5, 1, 0.1).parent(uiPanel);
+      uiElements.push(upperMidStrokeSlider);
+      upperMidAlphaSlider = createSlider(0, 255, 50, 1).parent(uiPanel);
+      uiElements.push(upperMidAlphaSlider);
+
+      // 音域ごとの描画ON/OFFチェックボックスとラベル
+      createDiv('Low').parent(uiPanel).style('color', 'white');
+      lowEnabledCheckbox = createCheckbox('Draw', true).parent(uiPanel);
+      uiElements.push(lowEnabledCheckbox);
+
+      createDiv('Mid').parent(uiPanel).style('color', 'white');
+      midEnabledCheckbox = createCheckbox('Draw', true).parent(uiPanel);
+      uiElements.push(midEnabledCheckbox);
+
+      createDiv('High').parent(uiPanel).style('color', 'white');
+      highEnabledCheckbox = createCheckbox('Draw', true).parent(uiPanel);
+      uiElements.push(highEnabledCheckbox);
+
+      createDiv('SubBass').parent(uiPanel).style('color', 'white');
+      subBassEnabledCheckbox = createCheckbox('Draw', true).parent(uiPanel);
+      uiElements.push(subBassEnabledCheckbox);
+
+      createDiv('Brilliance').parent(uiPanel).style('color', 'white');
+      brillianceEnabledCheckbox = createCheckbox('Draw', true).parent(uiPanel);
+      uiElements.push(brillianceEnabledCheckbox);
+
+      createDiv('Presence').parent(uiPanel).style('color', 'white');
+      presenceEnabledCheckbox = createCheckbox('Draw', true).parent(uiPanel);
+      uiElements.push(presenceEnabledCheckbox);
+
+      createDiv('LowMid').parent(uiPanel).style('color', 'white');
+      lowMidEnabledCheckbox = createCheckbox('Draw', true).parent(uiPanel);
+      uiElements.push(lowMidEnabledCheckbox);
+
+      createDiv('UpperMid').parent(uiPanel).style('color', 'white');
+      upperMidEnabledCheckbox = createCheckbox('Draw', true).parent(uiPanel);
+      uiElements.push(upperMidEnabledCheckbox);
 
       // 変更点: sound.mp3の読み込みロジックを削除し、マイク入力に切り替え
       useMic = true;
@@ -173,124 +241,140 @@
 
       // --- 関数化した音域描画 ---
       // lowEnergy
-      push();
-      {
-        let energyValue = lowEnergy;
-        let baseAmount = 12;
-        let intensity = map(energyValue, 0, 255, 0, 1);
-        let angle = frameCount * 0.02;
-        let dx = sin(angle + time) * baseAmount * intensity;
-        let dy = cos(angle + time * 1.5) * baseAmount * intensity;
-        console.log("OFFSET lowEnergy:", dx, dy);
-        translate(dx, dy);
-        drawLowEnergy(lowEnergy, frameCount, time);
+      if (lowEnabledCheckbox && lowEnabledCheckbox.checked()) {
+        push();
+        {
+          let energyValue = lowEnergy;
+          let baseAmount = 12;
+          let intensity = map(energyValue, 0, 255, 0, 1);
+          let angle = frameCount * 0.02;
+          let dx = sin(angle + time) * baseAmount * intensity;
+          let dy = cos(angle + time * 1.5) * baseAmount * intensity;
+          console.log("OFFSET lowEnergy:", dx, dy);
+          translate(dx, dy);
+          drawLowEnergy(lowEnergy, frameCount, time);
+        }
+        pop();
       }
-      pop();
 
       // midEnergy
-      push();
-      {
-        let energyValue = midEnergy;
-        let OFFSET = 2;
-        let baseAmount = 10;
-        let intensity = map(energyValue, 0, 255, 0, 1);
-        let dx = (noise(time + OFFSET) - 0.5) * baseAmount * intensity;
-        let dy = (noise(time + OFFSET + 100) - 0.5) * baseAmount * intensity;
-        console.log("OFFSET midEnergy:", dx, dy);
-        translate(dx, dy);
-        drawMidEnergy(midEnergy, frameCount, time);
+      if (midEnabledCheckbox && midEnabledCheckbox.checked()) {
+        push();
+        {
+          let energyValue = midEnergy;
+          let OFFSET = 2;
+          let baseAmount = 10;
+          let intensity = map(energyValue, 0, 255, 0, 1);
+          let dx = (noise(time + OFFSET) - 0.5) * baseAmount * intensity;
+          let dy = (noise(time + OFFSET + 100) - 0.5) * baseAmount * intensity;
+          console.log("OFFSET midEnergy:", dx, dy);
+          translate(dx, dy);
+          drawMidEnergy(midEnergy, frameCount, time);
+        }
+        pop();
       }
-      pop();
 
       // highEnergy
-      push();
-      {
-        let energyValue = highEnergy;
-        let OFFSET = 3;
-        let baseAmount = 16;
-        let intensity = map(energyValue, 0, 255, 0, 1);
-        let dx = (noise(time + OFFSET) - 0.5) * baseAmount * intensity;
-        let dy = (noise(time + OFFSET + 100) - 0.5) * baseAmount * intensity;
-        console.log("OFFSET highEnergy:", dx, dy);
-        translate(dx, dy);
-        drawHighEnergy(highEnergy, frameCount, time);
+      if (highEnabledCheckbox && highEnabledCheckbox.checked()) {
+        push();
+        {
+          let energyValue = highEnergy;
+          let OFFSET = 3;
+          let baseAmount = 16;
+          let intensity = map(energyValue, 0, 255, 0, 1);
+          let dx = (noise(time + OFFSET) - 0.5) * baseAmount * intensity;
+          let dy = (noise(time + OFFSET + 100) - 0.5) * baseAmount * intensity;
+          console.log("OFFSET highEnergy:", dx, dy);
+          translate(dx, dy);
+          drawHighEnergy(highEnergy, frameCount, time);
+        }
+        pop();
       }
-      pop();
 
       // subBassEnergy
-      push();
-      {
-        let energyValue = subBassEnergy;
-        let OFFSET = 4;
-        let baseAmount = 14;
-        let intensity = map(energyValue, 0, 255, 0, 1);
-        let dx = (noise(time + OFFSET) - 0.5) * baseAmount * intensity;
-        let dy = (noise(time + OFFSET + 100) - 0.5) * baseAmount * intensity;
-        console.log("OFFSET subBassEnergy:", dx, dy);
-        translate(dx, dy);
-        drawSubBassEnergy(subBassEnergy, time);
+      if (subBassEnabledCheckbox && subBassEnabledCheckbox.checked()) {
+        push();
+        {
+          let energyValue = subBassEnergy;
+          let OFFSET = 4;
+          let baseAmount = 14;
+          let intensity = map(energyValue, 0, 255, 0, 1);
+          let dx = (noise(time + OFFSET) - 0.5) * baseAmount * intensity;
+          let dy = (noise(time + OFFSET + 100) - 0.5) * baseAmount * intensity;
+          console.log("OFFSET subBassEnergy:", dx, dy);
+          translate(dx, dy);
+          drawSubBassEnergy(subBassEnergy, time);
+        }
+        pop();
       }
-      pop();
 
       // brillianceEnergy
-      push();
-      {
-        let energyValue = brillianceEnergy;
-        let OFFSET = 5;
-        let baseAmount = 20;
-        let intensity = map(energyValue, 0, 255, 0, 1);
-        let dx = (noise(time + OFFSET) - 0.5) * baseAmount * intensity;
-        let dy = (noise(time + OFFSET + 100) - 0.5) * baseAmount * intensity;
-        console.log("OFFSET brillianceEnergy:", dx, dy);
-        translate(dx, dy);
-        drawBrillianceEnergy(brillianceEnergy);
+      if (brillianceEnabledCheckbox && brillianceEnabledCheckbox.checked()) {
+        push();
+        {
+          let energyValue = brillianceEnergy;
+          let OFFSET = 5;
+          let baseAmount = 20;
+          let intensity = map(energyValue, 0, 255, 0, 1);
+          let dx = (noise(time + OFFSET) - 0.5) * baseAmount * intensity;
+          let dy = (noise(time + OFFSET + 100) - 0.5) * baseAmount * intensity;
+          console.log("OFFSET brillianceEnergy:", dx, dy);
+          translate(dx, dy);
+          drawBrillianceEnergy(brillianceEnergy);
+        }
+        pop();
       }
-      pop();
 
       // presenceEnergy
-      push();
-      {
-        let energyValue = presenceEnergy;
-        let OFFSET = 6;
-        let baseAmount = 18;
-        let intensity = map(energyValue, 0, 255, 0, 1);
-        let dx = (noise(time + OFFSET) - 0.5) * baseAmount * intensity;
-        let dy = (noise(time + OFFSET + 100) - 0.5) * baseAmount * intensity;
-        console.log("OFFSET presenceEnergy:", dx, dy);
-        translate(dx, dy);
-        drawPresenceEnergy(presenceEnergy, frameCount);
+      if (presenceEnabledCheckbox && presenceEnabledCheckbox.checked()) {
+        push();
+        {
+          let energyValue = presenceEnergy;
+          let OFFSET = 6;
+          let baseAmount = 18;
+          let intensity = map(energyValue, 0, 255, 0, 1);
+          let dx = (noise(time + OFFSET) - 0.5) * baseAmount * intensity;
+          let dy = (noise(time + OFFSET + 100) - 0.5) * baseAmount * intensity;
+          console.log("OFFSET presenceEnergy:", dx, dy);
+          translate(dx, dy);
+          drawPresenceEnergy(presenceEnergy, frameCount);
+        }
+        pop();
       }
-      pop();
 
       // lowMidEnergy
-      push();
-      {
-        let energyValue = lowMidEnergy;
-        let OFFSET = 7;
-        let baseAmount = 11;
-        let intensity = map(energyValue, 0, 255, 0, 1);
-        let dx = (noise(time + OFFSET) - 0.5) * baseAmount * intensity;
-        let dy = (noise(time + OFFSET + 100) - 0.5) * baseAmount * intensity;
-        console.log("OFFSET lowMidEnergy:", dx, dy);
-        translate(dx, dy);
-        drawLowMidEnergy(lowMidEnergy, time);
+      if (lowMidEnabledCheckbox && lowMidEnabledCheckbox.checked()) {
+        push();
+        {
+          let energyValue = lowMidEnergy;
+          let OFFSET = 7;
+          let baseAmount = 11;
+          let intensity = map(energyValue, 0, 255, 0, 1);
+          let dx = (noise(time + OFFSET) - 0.5) * baseAmount * intensity;
+          let dy = (noise(time + OFFSET + 100) - 0.5) * baseAmount * intensity;
+          console.log("OFFSET lowMidEnergy:", dx, dy);
+          translate(dx, dy);
+          drawLowMidEnergy(lowMidEnergy, time);
+        }
+        pop();
       }
-      pop();
 
       // upperMidEnergy
-      push();
-      {
-        let energyValue = upperMidEnergy;
-        let OFFSET = 8;
-        let baseAmount = 13;
-        let intensity = map(energyValue, 0, 255, 0, 1);
-        let dx = (noise(time + OFFSET) - 0.5) * baseAmount * intensity;
-        let dy = (noise(time + OFFSET + 100) - 0.5) * baseAmount * intensity;
-        console.log("OFFSET upperMidEnergy:", dx, dy);
-        translate(dx, dy);
-        drawUpperMidEnergy(upperMidEnergy, time, frameCount);
+      if (upperMidEnabledCheckbox && upperMidEnabledCheckbox.checked()) {
+        push();
+        {
+          let energyValue = upperMidEnergy;
+          let OFFSET = 8;
+          let baseAmount = 13;
+          let intensity = map(energyValue, 0, 255, 0, 1);
+          let dx = (noise(time + OFFSET) - 0.5) * baseAmount * intensity;
+          let dy = (noise(time + OFFSET + 100) - 0.5) * baseAmount * intensity;
+          console.log("OFFSET upperMidEnergy:", dx, dy);
+          translate(dx, dy);
+          drawUpperMidEnergy(upperMidEnergy, time, frameCount);
+        }
+        pop();
       }
-      pop();
     }
 
     function keyPressed() {
@@ -300,6 +384,11 @@
         // PNG保存もしたい場合は下記コメントアウト解除
         // save("sound_spatial_composition.png");
         // noLoop();
+      }
+      // 'c'キーでUI表示切り替え
+      if (key === 'c' || key === 'C') {
+        uiVisible = !uiVisible;
+        uiPanel.style('display', uiVisible ? 'block' : 'none');
       }
     }
 
