@@ -497,11 +497,13 @@
         rotate(rot);
         let detail = floor(map(highEnergy, 50, 255, 2, 8));
         for (let i = 0; i < detail; i++) {
-          // 始点の揺らぎを狭める
-          let x1 = random(-20, 20);
-          let y1 = random(-20, 20);
-          let x2 = x1 + random(30, 70);
-          let y2 = y1 + random(-10, 10);
+          // 中心を避けて放射しないように線を描画（空洞を保つ）
+          let minRadius = 60;
+          let angle = random(TWO_PI);
+          let x1 = cos(angle) * random(minRadius, minRadius + 20);
+          let y1 = sin(angle) * random(minRadius, minRadius + 20);
+          let x2 = x1 + cos(angle) * random(30, 70);
+          let y2 = y1 + sin(angle) * random(-10, 10);
           line(x1, y1, x2, y2);
         }
       }
