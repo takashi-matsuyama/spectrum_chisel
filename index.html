@@ -426,6 +426,11 @@
         uiVisible = !uiVisible;
         uiPanel.style('display', uiVisible ? 'block' : 'none');
       }
+      // 'e'キーでキャンバスをクリア（描画リセット）
+      if (key === 'e' || key === 'E') {
+        clear(); // 背景と描画をすべてリセット
+        background(0); // 背景色を黒で再設定
+      }
     }
 
     // --- 各音域の描画処理 ---
