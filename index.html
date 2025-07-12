@@ -40,6 +40,14 @@
     let lowColorPicker, lowStrokeSlider;
     let lowAlphaSlider;
 
+    let midColorPicker, midStrokeSlider, midAlphaSlider;
+    let highColorPicker, highStrokeSlider, highAlphaSlider;
+    let subBassColorPicker, subBassStrokeSlider, subBassAlphaSlider;
+    let brillianceColorPicker, brillianceStrokeSlider, brillianceAlphaSlider;
+    let presenceColorPicker, presenceStrokeSlider, presenceAlphaSlider;
+    let lowMidColorPicker, lowMidStrokeSlider, lowMidAlphaSlider;
+    let upperMidColorPicker, upperMidStrokeSlider, upperMidAlphaSlider;
+
     // 変更点1: マイクを使用するかどうかの状態を管理する変数
     let useMic = false;
 
@@ -62,6 +70,55 @@
       lowStrokeSlider.position(10, 40);
       lowAlphaSlider = createSlider(0, 255, 40, 1);
       lowAlphaSlider.position(10, 70);
+
+      midColorPicker = createColorPicker('#ffa500');
+      midColorPicker.position(150, 10);
+      midStrokeSlider = createSlider(0.1, 5, 1, 0.1);
+      midStrokeSlider.position(150, 40);
+      midAlphaSlider = createSlider(0, 255, 50, 1);
+      midAlphaSlider.position(150, 70);
+
+      highColorPicker = createColorPicker('#ffff00');
+      highColorPicker.position(290, 10);
+      highStrokeSlider = createSlider(0.1, 5, 1, 0.1);
+      highStrokeSlider.position(290, 40);
+      highAlphaSlider = createSlider(0, 255, 50, 1);
+      highAlphaSlider.position(290, 70);
+
+      subBassColorPicker = createColorPicker('#00ff00');
+      subBassColorPicker.position(430, 10);
+      subBassStrokeSlider = createSlider(0.1, 5, 1, 0.1);
+      subBassStrokeSlider.position(430, 40);
+      subBassAlphaSlider = createSlider(0, 255, 30, 1);
+      subBassAlphaSlider.position(430, 70);
+
+      brillianceColorPicker = createColorPicker('#00ffff');
+      brillianceColorPicker.position(570, 10);
+      brillianceStrokeSlider = createSlider(0.1, 5, 1, 0.1);
+      brillianceStrokeSlider.position(570, 40);
+      brillianceAlphaSlider = createSlider(0, 255, 40, 1);
+      brillianceAlphaSlider.position(570, 70);
+
+      presenceColorPicker = createColorPicker('#0000ff');
+      presenceColorPicker.position(710, 10);
+      presenceStrokeSlider = createSlider(0.1, 5, 1, 0.1);
+      presenceStrokeSlider.position(710, 40);
+      presenceAlphaSlider = createSlider(0, 255, 40, 1);
+      presenceAlphaSlider.position(710, 70);
+
+      lowMidColorPicker = createColorPicker('#800080');
+      lowMidColorPicker.position(10, 110);
+      lowMidStrokeSlider = createSlider(0.1, 5, 1, 0.1);
+      lowMidStrokeSlider.position(10, 140);
+      lowMidAlphaSlider = createSlider(0, 255, 50, 1);
+      lowMidAlphaSlider.position(10, 170);
+
+      upperMidColorPicker = createColorPicker('#ff00ff');
+      upperMidColorPicker.position(150, 110);
+      upperMidStrokeSlider = createSlider(0.1, 5, 1, 0.1);
+      upperMidStrokeSlider.position(150, 140);
+      upperMidAlphaSlider = createSlider(0, 255, 50, 1);
+      upperMidAlphaSlider.position(150, 170);
 
       // 変更点: sound.mp3の読み込みロジックを削除し、マイク入力に切り替え
       useMic = true;
@@ -127,13 +184,15 @@
       push();
       {
         let energyValue = lowEnergy;
-        let OFFSET = 1;
         let baseAmount = 12;
         let intensity = map(energyValue, 0, 255, 0, 1);
-        let dx = (noise(time + OFFSET) - 0.5) * baseAmount * intensity;
-        let dy = (noise(time + OFFSET + 100) - 0.5) * baseAmount * intensity;
+        let angle = frameCount * 0.02;
+        let dx = sin(angle + time) * baseAmount * intensity;
+        let dy = cos(angle + time * 1.5) * baseAmount * intensity;
         console.log("OFFSET lowEnergy:", dx, dy);
         translate(dx, dy);
+        let rotation = map(lowEnergy, 50, 200, 0, PI / 3);
+        rotate(rotation);
         drawLowEnergy(lowEnergy, frameCount, time);
       }
       pop();
@@ -267,7 +326,8 @@
           beginShape();
           let noiseFactor = map(lowEnergy, 50, 200, 20, 100);
           let angleOffset = frameCount * 0.01 + j * 0.5;
-          for (let i = 0; i < TWO_PI; i += random(0.08, 0.15)) {
+          let detail = map(lowEnergy, 50, 200, 0.3, 0.05); // 音量で細かさを変化
+          for (let i = 0; i < TWO_PI; i += detail) {
             let r = map(lowEnergy, 50, 200, 70, 250) + (noise(i * 5 + angleOffset) - 0.5) * noiseFactor + j * 3;
             let x = r * cos(i);
             let y = r * sin(i);
@@ -279,9 +339,11 @@
     }
 
     function drawMidEnergy(midEnergy, frameCount, time) {
+      let c = midColorPicker.color();
+      c.setAlpha(midAlphaSlider.value());
+      stroke(c);
+      strokeWeight(midStrokeSlider.value());
       if (midEnergy > 40) {
-        stroke(255, 165, 0, 50); // オレンジ
-        strokeWeight(map(midEnergy, 50, 200, 0.5, 2));
         let baseRadius = map(midEnergy, 50, 200, 90, 300);
         for (let i = 0; i < 5; i++) {
           let angle = random(TWO_PI);
@@ -302,9 +364,11 @@
     }
 
     function drawHighEnergy(highEnergy, frameCount, time) {
+      let c = highColorPicker.color();
+      c.setAlpha(highAlphaSlider.value());
+      stroke(c);
+      strokeWeight(highStrokeSlider.value());
       if (highEnergy > 50) {
-        stroke(255, 255, 0, 50); // 黄色
-        strokeWeight(map(highEnergy, 50, 200, 0.2, 0.8));
         noFill();
         for (let i = 0; i < 3; i++) {
           let x1 = random(-320, 320);
@@ -317,9 +381,11 @@
     }
 
     function drawSubBassEnergy(subBassEnergy, time) {
+      let c = subBassColorPicker.color();
+      c.setAlpha(subBassAlphaSlider.value());
+      stroke(c);
+      strokeWeight(subBassStrokeSlider.value());
       if (subBassEnergy > 30) {
-        stroke(0, 255, 0, 30); // 緑
-        strokeWeight(map(subBassEnergy, 30, 200, 1, 4));
         noFill();
         let radiusBase = map(subBassEnergy, 30, 200, 50, 150);
         let shakeAmount = map(subBassEnergy, 30, 200, 10, 40);
@@ -330,9 +396,11 @@
     }
 
     function drawBrillianceEnergy(brillianceEnergy) {
+      let c = brillianceColorPicker.color();
+      c.setAlpha(brillianceAlphaSlider.value());
+      stroke(c);
+      strokeWeight(brillianceStrokeSlider.value());
       if (brillianceEnergy > 30) {
-        stroke(0, 255, 255, 40); // シアン
-        strokeWeight(1);
         let count = floor(map(brillianceEnergy, 30, 255, 20, 100));
         for (let i = 0; i < count; i++) {
           let angle = random(TWO_PI);
@@ -345,9 +413,11 @@
     }
 
     function drawPresenceEnergy(presenceEnergy, frameCount) {
+      let c = presenceColorPicker.color();
+      c.setAlpha(presenceAlphaSlider.value());
+      stroke(c);
+      strokeWeight(presenceStrokeSlider.value());
       if (presenceEnergy > 30) {
-        stroke(0, 0, 255, 40); // 青
-        strokeWeight(map(presenceEnergy, 30, 200, 0.5, 2));
         noFill();
         let sparkCount = 8;
         let maxLength = map(presenceEnergy, 30, 200, 30, 100);
@@ -363,9 +433,11 @@
     }
 
     function drawLowMidEnergy(lowMidEnergy, time) {
+      let c = lowMidColorPicker.color();
+      c.setAlpha(lowMidAlphaSlider.value());
+      stroke(c);
+      strokeWeight(lowMidStrokeSlider.value());
       if (lowMidEnergy > 20) {
-        stroke(128, 0, 128, 50); // 紫
-        strokeWeight(map(lowMidEnergy, 20, 200, 0.5, 2));
         noFill();
         let baseA = map(lowMidEnergy, 20, 200, 80, 220);
         let baseB = map(lowMidEnergy, 20, 200, 60, 180);
@@ -384,9 +456,11 @@
     }
 
     function drawUpperMidEnergy(upperMidEnergy, time, frameCount) {
+      let c = upperMidColorPicker.color();
+      c.setAlpha(upperMidAlphaSlider.value());
+      stroke(c);
+      strokeWeight(upperMidStrokeSlider.value());
       if (upperMidEnergy > 20) {
-        stroke(255, 0, 255, 50); // ピンク
-        strokeWeight(map(upperMidEnergy, 20, 200, 0.3, 1.5));
         noFill();
         let rays = 10 + floor(map(upperMidEnergy, 20, 200, 2, 15));
         let baseLen = map(upperMidEnergy, 20, 200, 120, 300);
