@@ -356,7 +356,7 @@
           let dy = (noise(time + OFFSET + 100) - 0.5) * baseAmount * intensity;
           console.log("OFFSET brillianceEnergy:", dx, dy);
           translate(dx, dy);
-          drawBrillianceEnergy(brillianceEnergy);
+          drawBrillianceEnergy(brillianceEnergy, time, frameCount);
         }
         pop();
       }
@@ -407,7 +407,7 @@
           let dy = (noise(time + OFFSET + 100) - 0.5) * baseAmount * intensity;
           console.log("OFFSET upperMidEnergy:", dx, dy);
           translate(dx, dy);
-          drawUpperMidEnergy(upperMidEnergy, time, frameCount);
+          drawUpperMidEnergy(upperMidEnergy);
         }
         pop();
       }
@@ -470,15 +470,7 @@
         let detail = floor(map(midEnergy, 40, 255, 3, 12));
         // 中心の空洞半径
         let innerRadius = map(midEnergy, 40, 200, 40, 80);
-        // ドットをより外側に配置して中心を避ける
-        for (let i = 0; i < detail; i++) {
-          let angle = random(TWO_PI);
-          // より外側にドットを配置して中心を避ける
-          let r = baseRadius + random(30, 100); // ドット位置を外側に押し出す
-          let x = cos(angle) * r + random(-2, 2); // 少しの揺らぎを追加
-          let y = sin(angle) * r + random(-2, 2);
-          point(x, y);
-        }
+        // ドット描画ロジックは削除
         noFill();
         beginShape();
         for (let i = 0; i < detail + 2; i++) {
@@ -525,16 +517,7 @@
         // 回転: エネルギー依存
         let rot = map(subBassEnergy, 30, 255, 0, PI / 3) + time * 0.2;
         rotate(rot);
-        let radiusBase = map(subBassEnergy, 30, 200, 50, 150);
-        let shakeAmount = map(subBassEnergy, 30, 200, 10, 40);
-        // ellipse中心に揺らぎ追加
-        let cx = (noise(time + 60) - 0.5) * shakeAmount + random(-10, 10);
-        let cy = (noise(time + 70) - 0.5) * shakeAmount + random(-10, 10);
-        let detail = floor(map(subBassEnergy, 30, 255, 1, 4));
-        for (let i = 0; i < detail; i++) {
-          ellipse(cx, cy, radiusBase * 2 - i * 16, radiusBase * 2 - i * 16);
-        }
-
+        // 楕円描画ロジックは削除
         // 成長するドットの輪を追加（音エネルギーに応じて拡大）
         let ringCount = 1 + floor(map(subBassEnergy, 30, 255, 1, 5));
         for (let r = 0; r < ringCount; r++) {
@@ -551,25 +534,30 @@
       }
     }
 
-    function drawBrillianceEnergy(brillianceEnergy) {
+    function drawBrillianceEnergy(brillianceEnergy, time, frameCount) {
       if (brillianceEnergy > 30) {
         let c = brillianceColorPicker.color();
         c.setAlpha(brillianceAlphaSlider.value());
         stroke(c);
         strokeWeight(brillianceStrokeSlider.value());
+        noFill();
         // 回転: エネルギー依存
-        let rot = map(brillianceEnergy, 30, 255, 0, PI * 2) * 0.3;
+        let rot = map(brillianceEnergy, 30, 255, 0, PI) + time * 1.2;
         rotate(rot);
-        let count = floor(map(brillianceEnergy, 30, 255, 20, 100));
-        let detail = floor(map(brillianceEnergy, 30, 255, 1, 4));
+        let rays = 10 + floor(map(brillianceEnergy, 30, 200, 2, 15));
+        let baseLen = map(brillianceEnergy, 30, 200, 120, 300);
+        let detail = floor(map(brillianceEnergy, 30, 255, 1, 3));
+        let innerRadius = map(brillianceEnergy, 30, 200, 40, 80);
         for (let d = 0; d < detail; d++) {
-          for (let i = 0; i < count; i++) {
-            let angle = random(TWO_PI);
-            // radiusの起点に揺らぎを加える
-            let radius = random(200, 350) + random(-30, 30);
-            let x = radius * cos(angle);
-            let y = radius * sin(angle);
-            point(x, y);
+          for (let i = 0; i < rays; i++) {
+            let angle = (TWO_PI / rays) * i + time * 1.2 + d * 0.2;
+            let len = baseLen + sin(time * 2 + i + d) * 24 + random(-6, 6);
+            // 中央に空白を空けるため始点を内側の円周上に固定
+            let x1 = cos(angle) * innerRadius;
+            let y1 = sin(angle) * innerRadius;
+            let x2 = cos(angle) * len;
+            let y2 = sin(angle) * len;
+            line(x1, y1, x2, y2);
           }
         }
       }
@@ -632,33 +620,27 @@
       }
     }
 
-    function drawUpperMidEnergy(upperMidEnergy, time, frameCount) {
-      if (upperMidEnergy > 20) {
+    function drawUpperMidEnergy(upperMidEnergy) {
+      if (upperMidEnergy > 30) {
         let c = upperMidColorPicker.color();
         c.setAlpha(upperMidAlphaSlider.value());
         stroke(c);
         strokeWeight(upperMidStrokeSlider.value());
-        noFill();
         // 回転: エネルギー依存
-        let rot = map(upperMidEnergy, 20, 255, 0, PI) + time * 1.2;
+        let rot = map(upperMidEnergy, 30, 255, 0, PI * 2) * 0.3;
         rotate(rot);
-        let rays = 10 + floor(map(upperMidEnergy, 20, 200, 2, 15));
-        let baseLen = map(upperMidEnergy, 20, 200, 120, 300);
-        let detail = floor(map(upperMidEnergy, 20, 255, 1, 3));
-        let innerRadius = map(upperMidEnergy, 20, 200, 40, 80); // より大きな空洞
+        let count = floor(map(upperMidEnergy, 30, 255, 20, 100));
+        let detail = floor(map(upperMidEnergy, 30, 255, 1, 4));
         for (let d = 0; d < detail; d++) {
-          for (let i = 0; i < rays; i++) {
-            let angle = (TWO_PI / rays) * i + time * 1.2 + d * 0.2;
-            let len = baseLen + sin(time * 2 + i + d) * 24 + random(-6, 6);
-            // 中央に空白を空けるため始点を内側の円周上に固定
-            let x1 = cos(angle) * innerRadius;
-            let y1 = sin(angle) * innerRadius;
-            let x2 = cos(angle) * len;
-            let y2 = sin(angle) * len;
-            line(x1, y1, x2, y2);
+          for (let i = 0; i < count; i++) {
+            let angle = random(TWO_PI);
+            // radiusの起点に揺らぎを加える
+            let radius = random(200, 350) + random(-30, 30);
+            let x = radius * cos(angle);
+            let y = radius * sin(angle);
+            point(x, y);
           }
         }
-        // 中心の円の描画処理は削除し、中央に空白を空ける
       }
     }
   </script>
