@@ -36,6 +36,10 @@
   <script>
     let fft, mic;
 
+    // --- UI要素のグローバル変数宣言 ---
+    let lowColorPicker, lowStrokeSlider;
+    let lowAlphaSlider;
+
     // 変更点1: マイクを使用するかどうかの状態を管理する変数
     let useMic = false;
 
@@ -50,6 +54,14 @@
       background(0);
 
       fft = new p5.FFT(0.9, 512); // FFTオブジェクトを作成。0.9はスムージング係数、512はFFTのバンド数（解析精度）
+
+      // --- UI要素の初期化 ---
+      lowColorPicker = createColorPicker('#ff0000');
+      lowColorPicker.position(10, 10);
+      lowStrokeSlider = createSlider(0.1, 5, 1, 0.1);
+      lowStrokeSlider.position(10, 40);
+      lowAlphaSlider = createSlider(0, 255, 40, 1);
+      lowAlphaSlider.position(10, 70);
 
       // 変更点: sound.mp3の読み込みロジックを削除し、マイク入力に切り替え
       useMic = true;
@@ -244,10 +256,13 @@
 
     // --- 各音域の描画処理 ---
     function drawLowEnergy(lowEnergy, frameCount, time) {
+      // --- UIで指定した色・太さを適用 ---
+      let c = lowColorPicker.color();
+      c.setAlpha(lowAlphaSlider.value());
+      stroke(c);
+      strokeWeight(lowStrokeSlider.value());
       if (lowEnergy > 50) {
-        stroke(255, 0, 0, 40); // 赤
         for (let j = 0; j < 3; j++) {
-          strokeWeight(map(lowEnergy, 50, 200, 0.3, 1.2));
           noFill();
           beginShape();
           let noiseFactor = map(lowEnergy, 50, 200, 20, 100);
