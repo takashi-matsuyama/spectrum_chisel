@@ -35,6 +35,7 @@
 
   <script>
     let lowLayer, midLayer, highLayer;
+    let subBassLayer, presenceLayer, brillianceLayer;
     let lowCenter, midCenter, highCenter;
     let fft, mic;
 
@@ -52,8 +53,11 @@
       lowLayer = createGraphics(800, 800, SVG);
       midLayer = createGraphics(800, 800, SVG);
       highLayer = createGraphics(800, 800, SVG);
+      subBassLayer = createGraphics(800, 800, SVG);
+      presenceLayer = createGraphics(800, 800, SVG);
+      brillianceLayer = createGraphics(800, 800, SVG);
 
-      [lowLayer, midLayer, highLayer].forEach(layer => {
+      [lowLayer, midLayer, highLayer, subBassLayer, presenceLayer, brillianceLayer].forEach(layer => {
         layer.strokeCap(ROUND);
         layer.translate(width / 2, height / 2);
       });
@@ -113,6 +117,13 @@
       let lowEnergy = fft.getEnergy("bass");   // 低音域（約20Hz～140Hz）
       let midEnergy = fft.getEnergy("mid");    // 中音域（約140Hz～4000Hz）
       let highEnergy = fft.getEnergy("treble"); // 高音域（約4000Hz～20000Hz）
+
+      // 追加: 5つの周波数帯のエネルギー取得
+      let subBassEnergy = fft.getEnergy(20, 60);
+      let lowMidEnergy = fft.getEnergy(140, 400);
+      let upperMidEnergy = fft.getEnergy(1000, 3000);
+      let presenceEnergy = fft.getEnergy(3000, 6000);
+      let brillianceEnergy = fft.getEnergy(6000, 16000);
 
       // frameCountは描画フレーム数の累積。時間経過に応じた変化を作るために使用
       // 0.005の係数は変化速度を調整。小さいほどゆっくり動く
@@ -220,11 +231,58 @@
         }
       }
 
+      // --- subBass: 大きく揺れる円（震え） ---
+      if (subBassEnergy > 30) {
+        subBassLayer.stroke(255, 150);
+        subBassLayer.strokeWeight(map(subBassEnergy, 30, 200, 1, 4));
+        subBassLayer.noFill();
+        let radiusBase = map(subBassEnergy, 30, 200, 50, 150);
+        let shakeAmount = map(subBassEnergy, 30, 200, 10, 40);
+        // 揺らぎを加えた中心座標
+        let cx = (noise(time + 60) - 0.5) * shakeAmount;
+        let cy = (noise(time + 70) - 0.5) * shakeAmount;
+        subBassLayer.ellipse(cx, cy, radiusBase * 2, radiusBase * 2);
+      }
+
+      // --- brilliance: 細かい光の粒（点群） ---
+      if (brillianceEnergy > 30) {
+        brillianceLayer.stroke(255, 200);
+        brillianceLayer.strokeWeight(1);
+        let count = floor(map(brillianceEnergy, 30, 255, 20, 100));
+        for (let i = 0; i < count; i++) {
+          let angle = random(TWO_PI);
+          let radius = random(200, 350);
+          let x = radius * cos(angle);
+          let y = radius * sin(angle);
+          brillianceLayer.point(x, y);
+        }
+      }
+
+      // --- presence: スパーク風の線 ---
+      if (presenceEnergy > 30) {
+        presenceLayer.stroke(255, 180);
+        presenceLayer.strokeWeight(map(presenceEnergy, 30, 200, 0.5, 2));
+        presenceLayer.noFill();
+        let sparkCount = 8;
+        let maxLength = map(presenceEnergy, 30, 200, 30, 100);
+        for (let i = 0; i < sparkCount; i++) {
+          let angle = (TWO_PI / sparkCount) * i + frameCount * 0.1;
+          let x1 = cos(angle) * 100;
+          let y1 = sin(angle) * 100;
+          let x2 = x1 + cos(angle) * random(maxLength * 0.5, maxLength);
+          let y2 = y1 + sin(angle) * random(maxLength * 0.5, maxLength);
+          presenceLayer.line(x1, y1, x2, y2);
+        }
+      }
+
       // 背景を黒でクリアし、各レイヤーをそれぞれの中心位置に描画
       background(0);
       image(lowLayer, lowCenter.x, lowCenter.y);
-      image(midLayer, midCenter.y, midCenter.x);
+      image(midLayer, midCenter.x, midCenter.y);
       image(highLayer, highCenter.x, highCenter.y);
+      image(subBassLayer, lowCenter.x, lowCenter.y);
+      image(presenceLayer, midCenter.x, midCenter.y);
+      image(brillianceLayer, highCenter.x, highCenter.y);
     }
 
     function keyPressed() {
