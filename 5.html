@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Sound to SVG - Plotter/Print Friendly</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/addons/p5.sound.min.js"></script>
+  <script src="https://unpkg.com/p5.js-svg@1.6.0"></script>
+</head>
+
+<body>
+  <script>
+    let mic, fft;
+
+    function setup() {
+      createCanvas(800, 800, SVG);
+      background(255);
+
+      // 点の先端を丸くする設定
+      strokeCap(ROUND);
+
+      mic = new p5.AudioIn();
+      mic.start();
+      fft = new p5.FFT(0.9, 512);
+      fft.setInput(mic);
+
+      frameRate(10);
+    }
+
+    function draw() {
+      if (!mic.enabled || !fft) return;
+
+      translate(width / 2, height / 2);
+      let spectrum = fft.analyze();
+      if (spectrum.reduce((a, b) => a + b, 0) < 100) return;
+
+      let lowEnergy = fft.getEnergy("bass");
+      let midEnergy = fft.getEnergy("mid");
+      let highEnergy = fft.getEnergy("treble");
+
+      // 低音：太いノイズ輪郭
+      if (lowEnergy > 50) {
+        stroke(0);
+        strokeWeight(map(lowEnergy, 0, 255, 0.5, 2));
+        noFill();
+        beginShape();
+        let noiseFactor = map(lowEnergy, 0, 255, 30, 120);
+        for (let i = 0; i < TWO_PI; i += 0.05) {
+          let r = map(lowEnergy, 0, 255, 80, 280) + noise(i + frameCount * 0.05) * noiseFactor;
+          let x = r * cos(i);
+          let y = r * sin(i);
+          vertex(x, y);
+        }
+        endShape(CLOSE);
+      }
+
+      // 中音：周囲にばらまかれた点群（プロッターフレンドリー）
+      if (midEnergy > 50) {
+        stroke(0);
+        strokeWeight(0.4);
+        let radius = map(midEnergy, 0, 255, 100, 350);
+        for (let i = 0; i < 80; i++) {
+          let angle = random(TWO_PI);
+          let offset = map(midEnergy, 0, 255, -10, 10);
+          let x = radius * cos(angle) + random(offset);
+          let y = radius * sin(angle) + random(offset);
+          point(x, y);
+        }
+      }
+
+      // 高音：細い線の花火的広がり
+      if (highEnergy > 50) {
+        stroke(0);
+        strokeWeight(0.2);
+        noFill();
+        for (let i = 0; i < 30; i++) {
+          let angle1 = random(TWO_PI);
+          let angle2 = angle1 + random(0.1, 0.3);
+          let r1 = map(highEnergy, 0, 255, 300, 400);
+          let r2 = map(highEnergy, 0, 255, 350, 450);
+          let x1 = r1 * cos(angle1);
+          let y1 = r1 * sin(angle1);
+          let x2 = r2 * cos(angle2);
+          let y2 = r2 * sin(angle2);
+          line(x1, y1, x2, y2);
+        }
+      }
+    }
+
+    function keyPressed() {
+      if (key === 's' || key === 'S') {
+        save("plotter_friendly_art.svg");
+        noLoop();
+      }
+    }
+  </script>
+</body>
+
+</html>
