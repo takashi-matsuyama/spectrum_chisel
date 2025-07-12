@@ -36,7 +36,7 @@
   <script>
     let lowLayer, midLayer, highLayer;
     let lowCenter, midCenter, highCenter;
-    let sound, fft, mic;
+    let fft, mic;
 
     // 変更点1: マイクを使用するかどうかの状態を管理する変数
     let useMic = false;
@@ -66,32 +66,22 @@
 
       fft = new p5.FFT(0.9, 512); // FFTオブジェクトを作成。0.9はスムージング係数、512はFFTのバンド数（解析精度）
 
-      // 変更点2: setup内でloadSoundを呼び出し、成功失敗で処理を分岐
-      loadSound(
-        "sound.mp3",
-        // 成功時の処理
-        (loadedSound) => {
-          sound = loadedSound;
-          console.log("sound.mp3 loaded successfully.");
-          sound.loop(() => {
-            fft.setInput(sound); // 音声ファイルをFFTの入力に設定
-            console.log("FFT input set to sound.");
-          });
-        },
-        // 失敗時の処理
-        () => {
-          console.warn("Could not find sound.mp3. Switching to microphone input.");
-          useMic = true; // マイク使用フラグを立てる
-          mic = new p5.AudioIn();
-          mic.start(() => {
-            fft.setInput(mic); // マイク入力をFFTの入力に設定
-            console.log("FFT input set to mic.");
-          });
-          fft.setInput(mic);
-        }
-      );
+      // 変更点: sound.mp3の読み込みロジックを削除し、マイク入力に切り替え
+      useMic = true;
+      initMic();
 
       frameRate(10); // フレームレートを10fpsに設定。描画負荷軽減や視覚的なスムーズさの調整に影響
+    }
+
+    // マイク初期化関数
+    function initMic() {
+      useMic = true;
+      mic = new p5.AudioIn();
+      mic.start(() => {
+        fft.setInput(mic);
+        console.log("FFT input set to mic.");
+      });
+      fft.setInput(mic);
     }
 
     function draw() {
@@ -100,7 +90,8 @@
         if (!mic || !mic.enabled) return; // マイクが準備できていなければ処理を中断
         console.log("Using microphone input.");
       } else {
-        if (!sound) return; // 音声ファイルが読み込まれていなければ処理を中断
+        // 将来的な拡張のために音声ファイル入力の条件を残している
+        // 現状はマイク入力のみなのでこの分岐は実質使われない
         console.log("Using sound input.");
       }
       if (!fft) return; // FFTが準備できていなければ処理を中断
@@ -114,6 +105,7 @@
 
       // 音の総エネルギーが閾値未満なら描画しない（ノイズ除去や無音時の無駄な描画防止）
       // マイク入力は感度が高いため閾値を低く設定
+      // 将来的な拡張のために条件を残している
       if (totalEnergy < (useMic ? 100 : 500)) return;
 
       // fft.getEnergy("bass"), "mid", "treble"はそれぞれ低音域、中音域、高音域のエネルギーを取得
@@ -147,9 +139,9 @@
       if (lowEnergy > 50) {
         for (let j = 0; j < 3; j++) {
           lowLayer.stroke(255, 10); // 白色で透明度10の線を設定。透明度が低いほど薄くなる
-          // strokeWeightは線の太さ。highEnergyに応じて0.2～0.8の範囲で変化
+          // strokeWeightは線の太さ。lowEnergyに応じて0.2～0.8の範囲で変化
           // 太さが変わることで高音の影響を視覚化
-          lowLayer.strokeWeight(map(highEnergy, 50, 200, 0.2, 0.8));
+          lowLayer.strokeWeight(map(lowEnergy, 50, 200, 0.2, 0.8));
           lowLayer.noFill(); // 塗りつぶしなし
           lowLayer.beginShape(); // 複雑な形状の描画開始
 
@@ -214,8 +206,8 @@
       // highEnergyが50を超えた場合のみ描画
       if (highEnergy > 50) {
         highLayer.stroke(255, 40); // 白色でやや透明度高めの線
-        // strokeWeightはlowEnergyに応じて0.3～1.2の範囲で変化。線の太さで低音の影響を表現
-        highLayer.strokeWeight(map(lowEnergy, 50, 200, 0.3, 1.2));
+        // strokeWeightはhighEnergyに応じて0.3～1.2の範囲で変化。線の太さで低音の影響を表現
+        highLayer.strokeWeight(map(highEnergy, 50, 200, 0.3, 1.2));
         highLayer.noFill();
 
         // 3本のランダムな線を描画。x,y座標はランダムで配置し、動きのある効果を演出
