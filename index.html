@@ -61,7 +61,30 @@
       // preloadからloadSoundを外すため空にする
     }
 
+    function generateDistinctColors(count) {
+      colorMode(HSB, 360, 100, 100);
+      const colors = [];
+      let whiteLikeCount = 0;
+      let attempts = 0;
+      while (colors.length < count && attempts < 100) {
+        let hue = (colors.length * 360 / count + random(-10, 10) + 360) % 360;
+        let sat = random(60, 100);
+        let bri = random(70, 100);
+        if (sat > 95 && bri > 95) {
+          if (whiteLikeCount >= 1) {
+            attempts++;
+            continue; // 白っぽい色が2つ目以上ならスキップ
+          }
+          whiteLikeCount++;
+        }
+        colors.push(color(hue, sat, bri));
+        attempts++;
+      }
+      return colors;
+    }
+
     function setup() {
+      colorMode(HSB, 360, 100, 100); // HSBカラーモードを一度だけ設定
       let myCanvas = createCanvas(800, 800, SVG);
       myCanvas.parent('canvas-container');
 
@@ -82,9 +105,12 @@
       uiPanel.style('font-family', 'sans-serif');
       uiElements.push(uiPanel);
 
+      // ランダム色を取得
+      let randomColors = generateDistinctColors(8);
+
       // --- UI要素の初期化 ---
       createDiv('Low Energy').parent(uiPanel).style('color', 'white');
-      lowColorPicker = createColorPicker('#ff0000').parent(uiPanel);
+      lowColorPicker = createColorPicker(randomColors[0]).parent(uiPanel);
       uiElements.push(lowColorPicker);
       lowStrokeSlider = createSlider(0.1, 5, 1, 0.1).parent(uiPanel);
       uiElements.push(lowStrokeSlider);
@@ -92,7 +118,7 @@
       uiElements.push(lowAlphaSlider);
 
       createDiv('Mid Energy').parent(uiPanel).style('color', 'white');
-      midColorPicker = createColorPicker('#ffa500').parent(uiPanel);
+      midColorPicker = createColorPicker(randomColors[1]).parent(uiPanel);
       uiElements.push(midColorPicker);
       midStrokeSlider = createSlider(0.1, 5, 1, 0.1).parent(uiPanel);
       uiElements.push(midStrokeSlider);
@@ -100,7 +126,7 @@
       uiElements.push(midAlphaSlider);
 
       createDiv('High Energy').parent(uiPanel).style('color', 'white');
-      highColorPicker = createColorPicker('#ffff00').parent(uiPanel);
+      highColorPicker = createColorPicker(randomColors[2]).parent(uiPanel);
       uiElements.push(highColorPicker);
       highStrokeSlider = createSlider(0.1, 5, 1, 0.1).parent(uiPanel);
       uiElements.push(highStrokeSlider);
@@ -108,7 +134,7 @@
       uiElements.push(highAlphaSlider);
 
       createDiv('SubBass Energy').parent(uiPanel).style('color', 'white');
-      subBassColorPicker = createColorPicker('#00ff00').parent(uiPanel);
+      subBassColorPicker = createColorPicker(randomColors[3]).parent(uiPanel);
       uiElements.push(subBassColorPicker);
       subBassStrokeSlider = createSlider(0.1, 5, 1, 0.1).parent(uiPanel);
       uiElements.push(subBassStrokeSlider);
@@ -116,7 +142,7 @@
       uiElements.push(subBassAlphaSlider);
 
       createDiv('Brilliance Energy').parent(uiPanel).style('color', 'white');
-      brillianceColorPicker = createColorPicker('#00ffff').parent(uiPanel);
+      brillianceColorPicker = createColorPicker(randomColors[4]).parent(uiPanel);
       uiElements.push(brillianceColorPicker);
       brillianceStrokeSlider = createSlider(0.1, 5, 1, 0.1).parent(uiPanel);
       uiElements.push(brillianceStrokeSlider);
@@ -124,7 +150,7 @@
       uiElements.push(brillianceAlphaSlider);
 
       createDiv('Presence Energy').parent(uiPanel).style('color', 'white');
-      presenceColorPicker = createColorPicker('#0000ff').parent(uiPanel);
+      presenceColorPicker = createColorPicker(randomColors[5]).parent(uiPanel);
       uiElements.push(presenceColorPicker);
       presenceStrokeSlider = createSlider(0.1, 5, 1, 0.1).parent(uiPanel);
       uiElements.push(presenceStrokeSlider);
@@ -132,7 +158,7 @@
       uiElements.push(presenceAlphaSlider);
 
       createDiv('LowMid Energy').parent(uiPanel).style('color', 'white');
-      lowMidColorPicker = createColorPicker('#800080').parent(uiPanel);
+      lowMidColorPicker = createColorPicker(randomColors[6]).parent(uiPanel);
       uiElements.push(lowMidColorPicker);
       lowMidStrokeSlider = createSlider(0.1, 5, 1, 0.1).parent(uiPanel);
       uiElements.push(lowMidStrokeSlider);
@@ -140,7 +166,7 @@
       uiElements.push(lowMidAlphaSlider);
 
       createDiv('UpperMid Energy').parent(uiPanel).style('color', 'white');
-      upperMidColorPicker = createColorPicker('#ff00ff').parent(uiPanel);
+      upperMidColorPicker = createColorPicker(randomColors[7]).parent(uiPanel);
       uiElements.push(upperMidColorPicker);
       upperMidStrokeSlider = createSlider(0.1, 5, 1, 0.1).parent(uiPanel);
       uiElements.push(upperMidStrokeSlider);
