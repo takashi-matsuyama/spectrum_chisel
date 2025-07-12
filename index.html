@@ -108,103 +108,112 @@
       // ランダム色を取得
       let randomColors = generateDistinctColors(8);
 
-      // --- UI要素の初期化 ---
-      createDiv('Low Energy').parent(uiPanel).style('color', 'white');
-      lowColorPicker = createColorPicker(randomColors[0]).parent(uiPanel);
-      uiElements.push(lowColorPicker);
-      lowStrokeSlider = createSlider(0.1, 5, 1, 0.1).parent(uiPanel);
-      uiElements.push(lowStrokeSlider);
-      lowAlphaSlider = createSlider(0, 255, 40, 1).parent(uiPanel);
-      uiElements.push(lowAlphaSlider);
-
-      createDiv('Mid Energy').parent(uiPanel).style('color', 'white');
-      midColorPicker = createColorPicker(randomColors[1]).parent(uiPanel);
-      uiElements.push(midColorPicker);
-      midStrokeSlider = createSlider(0.1, 5, 1, 0.1).parent(uiPanel);
-      uiElements.push(midStrokeSlider);
-      midAlphaSlider = createSlider(0, 255, 50, 1).parent(uiPanel);
-      uiElements.push(midAlphaSlider);
-
-      createDiv('High Energy').parent(uiPanel).style('color', 'white');
-      highColorPicker = createColorPicker(randomColors[2]).parent(uiPanel);
-      uiElements.push(highColorPicker);
-      highStrokeSlider = createSlider(0.1, 5, 1, 0.1).parent(uiPanel);
-      uiElements.push(highStrokeSlider);
-      highAlphaSlider = createSlider(0, 255, 50, 1).parent(uiPanel);
-      uiElements.push(highAlphaSlider);
-
+      // --- UI要素の初期化 (低い音域から高い音域へ順番変更) ---
+      // 1. SubBass
       createDiv('SubBass Energy').parent(uiPanel).style('color', 'white');
       subBassColorPicker = createColorPicker(randomColors[3]).parent(uiPanel);
       uiElements.push(subBassColorPicker);
       subBassStrokeSlider = createSlider(0.1, 5, 1, 0.1).parent(uiPanel);
       uiElements.push(subBassStrokeSlider);
-      subBassAlphaSlider = createSlider(0, 255, 30, 1).parent(uiPanel);
+      subBassAlphaSlider = createSlider(0, 255, 20, 1).parent(uiPanel);
       uiElements.push(subBassAlphaSlider);
 
-      createDiv('Brilliance Energy').parent(uiPanel).style('color', 'white');
-      brillianceColorPicker = createColorPicker(randomColors[4]).parent(uiPanel);
-      uiElements.push(brillianceColorPicker);
-      brillianceStrokeSlider = createSlider(0.1, 5, 1, 0.1).parent(uiPanel);
-      uiElements.push(brillianceStrokeSlider);
-      brillianceAlphaSlider = createSlider(0, 255, 40, 1).parent(uiPanel);
-      uiElements.push(brillianceAlphaSlider);
+      // 2. Low
+      createDiv('Low Energy').parent(uiPanel).style('color', 'white');
+      lowColorPicker = createColorPicker(randomColors[0]).parent(uiPanel);
+      uiElements.push(lowColorPicker);
+      lowStrokeSlider = createSlider(0.1, 5, 1, 0.1).parent(uiPanel);
+      uiElements.push(lowStrokeSlider);
+      lowAlphaSlider = createSlider(0, 255, 20, 1).parent(uiPanel);
+      uiElements.push(lowAlphaSlider);
 
-      createDiv('Presence Energy').parent(uiPanel).style('color', 'white');
-      presenceColorPicker = createColorPicker(randomColors[5]).parent(uiPanel);
-      uiElements.push(presenceColorPicker);
-      presenceStrokeSlider = createSlider(0.1, 5, 1, 0.1).parent(uiPanel);
-      uiElements.push(presenceStrokeSlider);
-      presenceAlphaSlider = createSlider(0, 255, 40, 1).parent(uiPanel);
-      uiElements.push(presenceAlphaSlider);
-
+      // 3. LowMid
       createDiv('LowMid Energy').parent(uiPanel).style('color', 'white');
       lowMidColorPicker = createColorPicker(randomColors[6]).parent(uiPanel);
       uiElements.push(lowMidColorPicker);
       lowMidStrokeSlider = createSlider(0.1, 5, 1, 0.1).parent(uiPanel);
       uiElements.push(lowMidStrokeSlider);
-      lowMidAlphaSlider = createSlider(0, 255, 50, 1).parent(uiPanel);
+      lowMidAlphaSlider = createSlider(0, 255, 20, 1).parent(uiPanel);
       uiElements.push(lowMidAlphaSlider);
 
+      // 4. Mid
+      createDiv('Mid Energy').parent(uiPanel).style('color', 'white');
+      midColorPicker = createColorPicker(randomColors[1]).parent(uiPanel);
+      uiElements.push(midColorPicker);
+      midStrokeSlider = createSlider(0.1, 5, 1, 0.1).parent(uiPanel);
+      uiElements.push(midStrokeSlider);
+      midAlphaSlider = createSlider(0, 255, 20, 1).parent(uiPanel);
+      uiElements.push(midAlphaSlider);
+
+      // 5. UpperMid
       createDiv('UpperMid Energy').parent(uiPanel).style('color', 'white');
       upperMidColorPicker = createColorPicker(randomColors[7]).parent(uiPanel);
       uiElements.push(upperMidColorPicker);
       upperMidStrokeSlider = createSlider(0.1, 5, 1, 0.1).parent(uiPanel);
       uiElements.push(upperMidStrokeSlider);
-      upperMidAlphaSlider = createSlider(0, 255, 50, 1).parent(uiPanel);
+      upperMidAlphaSlider = createSlider(0, 255, 20, 1).parent(uiPanel);
       uiElements.push(upperMidAlphaSlider);
 
-      // 音域ごとの描画ON/OFFチェックボックスとラベル
-      createDiv('Low').parent(uiPanel).style('color', 'white');
-      lowEnabledCheckbox = createCheckbox('Draw', true).parent(uiPanel);
-      uiElements.push(lowEnabledCheckbox);
+      // 6. Presence
+      createDiv('Presence Energy').parent(uiPanel).style('color', 'white');
+      presenceColorPicker = createColorPicker(randomColors[5]).parent(uiPanel);
+      uiElements.push(presenceColorPicker);
+      presenceStrokeSlider = createSlider(0.1, 5, 1, 0.1).parent(uiPanel);
+      uiElements.push(presenceStrokeSlider);
+      presenceAlphaSlider = createSlider(0, 255, 20, 1).parent(uiPanel);
+      uiElements.push(presenceAlphaSlider);
 
-      createDiv('Mid').parent(uiPanel).style('color', 'white');
-      midEnabledCheckbox = createCheckbox('Draw', true).parent(uiPanel);
-      uiElements.push(midEnabledCheckbox);
+      // 7. Brilliance
+      createDiv('Brilliance Energy').parent(uiPanel).style('color', 'white');
+      brillianceColorPicker = createColorPicker(randomColors[4]).parent(uiPanel);
+      uiElements.push(brillianceColorPicker);
+      brillianceStrokeSlider = createSlider(0.1, 5, 1, 0.1).parent(uiPanel);
+      uiElements.push(brillianceStrokeSlider);
+      brillianceAlphaSlider = createSlider(0, 255, 20, 1).parent(uiPanel);
+      uiElements.push(brillianceAlphaSlider);
 
-      createDiv('High').parent(uiPanel).style('color', 'white');
-      highEnabledCheckbox = createCheckbox('Draw', true).parent(uiPanel);
-      uiElements.push(highEnabledCheckbox);
+      // 8. High
+      createDiv('High Energy').parent(uiPanel).style('color', 'white');
+      highColorPicker = createColorPicker(randomColors[2]).parent(uiPanel);
+      uiElements.push(highColorPicker);
+      highStrokeSlider = createSlider(0.1, 5, 1, 0.1).parent(uiPanel);
+      uiElements.push(highStrokeSlider);
+      highAlphaSlider = createSlider(0, 255, 20, 1).parent(uiPanel);
+      uiElements.push(highAlphaSlider);
 
+      // 音域ごとの描画ON/OFFチェックボックスとラベル（低音域から高音域へ）
+      // 1. SubBass
       createDiv('SubBass').parent(uiPanel).style('color', 'white');
       subBassEnabledCheckbox = createCheckbox('Draw', true).parent(uiPanel);
       uiElements.push(subBassEnabledCheckbox);
-
-      createDiv('Brilliance').parent(uiPanel).style('color', 'white');
-      brillianceEnabledCheckbox = createCheckbox('Draw', true).parent(uiPanel);
-      uiElements.push(brillianceEnabledCheckbox);
-
-      createDiv('Presence').parent(uiPanel).style('color', 'white');
-      presenceEnabledCheckbox = createCheckbox('Draw', true).parent(uiPanel);
-      uiElements.push(presenceEnabledCheckbox);
-
+      // 2. Low
+      createDiv('Low').parent(uiPanel).style('color', 'white');
+      lowEnabledCheckbox = createCheckbox('Draw', true).parent(uiPanel);
+      uiElements.push(lowEnabledCheckbox);
+      // 3. LowMid
       createDiv('LowMid').parent(uiPanel).style('color', 'white');
       lowMidEnabledCheckbox = createCheckbox('Draw', true).parent(uiPanel);
       uiElements.push(lowMidEnabledCheckbox);
-
+      // 4. Mid
+      createDiv('Mid').parent(uiPanel).style('color', 'white');
+      midEnabledCheckbox = createCheckbox('Draw', true).parent(uiPanel);
+      uiElements.push(midEnabledCheckbox);
+      // 5. UpperMid
       createDiv('UpperMid').parent(uiPanel).style('color', 'white');
       upperMidEnabledCheckbox = createCheckbox('Draw', true).parent(uiPanel);
       uiElements.push(upperMidEnabledCheckbox);
+      // 6. Presence
+      createDiv('Presence').parent(uiPanel).style('color', 'white');
+      presenceEnabledCheckbox = createCheckbox('Draw', true).parent(uiPanel);
+      uiElements.push(presenceEnabledCheckbox);
+      // 7. Brilliance
+      createDiv('Brilliance').parent(uiPanel).style('color', 'white');
+      brillianceEnabledCheckbox = createCheckbox('Draw', true).parent(uiPanel);
+      uiElements.push(brillianceEnabledCheckbox);
+      // 8. High
+      createDiv('High').parent(uiPanel).style('color', 'white');
+      highEnabledCheckbox = createCheckbox('Draw', true).parent(uiPanel);
+      uiElements.push(highEnabledCheckbox);
 
       // 変更点: sound.mp3の読み込みロジックを削除し、マイク入力に切り替え
       useMic = true;
