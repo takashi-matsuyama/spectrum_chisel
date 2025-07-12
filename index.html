@@ -634,6 +634,11 @@
             line(x1, y1, x2, y2);
           }
         }
+        // 中心の円を描画（見た目のまとまり感を追加）
+        fill(c);
+        noStroke();
+        let centerRadius = map(upperMidEnergy, 20, 200, 8, 24);
+        ellipse(0, 0, centerRadius * 2, centerRadius * 2);
       }
     }
   </script>
