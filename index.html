@@ -576,12 +576,13 @@
         let sparkCount = floor(map(presenceEnergy, 30, 255, 4, 16));
         let maxLength = map(presenceEnergy, 30, 200, 30, 100);
         let detail = floor(map(presenceEnergy, 30, 255, 1, 3));
+        let minRadius = 40;
         for (let d = 0; d < detail; d++) {
           for (let i = 0; i < sparkCount; i++) {
             let angle = (TWO_PI / sparkCount) * i + frameCount * 0.1 + d * 0.13;
-            // 揺らぎを加える
-            let x1 = cos(angle) * random(2, 20);
-            let y1 = sin(angle) * random(2, 20);
+            // 揺らぎを加えつつ、中心にminRadius以上の空洞を確保
+            let x1 = cos(angle) * random(minRadius, minRadius + 20);
+            let y1 = sin(angle) * random(minRadius, minRadius + 20);
             let x2 = x1 + cos(angle) * random(maxLength * 0.5, maxLength);
             let y2 = y1 + sin(angle) * random(maxLength * 0.5, maxLength);
             line(x1, y1, x2, y2);
