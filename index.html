@@ -468,13 +468,16 @@
         rotate(rot);
         let baseRadius = map(midEnergy, 50, 200, 90, 300);
         let detail = floor(map(midEnergy, 40, 255, 3, 12));
+        // 中心の空洞半径
+        let innerRadius = map(midEnergy, 40, 200, 40, 80);
+        // ドットをより外側に配置して中心を避ける
         for (let i = 0; i < detail; i++) {
           let angle = random(TWO_PI);
-          // 始点の揺らぎを追加
-          let r = baseRadius + random(-20, 20);
-          let x = (random(2, 20)) * cos(angle);
-          let y = (random(2, 20)) * sin(angle);
-          point(x + (r - baseRadius) * cos(angle), y + (r - baseRadius) * sin(angle));
+          // より外側にドットを配置して中心を避ける
+          let r = baseRadius + random(30, 100); // ドット位置を外側に押し出す
+          let x = cos(angle) * r + random(-2, 2); // 少しの揺らぎを追加
+          let y = sin(angle) * r + random(-2, 2);
+          point(x, y);
         }
         noFill();
         beginShape();
@@ -530,6 +533,20 @@
         let detail = floor(map(subBassEnergy, 30, 255, 1, 4));
         for (let i = 0; i < detail; i++) {
           ellipse(cx, cy, radiusBase * 2 - i * 16, radiusBase * 2 - i * 16);
+        }
+
+        // 成長するドットの輪を追加（音エネルギーに応じて拡大）
+        let ringCount = 1 + floor(map(subBassEnergy, 30, 255, 1, 5));
+        for (let r = 0; r < ringCount; r++) {
+          let radius = map(subBassEnergy, 30, 255, 40, 160) + r * 8;
+          let dotCount = floor(TWO_PI * radius / 12);
+          for (let i = 0; i < dotCount; i++) {
+            let angle = (TWO_PI / dotCount) * i;
+            let x = cos(angle) * radius;
+            let y = sin(angle) * radius;
+            strokeWeight(random(0.5, 1.2));
+            point(x, y);
+          }
         }
       }
     }
