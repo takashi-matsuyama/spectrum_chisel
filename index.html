@@ -536,7 +536,8 @@
         for (let d = 0; d < detail; d++) {
           for (let i = 0; i < count; i++) {
             let angle = random(TWO_PI);
-            let radius = random(200, 350);
+            // radiusの起点に揺らぎを加える
+            let radius = random(200, 350) + random(2, 20);
             let x = radius * cos(angle);
             let y = radius * sin(angle);
             point(x, y);
@@ -561,8 +562,9 @@
         for (let d = 0; d < detail; d++) {
           for (let i = 0; i < sparkCount; i++) {
             let angle = (TWO_PI / sparkCount) * i + frameCount * 0.1 + d * 0.13;
-            let x1 = cos(angle) * 100;
-            let y1 = sin(angle) * 100;
+            // 揺らぎを加える
+            let x1 = cos(angle) * random(2, 20);
+            let y1 = sin(angle) * random(2, 20);
             let x2 = x1 + cos(angle) * random(maxLength * 0.5, maxLength);
             let y2 = y1 + sin(angle) * random(maxLength * 0.5, maxLength);
             line(x1, y1, x2, y2);
@@ -617,8 +619,9 @@
           for (let i = 0; i < rays; i++) {
             let angle = (TWO_PI / rays) * i + time * 1.2 + d * 0.2;
             let len = baseLen + sin(time * 2 + i + d) * 24 + random(-6, 6);
-            let x1 = cos(angle) * 30;
-            let y1 = sin(angle) * 30;
+            // 揺らぎを加える
+            let x1 = cos(angle) * random(2, 20);
+            let y1 = sin(angle) * random(2, 20);
             let x2 = cos(angle) * len;
             let y2 = sin(angle) * len;
             line(x1, y1, x2, y2);
