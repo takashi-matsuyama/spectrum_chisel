@@ -2,49 +2,6 @@ let fft,
   mic;
 
 // --- UI要素のグローバル変数宣言 ---
-// 描画関数マッピング（関数のみ保持）
-let drawFunctionMap = {
-  drawSmoothEllipse: {
-    func: drawSmoothEllipse
-  }
-
-  ,
-  drawRotatingWaves: {
-    func: drawRotatingWaves
-  }
-
-  ,
-  drawRadialLines: {
-    func: drawRadialLines
-  }
-
-  ,
-  drawExpandingDots: {
-    func: drawExpandingDots
-  }
-
-  ,
-  drawRadiantBeams: {
-    func: drawRadiantBeams
-  }
-
-  ,
-  drawSparks: {
-    func: drawSparks
-  }
-
-  ,
-  drawNoisyContours: {
-    func: drawNoisyContours
-  }
-
-  ,
-  drawFloatingDots: {
-    func: drawFloatingDots
-  }
-}
-
-  ;
 
 // 各音域ごとのエネルギー補正設定
 const energySettings = {
@@ -94,9 +51,7 @@ const energySettings = {
     gain: 2.4,
     threshold: 30
   }
-}
-
-  ;
+};
 
 let lowDrawSelector;
 // --- Low用追加スライダー ---
@@ -233,9 +188,6 @@ function setup() {
   createDiv('SubBass Energy').parent(uiPanel).addClass('ui-section-title').style('color', 'white');
   subBassColorPicker = createColorPicker(randomColors[3]).parent(uiPanel);
   uiElements.push(subBassColorPicker);
-  createSpan('Stroke').parent(uiPanel).addClass('ui-section-title').style('font-weight', 'normal').style('color', 'white');
-  subBassStrokeSlider = createSlider(0.1, 5, 0.1, 0.1).parent(uiPanel).addClass('ui-slider');
-  uiElements.push(subBassStrokeSlider);
   createSpan('Alpha').parent(uiPanel).addClass('ui-section-title').style('font-weight', 'normal').style('color', 'white');
   subBassAlphaSlider = createSlider(0, 255, 20, 1).parent(uiPanel).addClass('ui-slider');
   uiElements.push(subBassAlphaSlider);
@@ -244,6 +196,9 @@ function setup() {
   for (let key in drawFunctionMap) subBassDrawSelector.option(key);
   subBassDrawSelector.selected("drawExpandingDots");
   uiElements.push(subBassDrawSelector);
+  createSpan('Stroke').parent(uiPanel).addClass('ui-section-title').style('font-weight', 'normal').style('color', 'white');
+  subBassStrokeSlider = createSlider(0.1, 5, drawFunctionMap["drawExpandingDots"].defaultWeight, 0.1).parent(uiPanel).addClass('ui-slider');
+  uiElements.push(subBassStrokeSlider);
   // --- SubBass用追加スライダー ---
   // gain
   createSpan('Gain').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
@@ -264,9 +219,6 @@ function setup() {
   createDiv('Low Energy').parent(uiPanel).addClass('ui-section-title').style('color', 'white');
   lowColorPicker = createColorPicker(randomColors[0]).parent(uiPanel);
   uiElements.push(lowColorPicker);
-  createSpan('Stroke').parent(uiPanel).addClass('ui-section-title').style('font-weight', 'normal').style('color', 'white');
-  lowStrokeSlider = createSlider(0.1, 5, 0.1, 0.1).parent(uiPanel).addClass('ui-slider');
-  uiElements.push(lowStrokeSlider);
   createSpan('Alpha').parent(uiPanel).addClass('ui-section-title').style('font-weight', 'normal').style('color', 'white');
   lowAlphaSlider = createSlider(0, 255, 20, 1).parent(uiPanel).addClass('ui-slider');
   uiElements.push(lowAlphaSlider);
@@ -275,6 +227,9 @@ function setup() {
   for (let key in drawFunctionMap) lowDrawSelector.option(key);
   lowDrawSelector.selected("drawSmoothEllipse");
   uiElements.push(lowDrawSelector);
+  createSpan('Stroke').parent(uiPanel).addClass('ui-section-title').style('font-weight', 'normal').style('color', 'white');
+  lowStrokeSlider = createSlider(0.1, 5, drawFunctionMap["drawSmoothEllipse"].defaultWeight, 0.1).parent(uiPanel).addClass('ui-slider');
+  uiElements.push(lowStrokeSlider);
   // --- Low用追加スライダー ---
   // gain
   createSpan('Gain').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
@@ -297,9 +252,6 @@ function setup() {
   createDiv('LowMid Energy').parent(uiPanel).addClass('ui-section-title').style('color', 'white');
   lowMidColorPicker = createColorPicker(randomColors[6]).parent(uiPanel);
   uiElements.push(lowMidColorPicker);
-  createSpan('Stroke').parent(uiPanel).addClass('ui-section-title').style('font-weight', 'normal').style('color', 'white');
-  lowMidStrokeSlider = createSlider(0.1, 5, 0.1, 0.1).parent(uiPanel).addClass('ui-slider');
-  uiElements.push(lowMidStrokeSlider);
   createSpan('Alpha').parent(uiPanel).addClass('ui-section-title').style('font-weight', 'normal').style('color', 'white');
   lowMidAlphaSlider = createSlider(0, 255, 20, 1).parent(uiPanel).addClass('ui-slider');
   uiElements.push(lowMidAlphaSlider);
@@ -308,6 +260,9 @@ function setup() {
   for (let key in drawFunctionMap) lowMidDrawSelector.option(key);
   lowMidDrawSelector.selected("drawNoisyContours");
   uiElements.push(lowMidDrawSelector);
+  createSpan('Stroke').parent(uiPanel).addClass('ui-section-title').style('font-weight', 'normal').style('color', 'white');
+  lowMidStrokeSlider = createSlider(0.1, 5, drawFunctionMap["drawNoisyContours"].defaultWeight, 0.1).parent(uiPanel).addClass('ui-slider');
+  uiElements.push(lowMidStrokeSlider);
   // --- LowMid用追加スライダー ---
   // gain
   createSpan('Gain').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
@@ -328,9 +283,6 @@ function setup() {
   createDiv('Mid Energy').parent(uiPanel).addClass('ui-section-title').style('color', 'white');
   midColorPicker = createColorPicker(randomColors[1]).parent(uiPanel);
   uiElements.push(midColorPicker);
-  createSpan('Stroke').parent(uiPanel).addClass('ui-section-title').style('font-weight', 'normal').style('color', 'white');
-  midStrokeSlider = createSlider(0.1, 5, 0.1, 0.1).parent(uiPanel).addClass('ui-slider');
-  uiElements.push(midStrokeSlider);
   createSpan('Alpha').parent(uiPanel).addClass('ui-section-title').style('font-weight', 'normal').style('color', 'white');
   midAlphaSlider = createSlider(0, 255, 20, 1).parent(uiPanel).addClass('ui-slider');
   uiElements.push(midAlphaSlider);
@@ -339,6 +291,9 @@ function setup() {
   for (let key in drawFunctionMap) midDrawSelector.option(key);
   midDrawSelector.selected("drawRotatingWaves");
   uiElements.push(midDrawSelector);
+  createSpan('Stroke').parent(uiPanel).addClass('ui-section-title').style('font-weight', 'normal').style('color', 'white');
+  midStrokeSlider = createSlider(0.1, 5, drawFunctionMap["drawRotatingWaves"].defaultWeight, 0.1).parent(uiPanel).addClass('ui-slider');
+  uiElements.push(midStrokeSlider);
   // --- Mid用追加スライダー ---
   // gain
   createSpan('Gain').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
@@ -359,9 +314,6 @@ function setup() {
   createDiv('UpperMid Energy').parent(uiPanel).addClass('ui-section-title').style('color', 'white');
   upperMidColorPicker = createColorPicker(randomColors[7]).parent(uiPanel);
   uiElements.push(upperMidColorPicker);
-  createSpan('Stroke').parent(uiPanel).addClass('ui-section-title').style('font-weight', 'normal').style('color', 'white');
-  upperMidStrokeSlider = createSlider(0.1, 5, 0.1, 0.1).parent(uiPanel).addClass('ui-slider');
-  uiElements.push(upperMidStrokeSlider);
   createSpan('Alpha').parent(uiPanel).addClass('ui-section-title').style('font-weight', 'normal').style('color', 'white');
   upperMidAlphaSlider = createSlider(0, 255, 20, 1).parent(uiPanel).addClass('ui-slider');
   uiElements.push(upperMidAlphaSlider);
@@ -370,6 +322,9 @@ function setup() {
   for (let key in drawFunctionMap) upperMidDrawSelector.option(key);
   upperMidDrawSelector.selected("drawFloatingDots");
   uiElements.push(upperMidDrawSelector);
+  createSpan('Stroke').parent(uiPanel).addClass('ui-section-title').style('font-weight', 'normal').style('color', 'white');
+  upperMidStrokeSlider = createSlider(0.1, 5, drawFunctionMap["drawFloatingDots"].defaultWeight, 0.1).parent(uiPanel).addClass('ui-slider');
+  uiElements.push(upperMidStrokeSlider);
   // --- UpperMid用追加スライダー ---
   // gain
   createSpan('Gain').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
@@ -390,9 +345,6 @@ function setup() {
   createDiv('Presence Energy').parent(uiPanel).addClass('ui-section-title').style('color', 'white');
   presenceColorPicker = createColorPicker(randomColors[5]).parent(uiPanel);
   uiElements.push(presenceColorPicker);
-  createSpan('Stroke').parent(uiPanel).addClass('ui-section-title').style('font-weight', 'normal').style('color', 'white');
-  presenceStrokeSlider = createSlider(0.1, 5, 0.1, 0.1).parent(uiPanel).addClass('ui-slider');
-  uiElements.push(presenceStrokeSlider);
   createSpan('Alpha').parent(uiPanel).addClass('ui-section-title').style('font-weight', 'normal').style('color', 'white');
   presenceAlphaSlider = createSlider(0, 255, 20, 1).parent(uiPanel).addClass('ui-slider');
   uiElements.push(presenceAlphaSlider);
@@ -401,6 +353,9 @@ function setup() {
   for (let key in drawFunctionMap) presenceDrawSelector.option(key);
   presenceDrawSelector.selected("drawSparks");
   uiElements.push(presenceDrawSelector);
+  createSpan('Stroke').parent(uiPanel).addClass('ui-section-title').style('font-weight', 'normal').style('color', 'white');
+  presenceStrokeSlider = createSlider(0.1, 5, drawFunctionMap["drawSparks"].defaultWeight, 0.1).parent(uiPanel).addClass('ui-slider');
+  uiElements.push(presenceStrokeSlider);
   // --- Presence用追加スライダー ---
   // gain
   createSpan('Gain').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
@@ -421,9 +376,6 @@ function setup() {
   createDiv('Brilliance Energy').parent(uiPanel).addClass('ui-section-title').style('color', 'white');
   brillianceColorPicker = createColorPicker(randomColors[4]).parent(uiPanel);
   uiElements.push(brillianceColorPicker);
-  createSpan('Stroke').parent(uiPanel).addClass('ui-section-title').style('font-weight', 'normal').style('color', 'white');
-  brillianceStrokeSlider = createSlider(0.1, 5, 0.1, 0.1).parent(uiPanel).addClass('ui-slider');
-  uiElements.push(brillianceStrokeSlider);
   createSpan('Alpha').parent(uiPanel).addClass('ui-section-title').style('font-weight', 'normal').style('color', 'white');
   brillianceAlphaSlider = createSlider(0, 255, 20, 1).parent(uiPanel).addClass('ui-slider');
   uiElements.push(brillianceAlphaSlider);
@@ -432,6 +384,9 @@ function setup() {
   for (let key in drawFunctionMap) brillianceDrawSelector.option(key);
   brillianceDrawSelector.selected("drawRadiantBeams");
   uiElements.push(brillianceDrawSelector);
+  createSpan('Stroke').parent(uiPanel).addClass('ui-section-title').style('font-weight', 'normal').style('color', 'white');
+  brillianceStrokeSlider = createSlider(0.1, 5, drawFunctionMap["drawRadiantBeams"].defaultWeight, 0.1).parent(uiPanel).addClass('ui-slider');
+  uiElements.push(brillianceStrokeSlider);
   // --- Brilliance用追加スライダー ---
   // gain
   createSpan('Gain').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
@@ -452,9 +407,6 @@ function setup() {
   createDiv('High Energy').parent(uiPanel).addClass('ui-section-title').style('color', 'white');
   highColorPicker = createColorPicker(randomColors[2]).parent(uiPanel);
   uiElements.push(highColorPicker);
-  createSpan('Stroke').parent(uiPanel).addClass('ui-section-title').style('font-weight', 'normal').style('color', 'white');
-  highStrokeSlider = createSlider(0.1, 5, 0.1, 0.1).parent(uiPanel).addClass('ui-slider');
-  uiElements.push(highStrokeSlider);
   createSpan('Alpha').parent(uiPanel).addClass('ui-section-title').style('font-weight', 'normal').style('color', 'white');
   highAlphaSlider = createSlider(0, 255, 20, 1).parent(uiPanel).addClass('ui-slider');
   uiElements.push(highAlphaSlider);
@@ -463,6 +415,9 @@ function setup() {
   for (let key in drawFunctionMap) highDrawSelector.option(key);
   highDrawSelector.selected("drawRadialLines");
   uiElements.push(highDrawSelector);
+  createSpan('Stroke').parent(uiPanel).addClass('ui-section-title').style('font-weight', 'normal').style('color', 'white');
+  highStrokeSlider = createSlider(0.1, 5, drawFunctionMap["drawRadialLines"].defaultWeight, 0.1).parent(uiPanel).addClass('ui-slider');
+  uiElements.push(highStrokeSlider);
   // --- High用追加スライダー ---
   // gain
   createSpan('Gain').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
@@ -1157,3 +1112,80 @@ function drawFloatingDots(energy, frameCount, time, style) {
     }
   }
 }
+
+// --- 関数マッピングは関数定義の後に行う ---
+let drawFunctionMap = {
+  drawSmoothEllipse: { func: drawSmoothEllipse, defaultWeight: 0.4 },
+  drawRotatingWaves: { func: drawRotatingWaves, defaultWeight: 1.5 },
+  drawRadialLines: { func: drawRadialLines, defaultWeight: 1.2 },
+  drawExpandingDots: { func: drawExpandingDots, defaultWeight: 0.8 },
+  drawRadiantBeams: { func: drawRadiantBeams, defaultWeight: 2.0 },
+  drawSparks: { func: drawSparks, defaultWeight: 1.8 },
+  drawNoisyContours: { func: drawNoisyContours, defaultWeight: 0.6 },
+  drawFloatingDots: { func: drawFloatingDots, defaultWeight: 1.0 }
+}
+
+// --- 各セレクタにchangedイベントを追加し、選択時にストローク値をdefaultWeightに更新 ---
+subBassDrawSelector.changed(() => {
+  const selected = drawFunctionMap[subBassDrawSelector.value()];
+  if (selected && typeof selected.defaultWeight === "number") {
+    subBassStrokeSlider.value(selected.defaultWeight);
+  }
+});
+subBassDrawSelector.selected("drawExpandingDots").changed();
+
+lowDrawSelector.changed(() => {
+  const selected = drawFunctionMap[lowDrawSelector.value()];
+  if (selected && typeof selected.defaultWeight === "number") {
+    lowStrokeSlider.value(selected.defaultWeight);
+  }
+});
+lowDrawSelector.selected("drawSmoothEllipse").changed();
+
+lowMidDrawSelector.changed(() => {
+  const selected = drawFunctionMap[lowMidDrawSelector.value()];
+  if (selected && typeof selected.defaultWeight === "number") {
+    lowMidStrokeSlider.value(selected.defaultWeight);
+  }
+});
+lowMidDrawSelector.selected("drawNoisyContours").changed();
+
+midDrawSelector.changed(() => {
+  const selected = drawFunctionMap[midDrawSelector.value()];
+  if (selected && typeof selected.defaultWeight === "number") {
+    midStrokeSlider.value(selected.defaultWeight);
+  }
+});
+midDrawSelector.selected("drawRotatingWaves").changed();
+
+upperMidDrawSelector.changed(() => {
+  const selected = drawFunctionMap[upperMidDrawSelector.value()];
+  if (selected && typeof selected.defaultWeight === "number") {
+    upperMidStrokeSlider.value(selected.defaultWeight);
+  }
+});
+upperMidDrawSelector.selected("drawFloatingDots").changed();
+
+presenceDrawSelector.changed(() => {
+  const selected = drawFunctionMap[presenceDrawSelector.value()];
+  if (selected && typeof selected.defaultWeight === "number") {
+    presenceStrokeSlider.value(selected.defaultWeight);
+  }
+});
+presenceDrawSelector.selected("drawSparks").changed();
+
+brillianceDrawSelector.changed(() => {
+  const selected = drawFunctionMap[brillianceDrawSelector.value()];
+  if (selected && typeof selected.defaultWeight === "number") {
+    brillianceStrokeSlider.value(selected.defaultWeight);
+  }
+});
+brillianceDrawSelector.selected("drawRadiantBeams").changed();
+
+highDrawSelector.changed(() => {
+  const selected = drawFunctionMap[highDrawSelector.value()];
+  if (selected && typeof selected.defaultWeight === "number") {
+    highStrokeSlider.value(selected.defaultWeight);
+  }
+});
+highDrawSelector.selected("drawRadialLines").changed();
