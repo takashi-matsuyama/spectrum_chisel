@@ -1,0 +1,40 @@
+@charset "UTF-8";
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background-color: #000;
+}
+
+.canvas-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+canvas {
+  display: block;
+}
+
+.ui-panel {
+  font-family: 'Segoe UI', sans-serif;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.ui-section-title {
+  font-weight: bold;
+  margin-top: 8px;
+  margin-bottom: 4px;
+  display: block;
+}
+
+.ui-slider {
+  width: 150px;
+  margin: 4px 10px;
+  accent-color: #ffaa00;
+}
