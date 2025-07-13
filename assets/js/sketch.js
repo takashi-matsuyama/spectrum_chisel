@@ -617,7 +617,21 @@ function initMic() {
 }
 
 function draw() {
-  drawVisuals(this);
+  // --- 音声解析と履歴蓄積 ---
+  if (useMic && mic && mic.enabled && fft) {
+    let spectrum = fft.analyze();
+    let totalEnergy = spectrum.reduce((a, b) => a + b, 0);
+    if (totalEnergy >= (useMic ? 100 : 500)) {
+      spectrumHistory.push(spectrum.slice());
+    }
+  }
+
+  // --- キャンバスをクリアして再描画 ---
+  clear();
+  background(0);
+
+  // --- 履歴に基づいた一括描画 ---
+  redrawCanvas(this);
 }
 
 // Extracted drawing logic; accepts a p5 graphics context
@@ -955,6 +969,16 @@ function drawVisuals(pg, frameOverride = null, overrideSpectrum = null) {
   prevSpectrum = spectrum.slice(); // 配列をコピー
 }
 
+/**
+ * 履歴データに基づいてキャンバスまたはSVGバッファに一括描画する
+ * @param {p5.Graphics} pg - 描画先コンテキスト
+ */
+function redrawCanvas(pg) {
+  for (let i = 0; i < spectrumHistory.length; i++) {
+    drawVisuals(pg, i + 1, spectrumHistory[i]);
+  }
+}
+
 // Proxy for drawSpectrumRingByBands to allow drawing on arbitrary p5.Graphics context
 function drawSpectrumRingByBandsProxy(pg, spectrum, currentFrame) {
   pg.noFill();
@@ -1087,12 +1111,30 @@ function keyPressed() {
 // Global SVG export routine: redraw accumulated frames offscreen and save
 function downloadSVG() {
   noLoop();
+  // 保存前の各バンド描画チェック状態を保持
+  const subBassOn = subBassEnabledCheckbox.checked();
+  const lowOn = lowEnabledCheckbox.checked();
+  const lowMidOn = lowMidEnabledCheckbox.checked();
+  const midOn = midEnabledCheckbox.checked();
+  const upperMidOn = upperMidEnabledCheckbox.checked();
+  const presenceOn = presenceEnabledCheckbox.checked();
+  const brillianceOn = brillianceEnabledCheckbox.checked();
+  const highOn = highEnabledCheckbox.checked();
   // 保存前のチェックボックス状態を保持
   const ringOn = spectrumRingCheckbox.checked();
   const diffOn = spectrumDiffCheckbox.checked();
   // 書き出し時は必ずスペクトルリング／ディフを有効化
   spectrumRingCheckbox.checked(true);
   spectrumDiffCheckbox.checked(true);
+  // 書き出し時は全バンドも強制描画
+  subBassEnabledCheckbox.checked(true);
+  lowEnabledCheckbox.checked(true);
+  lowMidEnabledCheckbox.checked(true);
+  midEnabledCheckbox.checked(true);
+  upperMidEnabledCheckbox.checked(true);
+  presenceEnabledCheckbox.checked(true);
+  brillianceEnabledCheckbox.checked(true);
+  highEnabledCheckbox.checked(true);
 
   // オフスクリーンSVGバッファを作成
   const svgBuffer = createGraphics(CANVAS_SIZE, CANVAS_SIZE, SVG);
@@ -1106,9 +1148,18 @@ function downloadSVG() {
     drawVisuals(svgBuffer, i + 1, spectrumHistory[i]);
   }
 
-  // チェックボックス状態を復元
+  // チェックボックス状態を復元（スペクトルリング／ディフ）
   spectrumRingCheckbox.checked(ringOn);
   spectrumDiffCheckbox.checked(diffOn);
+  // チェックボックス状態を復元（各バンド描画）
+  subBassEnabledCheckbox.checked(subBassOn);
+  lowEnabledCheckbox.checked(lowOn);
+  lowMidEnabledCheckbox.checked(lowMidOn);
+  midEnabledCheckbox.checked(midOn);
+  upperMidEnabledCheckbox.checked(upperMidOn);
+  presenceEnabledCheckbox.checked(presenceOn);
+  brillianceEnabledCheckbox.checked(brillianceOn);
+  highEnabledCheckbox.checked(highOn);
 
   // p5 の save を使って SVG をダウンロード
   save(svgBuffer, 'sound_visualization', 'svg');
