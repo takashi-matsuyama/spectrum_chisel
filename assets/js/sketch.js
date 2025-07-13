@@ -1048,20 +1048,31 @@ function drawSpectrumRing(spectrum) {
 
 // --- Spectrum Diff 描画関数（ドットで可視化） ---
 function drawSpectrumDiff(current, previous) {
+  if (previous.length === 0) return;
   let diffColor = spectrumDiffColorPicker ? spectrumDiffColorPicker.color() : color(255);
   diffColor.setAlpha(180);
-  stroke(diffColor);
-  strokeWeight(2); // Thicker dots
   noFill();
+  // Calculate dynamic speed based on current energy
+  let totalEnergy = current.reduce((a, b) => a + b, 0) / current.length;
+  let speed = map(totalEnergy, 0, 255, 0.03, 0.25); // Higher energy = faster
   for (let i = 0; i < current.length; i++) {
     let diff = abs(current[i] - (previous[i] || 0));
-    let angle = map(i, 0, current.length, 0, TWO_PI);
-    let baseRadius = map(diff, 0, 255, 120, 370);
-    let growth = frameCount * 0.1;
-    let radius = baseRadius + growth;
-    let x = cos(angle) * radius;
-    let y = sin(angle) * radius;
-    point(x, y);
+    if (diff > 10) { // Draw only if diff is significant
+      let angle = map(i, 0, current.length, 0, TWO_PI);
+      let baseRadius = map(diff, 0, 255, 120, 370);
+      let growth = diff * 0.3;
+      let radius = baseRadius + growth;
+      let x = cos(angle) * radius;
+      let y = sin(angle) * radius;
+      if (diff > 100) {
+        stroke(255);
+        strokeWeight(3);
+      } else {
+        stroke(diffColor);
+        strokeWeight(2);
+      }
+      point(x, y);
+    }
   }
 }
 
@@ -1328,10 +1339,11 @@ function drawSpectrumRingByBands(spectrum) {
     beginShape();
     for (let i = startIndex; i < endIndex; i++) {
       let angle = map(i, 0, totalBands, 0, TWO_PI);
+      // Breathing + Perlin noise deformation
       let baseRadius = map(spectrum[i], 0, 255, 60, 280);
-      let pulsate = sin(frameCount * 0.01 + angle) * 10;
-      let jitter = noise(angle + frameCount * 0.005) * 5;
-      let radius = baseRadius + pulsate + jitter;
+      let breathing = sin(frameCount * 0.05 + angle) * 8;
+      let jitter = noise(angle + frameCount * 0.01) * 10;
+      let radius = baseRadius + breathing + jitter;
       let x = cos(angle) * radius;
       let y = sin(angle) * radius;
       vertex(x, y);
