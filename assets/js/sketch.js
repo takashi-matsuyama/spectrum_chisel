@@ -1,3 +1,5 @@
+// --- Canvas Size Constant ---
+const CANVAS_SIZE = 800;
 let fft,
   mic;
 
@@ -6,6 +8,7 @@ let spectrumDiffColorPicker;
 
 // --- Spectrum Ring/Diffグローバル変数 ---
 let prevSpectrum = [];
+let spectrumHistory = [];
 let spectrumRingCheckbox;
 let spectrumDiffCheckbox;
 
@@ -166,7 +169,7 @@ function generateDistinctColors(count) {
 
 function setup() {
   colorMode(HSB, 360, 100, 100); // HSBカラーモードを一度だけ設定
-  let myCanvas = createCanvas(800, 800, SVG);
+  let myCanvas = createCanvas(CANVAS_SIZE, CANVAS_SIZE);
   myCanvas.parent('canvas-container');
 
   background(0);
@@ -594,6 +597,11 @@ function setup() {
   const frameRateValueSpan = createSpan(frameRateSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
   frameRateSlider.input(() => frameRateValueSpan.html(frameRateSlider.value()));
   uiElements.push(frameRateSlider);
+
+  // --- Save SVG Button and Handler ---
+  const saveButton = createButton('Save SVG');
+  saveButton.parent(uiPanel);
+  saveButton.mousePressed(downloadSVG);
 }
 
 // マイク初期化関数
@@ -609,34 +617,41 @@ function initMic() {
 }
 
 function draw() {
+  drawVisuals(this);
+}
+
+// Extracted drawing logic; accepts a p5 graphics context
+function drawVisuals(pg, frameOverride = null, overrideSpectrum = null) {
+  const currentFrame = (frameOverride !== null) ? frameOverride : pg.frameCount;
+  const time = currentFrame * 0.005;
   // --- フレームレートスライダーによるフレームレート制御 ---
   if (frameRateSlider) {
-    frameRate(frameRateSlider.value());
+    pg.frameRate(frameRateSlider.value());
   }
 
   // 変更点3: 入力ソースに応じた準備完了チェック
   if (useMic) {
     if (!mic || !mic.enabled) return; // マイクが準備できていなければ処理を中断
-    console.log("Using microphone input.");
+    //console.log("Using microphone input.");
   }
   else {
-    // 将来的な拡張のために音声ファイル入力の条件を残している
-    // 現状はマイク入力のみなのでこの分岐は実質使われない
-    console.log("Using sound input.");
+    //console.log("Using sound input.");
   }
 
   if (!fft) return; // FFTが準備できていなければ処理を中断
 
   // fft.analyze()は現在の音声信号の周波数スペクトルを配列で返す
   // 配列の各要素は特定の周波数帯のエネルギー量（音の強さ）を表す
-  let spectrum = fft.analyze();
+  let spectrum = (overrideSpectrum !== null) ? overrideSpectrum : fft.analyze();
+  // record live-frame spectrum history
+  if (overrideSpectrum === null) {
+    spectrumHistory.push(spectrum.slice());
+  }
 
   // 全周波数帯のエネルギーの合計を計算し、音の総エネルギーの指標とする
   let totalEnergy = spectrum.reduce((a, b) => a + b, 0);
 
   // 音の総エネルギーが閾値未満なら描画しない（ノイズ除去や無音時の無駄な描画防止）
-  // マイク入力は感度が高いため閾値を低く設定
-  // 将来的な拡張のために条件を残している
   if (totalEnergy < (useMic ? 100 : 500)) return;
 
   // fft.getEnergy("bass"), "mid", "treble"はそれぞれ低音域、中音域、高音域のエネルギーを取得
@@ -650,384 +665,357 @@ function draw() {
   let brillianceEnergy = fft.getEnergy(6000, 16000); // 中高音域（約6000Hz～16000Hz）
   let highEnergy = fft.getEnergy("treble"); // 高音域（約4000Hz～20000Hz）
 
-  // frameCountは描画フレーム数の累積。時間経過に応じた変化を作るために使用
-  // 0.005の係数は変化速度を調整。小さいほどゆっくり動く
-  let time = frameCount * 0.005;
+  pg.push();
+  pg.translate(pg.width / 2, pg.height / 2);
 
-  translate(width / 2, height / 2);
-
-  // --- 関数化した音域描画 ---
   // SubBass
   if (subBassEnabledCheckbox && subBassEnabledCheckbox.checked()) {
-    push();
-
+    pg.push();
     {
       let energyValue = subBassEnergy;
       let OFFSET = 4;
       let baseAmount = 14;
-      let intensity = map(energyValue, 0, 255, 0, 1);
-      let dx = (noise(time + OFFSET) - 0.5) * baseAmount * intensity;
-      let dy = (noise(time + OFFSET + 100) - 0.5) * baseAmount * intensity;
-      console.log("OFFSET subBassEnergy:", dx, dy);
-      translate(dx, dy);
-
+      let intensity = pg.map(energyValue, 0, 255, 0, 1);
+      let dx = (pg.noise(time + OFFSET) - 0.5) * baseAmount * intensity;
+      let dy = (pg.noise(time + OFFSET + 100) - 0.5) * baseAmount * intensity;
+      //console.log("OFFSET subBassEnergy:", dx, dy);
+      pg.translate(dx, dy);
       const style = {
         color: subBassColorPicker.color(),
         weight: subBassStrokeSlider.value(),
         alpha: subBassAlphaSlider.value()
-      }
-
-        ;
+      };
       const selectedFuncName = subBassDrawSelector.value();
       const selectedEntry = drawFunctionMap[selectedFuncName];
-      // gain/threshold UI値を取得
       let gain = subBassGainSlider.value();
       let threshold = subBassThresholdSlider.value();
-      let scaledEnergy = constrain(subBassEnergy * gain, 0, 255);
-
-      // --- paramsオブジェクトでintensityGain, angleSpeedを渡す ---
+      let scaledEnergy = pg.constrain(subBassEnergy * gain, 0, 255);
       const params = {
         intensityGain: subBassIntensityGainSlider.value(),
         angleSpeed: subBassAngleSpeedSlider.value()
-      }
-
-        ;
-
+      };
       if (selectedEntry && selectedEntry.func && scaledEnergy > threshold) {
-        selectedEntry.func(scaledEnergy, frameCount, time, style, params);
+        selectedEntry.func.call(pg, scaledEnergy, currentFrame, time, style, params);
       }
     }
-
-    pop();
+    pg.pop();
   }
 
   // Low
   if (lowEnabledCheckbox && lowEnabledCheckbox.checked()) {
-    push();
-
+    pg.push();
     {
       let energyValue = lowEnergy;
-      // --- 新UIスライダーで値取得 ---
       let gain = lowGainSlider.value();
       let threshold = lowThresholdSlider.value();
       let intensityGain = lowIntensityGainSlider.value();
       let angleSpeed = lowAngleSpeedSlider.value();
       let baseAmount = 12;
-      let intensity = map(energyValue, 0, 255, 0, 1);
-      let angle = frameCount * 0.02;
-      let dx = sin(angle + time) * baseAmount * intensity;
-      let dy = cos(angle + time * 1.5) * baseAmount * intensity;
-      console.log("OFFSET lowEnergy:", dx, dy);
-      translate(dx, dy);
-
+      let intensity = pg.map(energyValue, 0, 255, 0, 1);
+      let angle = pg.frameCount * 0.02;
+      let dx = pg.sin(angle + time) * baseAmount * intensity;
+      let dy = pg.cos(angle + time * 1.5) * baseAmount * intensity;
+      //console.log("OFFSET lowEnergy:", dx, dy);
+      pg.translate(dx, dy);
       const style = {
         color: lowColorPicker.color(),
         weight: lowStrokeSlider.value(),
         alpha: lowAlphaSlider.value()
-      }
-
-        ;
+      };
       const selectedFuncName = lowDrawSelector.value();
       const selectedEntry = drawFunctionMap[selectedFuncName];
-      // energy 計算に gain/threshold を反映
-      let scaledEnergy = constrain(lowEnergy * gain, 0, 255);
-
-      // --- paramsオブジェクトでintensityGain, angleSpeedを渡す ---
+      let scaledEnergy = pg.constrain(lowEnergy * gain, 0, 255);
       const params = {
         intensityGain: intensityGain,
         angleSpeed: angleSpeed
-      }
-
-        ;
-
+      };
       if (selectedEntry && selectedEntry.func && scaledEnergy > threshold) {
-        selectedEntry.func(scaledEnergy, frameCount, time, style, params);
+        selectedEntry.func.call(pg, scaledEnergy, currentFrame, time, style, params);
       }
     }
-
-    pop();
+    pg.pop();
   }
 
   // LowMid
   if (lowMidEnabledCheckbox && lowMidEnabledCheckbox.checked()) {
-    push();
-
+    pg.push();
     {
       let energyValue = lowMidEnergy;
       let OFFSET = 7;
       let baseAmount = 11;
-      let intensity = map(energyValue, 0, 255, 0, 1);
-      let dx = (noise(time + OFFSET) - 0.5) * baseAmount * intensity;
-      let dy = (noise(time + OFFSET + 100) - 0.5) * baseAmount * intensity;
-      console.log("OFFSET lowMidEnergy:", dx, dy);
-      translate(dx, dy);
-
+      let intensity = pg.map(energyValue, 0, 255, 0, 1);
+      let dx = (pg.noise(time + OFFSET) - 0.5) * baseAmount * intensity;
+      let dy = (pg.noise(time + OFFSET + 100) - 0.5) * baseAmount * intensity;
+      //console.log("OFFSET lowMidEnergy:", dx, dy);
+      pg.translate(dx, dy);
       const style = {
         color: lowMidColorPicker.color(),
         weight: lowMidStrokeSlider.value(),
         alpha: lowMidAlphaSlider.value()
-      }
-
-        ;
+      };
       const selectedFuncName = lowMidDrawSelector.value();
       const selectedEntry = drawFunctionMap[selectedFuncName];
-      // gain/threshold UI値を取得
       let gain = lowMidGainSlider.value();
       let threshold = lowMidThresholdSlider.value();
-      let scaledEnergy = constrain(lowMidEnergy * gain, 0, 255);
-
-      // --- paramsオブジェクトでintensityGain, angleSpeedを渡す ---
+      let scaledEnergy = pg.constrain(lowMidEnergy * gain, 0, 255);
       const params = {
         intensityGain: lowMidIntensityGainSlider.value(),
         angleSpeed: lowMidAngleSpeedSlider.value()
-      }
-
-        ;
-
+      };
       if (selectedEntry && selectedEntry.func && scaledEnergy > threshold) {
-        selectedEntry.func(scaledEnergy, frameCount, time, style, params);
+        selectedEntry.func.call(pg, scaledEnergy, currentFrame, time, style, params);
       }
     }
-
-    pop();
+    pg.pop();
   }
 
   // Mid
   if (midEnabledCheckbox && midEnabledCheckbox.checked()) {
-    push();
-
+    pg.push();
     {
       let energyValue = midEnergy;
       let OFFSET = 2;
       let baseAmount = 10;
-      let intensity = map(energyValue, 0, 255, 0, 1);
-      let dx = (noise(time + OFFSET) - 0.5) * baseAmount * intensity;
-      let dy = (noise(time + OFFSET + 100) - 0.5) * baseAmount * intensity;
-      console.log("OFFSET midEnergy:", dx, dy);
-      translate(dx, dy);
-
+      let intensity = pg.map(energyValue, 0, 255, 0, 1);
+      let dx = (pg.noise(time + OFFSET) - 0.5) * baseAmount * intensity;
+      let dy = (pg.noise(time + OFFSET + 100) - 0.5) * baseAmount * intensity;
+      //console.log("OFFSET midEnergy:", dx, dy);
+      pg.translate(dx, dy);
       const style = {
         color: midColorPicker.color(),
         weight: midStrokeSlider.value(),
         alpha: midAlphaSlider.value()
-      }
-
-        ;
+      };
       const selectedFuncName = midDrawSelector.value();
       const selectedEntry = drawFunctionMap[selectedFuncName];
-      // gain/threshold UI値を取得
       let gain = midGainSlider.value();
       let threshold = midThresholdSlider.value();
-      let scaledEnergy = constrain(midEnergy * gain, 0, 255);
-
-      // --- paramsオブジェクトでintensityGain, angleSpeedを渡す ---
+      let scaledEnergy = pg.constrain(midEnergy * gain, 0, 255);
       const params = {
         intensityGain: midIntensityGainSlider.value(),
         angleSpeed: midAngleSpeedSlider.value()
-      }
-
-        ;
-
+      };
       if (selectedEntry && selectedEntry.func && scaledEnergy > threshold) {
-        selectedEntry.func(scaledEnergy, frameCount, time, style, params);
+        selectedEntry.func.call(pg, scaledEnergy, currentFrame, time, style, params);
       }
     }
-
-    pop();
+    pg.pop();
   }
 
   // UpperMid
   if (upperMidEnabledCheckbox && upperMidEnabledCheckbox.checked()) {
-    push();
-
+    pg.push();
     {
       let energyValue = upperMidEnergy;
       let OFFSET = 8;
       let baseAmount = 13;
-      let intensity = map(energyValue, 0, 255, 0, 1);
-      let dx = (noise(time + OFFSET) - 0.5) * baseAmount * intensity;
-      let dy = (noise(time + OFFSET + 100) - 0.5) * baseAmount * intensity;
-      console.log("OFFSET upperMidEnergy:", dx, dy);
-      translate(dx, dy);
-
+      let intensity = pg.map(energyValue, 0, 255, 0, 1);
+      let dx = (pg.noise(time + OFFSET) - 0.5) * baseAmount * intensity;
+      let dy = (pg.noise(time + OFFSET + 100) - 0.5) * baseAmount * intensity;
+      //console.log("OFFSET upperMidEnergy:", dx, dy);
+      pg.translate(dx, dy);
       const style = {
         color: upperMidColorPicker.color(),
         weight: upperMidStrokeSlider.value(),
         alpha: upperMidAlphaSlider.value()
-      }
-
-        ;
+      };
       const selectedFuncName = upperMidDrawSelector.value();
       const selectedEntry = drawFunctionMap[selectedFuncName];
-      // gain/threshold UI値を取得
       let gain = upperMidGainSlider.value();
       let threshold = upperMidThresholdSlider.value();
-      let scaledEnergy = constrain(upperMidEnergy * gain, 0, 255);
-
-      // --- paramsオブジェクトでintensityGain, angleSpeedを渡す ---
+      let scaledEnergy = pg.constrain(upperMidEnergy * gain, 0, 255);
       const params = {
         intensityGain: upperMidIntensityGainSlider.value(),
         angleSpeed: upperMidAngleSpeedSlider.value()
-      }
-
-        ;
-
+      };
       if (selectedEntry && selectedEntry.func && scaledEnergy > threshold) {
-        selectedEntry.func(scaledEnergy, frameCount, time, style, params);
+        selectedEntry.func.call(pg, scaledEnergy, currentFrame, time, style, params);
       }
     }
-
-    pop();
+    pg.pop();
   }
 
   // Presence
   if (presenceEnabledCheckbox && presenceEnabledCheckbox.checked()) {
-    push();
-
+    pg.push();
     {
       let energyValue = presenceEnergy;
       let OFFSET = 6;
       let baseAmount = 18;
-      let intensity = map(energyValue, 0, 255, 0, 1);
-      let dx = (noise(time + OFFSET) - 0.5) * baseAmount * intensity;
-      let dy = (noise(time + OFFSET + 100) - 0.5) * baseAmount * intensity;
-      console.log("OFFSET presenceEnergy:", dx, dy);
-      translate(dx, dy);
-
+      let intensity = pg.map(energyValue, 0, 255, 0, 1);
+      let dx = (pg.noise(time + OFFSET) - 0.5) * baseAmount * intensity;
+      let dy = (pg.noise(time + OFFSET + 100) - 0.5) * baseAmount * intensity;
+      //console.log("OFFSET presenceEnergy:", dx, dy);
+      pg.translate(dx, dy);
       const style = {
         color: presenceColorPicker.color(),
         weight: presenceStrokeSlider.value(),
         alpha: presenceAlphaSlider.value()
-      }
-
-        ;
+      };
       const selectedFuncName = presenceDrawSelector.value();
       const selectedEntry = drawFunctionMap[selectedFuncName];
-      // gain/threshold UI値を取得
       let gain = presenceGainSlider.value();
       let threshold = presenceThresholdSlider.value();
-      let scaledEnergy = constrain(presenceEnergy * gain, 0, 255);
-
-      // --- paramsオブジェクトでintensityGain, angleSpeedを渡す ---
+      let scaledEnergy = pg.constrain(presenceEnergy * gain, 0, 255);
       const params = {
         intensityGain: presenceIntensityGainSlider.value(),
         angleSpeed: presenceAngleSpeedSlider.value()
-      }
-
-        ;
-
+      };
       if (selectedEntry && selectedEntry.func && scaledEnergy > threshold) {
-        selectedEntry.func(scaledEnergy, frameCount, time, style, params);
+        selectedEntry.func.call(pg, scaledEnergy, currentFrame, time, style, params);
       }
     }
-
-    pop();
+    pg.pop();
   }
 
   // Brilliance
   if (brillianceEnabledCheckbox && brillianceEnabledCheckbox.checked()) {
-    push();
-
+    pg.push();
     {
       let energyValue = brillianceEnergy;
       let OFFSET = 5;
       let baseAmount = 20;
-      let intensity = map(energyValue, 0, 255, 0, 1);
-      let dx = (noise(time + OFFSET) - 0.5) * baseAmount * intensity;
-      let dy = (noise(time + OFFSET + 100) - 0.5) * baseAmount * intensity;
-      console.log("OFFSET brillianceEnergy:", dx, dy);
-      translate(dx, dy);
-
+      let intensity = pg.map(energyValue, 0, 255, 0, 1);
+      let dx = (pg.noise(time + OFFSET) - 0.5) * baseAmount * intensity;
+      let dy = (pg.noise(time + OFFSET + 100) - 0.5) * baseAmount * intensity;
+      //console.log("OFFSET brillianceEnergy:", dx, dy);
+      pg.translate(dx, dy);
       const style = {
         color: brillianceColorPicker.color(),
         weight: brillianceStrokeSlider.value(),
         alpha: brillianceAlphaSlider.value()
-      }
-
-        ;
+      };
       const selectedFuncName = brillianceDrawSelector.value();
       const selectedEntry = drawFunctionMap[selectedFuncName];
-      // gain/threshold UI値を取得
       let gain = brillianceGainSlider.value();
       let threshold = brillianceThresholdSlider.value();
-      let scaledEnergy = constrain(brillianceEnergy * gain, 0, 255);
-
-      // --- paramsオブジェクトでintensityGain, angleSpeedを渡す ---
+      let scaledEnergy = pg.constrain(brillianceEnergy * gain, 0, 255);
       const params = {
         intensityGain: brillianceIntensityGainSlider.value(),
         angleSpeed: brillianceAngleSpeedSlider.value()
-      }
-
-        ;
-
+      };
       if (selectedEntry && selectedEntry.func && scaledEnergy > threshold) {
-        selectedEntry.func(scaledEnergy, frameCount, time, style, params);
+        selectedEntry.func.call(pg, scaledEnergy, currentFrame, time, style, params);
       }
     }
-
-    pop();
+    pg.pop();
   }
 
   // High
   if (highEnabledCheckbox && highEnabledCheckbox.checked()) {
-    push();
-
+    pg.push();
     {
       let energyValue = highEnergy;
       let OFFSET = 3;
       let baseAmount = 16;
-      let intensity = map(energyValue, 0, 255, 0, 1);
-      let dx = (noise(time + OFFSET) - 0.5) * baseAmount * intensity;
-      let dy = (noise(time + OFFSET + 100) - 0.5) * baseAmount * intensity;
-      console.log("OFFSET highEnergy:", dx, dy);
-      translate(dx, dy);
-
+      let intensity = pg.map(energyValue, 0, 255, 0, 1);
+      let dx = (pg.noise(time + OFFSET) - 0.5) * baseAmount * intensity;
+      let dy = (pg.noise(time + OFFSET + 100) - 0.5) * baseAmount * intensity;
+      //console.log("OFFSET highEnergy:", dx, dy);
+      pg.translate(dx, dy);
       const style = {
         color: highColorPicker.color(),
         weight: highStrokeSlider.value(),
         alpha: highAlphaSlider.value()
-      }
-
-        ;
+      };
       const selectedFuncName = highDrawSelector.value();
       const selectedEntry = drawFunctionMap[selectedFuncName];
-      // gain/threshold UI値を取得
       let gain = highGainSlider.value();
       let threshold = highThresholdSlider.value();
-      let scaledEnergy = constrain(highEnergy * gain, 0, 255);
-
-      // --- paramsオブジェクトでintensityGain, angleSpeedを渡す ---
+      let scaledEnergy = pg.constrain(highEnergy * gain, 0, 255);
       const params = {
         intensityGain: highIntensityGainSlider.value(),
         angleSpeed: highAngleSpeedSlider.value()
-      }
-
-        ;
-
+      };
       if (selectedEntry && selectedEntry.func && scaledEnergy > threshold) {
-        selectedEntry.func(scaledEnergy, frameCount, time, style, params);
+        selectedEntry.func.call(pg, scaledEnergy, currentFrame, time, style, params);
       }
     }
-
-    pop();
+    pg.pop();
   }
 
   // --- Spectrum Ring Layer ---
   if (spectrumRingCheckbox && spectrumRingCheckbox.checked()) {
-    push();
-    drawSpectrumRingByBands(spectrum);
-    pop();
+    pg.push();
+    // Draw spectrum ring, but need to proxy p5 state
+    drawSpectrumRingByBandsProxy(pg, spectrum, currentFrame);
+    pg.pop();
   }
 
   // --- Spectrum Diff Layer ---
   if (spectrumDiffCheckbox && spectrumDiffCheckbox.checked()) {
-    push();
-    drawSpectrumDiff(spectrum, prevSpectrum);
-    pop();
+    pg.push();
+    drawSpectrumDiffProxy(pg, spectrum, prevSpectrum, currentFrame);
+    pg.pop();
   }
+
+  pg.pop();
 
   // スペクトラム履歴を更新
   prevSpectrum = spectrum.slice(); // 配列をコピー
+}
+
+// Proxy for drawSpectrumRingByBands to allow drawing on arbitrary p5.Graphics context
+function drawSpectrumRingByBandsProxy(pg, spectrum, currentFrame) {
+  pg.noFill();
+  let totalBands = spectrum.length;
+  const bands = [
+    { name: "subBass", fromHz: 20, toHz: 60, color: subBassColorPicker.color() },
+    { name: "low", fromHz: 60, toHz: 140, color: lowColorPicker.color() },
+    { name: "lowMid", fromHz: 140, toHz: 400, color: lowMidColorPicker.color() },
+    { name: "mid", fromHz: 400, toHz: 1000, color: midColorPicker.color() },
+    { name: "upperMid", fromHz: 1000, toHz: 3000, color: upperMidColorPicker.color() },
+    { name: "presence", fromHz: 3000, toHz: 6000, color: presenceColorPicker.color() },
+    { name: "brilliance", fromHz: 6000, toHz: 16000, color: brillianceColorPicker.color() },
+    { name: "high", fromHz: 16000, toHz: 22050, color: highColorPicker.color() }
+  ];
+  for (let band of bands) {
+    let startIndex = Math.floor(pg.map(band.fromHz, 0, 22050, 0, totalBands));
+    let endIndex = Math.floor(pg.map(band.toHz, 0, 22050, 0, totalBands));
+    pg.stroke(band.color);
+    pg.strokeWeight(1);
+    pg.beginShape();
+    for (let i = startIndex; i < endIndex; i++) {
+      let angle = pg.map(i, 0, totalBands, 0, pg.TWO_PI);
+      let baseRadius = pg.map(spectrum[i], 0, 255, 60, 280);
+      let breathing = pg.sin(currentFrame * 0.05 + angle) * 8;
+      let jitter = pg.noise(angle + currentFrame * 0.01) * 10;
+      let radius = baseRadius + breathing + jitter;
+      let x = pg.cos(angle) * radius;
+      let y = pg.sin(angle) * radius;
+      pg.vertex(x, y);
+    }
+    pg.endShape();
+  }
+}
+
+// Proxy for drawSpectrumDiff to allow drawing on arbitrary p5.Graphics context
+function drawSpectrumDiffProxy(pg, current, previous, currentFrame) {
+  if (previous.length === 0) return;
+  let diffColor = spectrumDiffColorPicker ? spectrumDiffColorPicker.color() : pg.color(255);
+  diffColor.setAlpha(180);
+  pg.noFill();
+  let totalEnergy = current.reduce((a, b) => a + b, 0) / current.length;
+  let speed = pg.map(totalEnergy, 0, 255, 0.03, 0.25);
+  for (let i = 0; i < current.length; i++) {
+    let diff = Math.abs(current[i] - (previous[i] || 0));
+    if (diff > 10) {
+      let angle = pg.map(i, 0, current.length, 0, pg.TWO_PI);
+      let baseRadius = pg.map(diff, 0, 255, 120, 370);
+      let growth = diff * 0.3;
+      let radius = baseRadius + growth;
+      let x = pg.cos(angle) * radius;
+      let y = pg.sin(angle) * radius;
+      if (diff > 100) {
+        pg.stroke(255);
+        pg.strokeWeight(3);
+      } else {
+        pg.stroke(diffColor);
+        pg.strokeWeight(2);
+      }
+      pg.point(x, y);
+    }
+  }
 }
 
 // --- Spectrum Ring 描画関数 (旧モードは未使用のため描画呼び出しなし。関数自体は残すがUIやdrawからは呼ばれない) ---
@@ -1080,10 +1068,7 @@ function keyPressed() {
 
   // 's'キーが押されたらSVG保存
   if (key === 's' || key === 'S') {
-    save("sound_spatial_composition.svg");
-    // PNG保存もしたい場合は下記コメントアウト解除
-    // save("sound_spatial_composition.png");
-    // noLoop();
+    downloadSVG();
   }
 
   // 'c'キーでUI表示切り替え
@@ -1097,6 +1082,38 @@ function keyPressed() {
     clear(); // 背景と描画をすべてリセット
     background(0); // 背景色を黒で再設定
   }
+}
+
+// Global SVG export routine: redraw accumulated frames offscreen and save
+function downloadSVG() {
+  noLoop();
+  // 保存前のチェックボックス状態を保持
+  const ringOn = spectrumRingCheckbox.checked();
+  const diffOn = spectrumDiffCheckbox.checked();
+  // 書き出し時は必ずスペクトルリング／ディフを有効化
+  spectrumRingCheckbox.checked(true);
+  spectrumDiffCheckbox.checked(true);
+
+  // オフスクリーンSVGバッファを作成
+  const svgBuffer = createGraphics(CANVAS_SIZE, CANVAS_SIZE, SVG);
+  svgBuffer.background(0);
+  // reset diff history for SVG replay
+  prevSpectrum = [];
+
+  // フレームを再生描画してSVGに積み上げ
+  for (let i = 0; i < spectrumHistory.length; i++) {
+    // replay each recorded frame with its saved spectrum
+    drawVisuals(svgBuffer, i + 1, spectrumHistory[i]);
+  }
+
+  // チェックボックス状態を復元
+  spectrumRingCheckbox.checked(ringOn);
+  spectrumDiffCheckbox.checked(diffOn);
+
+  // p5 の save を使って SVG をダウンロード
+  save(svgBuffer, 'sound_visualization', 'svg');
+
+  loop();
 }
 
 // --- 各音域の描画処理 ---
