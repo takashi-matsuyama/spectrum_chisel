@@ -110,6 +110,9 @@
       let randomColors = generateDistinctColors(8);
 
       // --- UI要素の初期化 (低い音域から高い音域へ順番変更) ---
+      // ストローク（線の太さ）設定スライダー
+      // 引数: createSlider(最小値, 最大値, 初期値, ステップ値)
+      // → ユーザーが0.1〜5の範囲で0.1刻みで調整可能
       // 1. SubBass
       createDiv('SubBass Energy').parent(uiPanel).style('color', 'white');
       subBassColorPicker = createColorPicker(randomColors[3]).parent(uiPanel);
