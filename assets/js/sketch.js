@@ -319,7 +319,7 @@ function createUI() {
 
   // --- General Controls ---
   createDiv('Controls').parent(uiPanel).addClass('ui-section-title');
-  const saveButton = createButton('Save SVG').parent(uiPanel);
+  const saveButton = createButton('Save SVG (S)').parent(uiPanel);
   saveButton.mousePressed(downloadSVG);
   const clearButton = createButton('Clear Canvas (E)').parent(uiPanel);
   clearButton.mousePressed(() => keyPressed({ key: 'e' }));
