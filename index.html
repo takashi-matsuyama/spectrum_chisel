@@ -87,6 +87,16 @@
     };
 
     let lowDrawSelector;
+    // --- Low用追加スライダー ---
+    let lowGainSlider, lowThresholdSlider, lowIntensityGainSlider, lowAngleSpeedSlider;
+    // --- 各音域Intensity/Angleスライダー ---
+    let subBassIntensityGainSlider, subBassAngleSpeedSlider;
+    let lowMidIntensityGainSlider, lowMidAngleSpeedSlider;
+    let midIntensityGainSlider, midAngleSpeedSlider;
+    let upperMidIntensityGainSlider, upperMidAngleSpeedSlider;
+    let presenceIntensityGainSlider, presenceAngleSpeedSlider;
+    let brillianceIntensityGainSlider, brillianceAngleSpeedSlider;
+    let highIntensityGainSlider, highAngleSpeedSlider;
     let subBassDrawSelector;
     let lowMidDrawSelector;
     let midDrawSelector;
@@ -183,6 +193,21 @@
       for (let key in drawFunctionMap) subBassDrawSelector.option(key);
       subBassDrawSelector.selected("drawExpandingDots");
       uiElements.push(subBassDrawSelector);
+      // --- SubBass用追加スライダー ---
+      // gain
+      createSpan('Gain').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
+      subBassGainSlider = createSlider(0.1, 5.0, energySettings["subBass"].gain, 0.01).parent(uiPanel);
+      uiElements.push(subBassGainSlider);
+      // threshold
+      createSpan('Threshold').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
+      subBassThresholdSlider = createSlider(0, 255, energySettings["subBass"].threshold, 1).parent(uiPanel);
+      uiElements.push(subBassThresholdSlider);
+      createSpan('IntensityGain').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
+      subBassIntensityGainSlider = createSlider(0.0, 5.0, 1.0, 0.01).parent(uiPanel);
+      uiElements.push(subBassIntensityGainSlider);
+      createSpan('AngleSpeed').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
+      subBassAngleSpeedSlider = createSlider(0.0, 5.0, 1.0, 0.01).parent(uiPanel);
+      uiElements.push(subBassAngleSpeedSlider);
 
       // 2. Low
       createDiv('Low Energy').parent(uiPanel).style('color', 'white');
@@ -197,6 +222,23 @@
       for (let key in drawFunctionMap) lowDrawSelector.option(key);
       lowDrawSelector.selected("drawSmoothEllipse");
       uiElements.push(lowDrawSelector);
+      // --- Low用追加スライダー ---
+      // gain
+      createSpan('Gain').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
+      lowGainSlider = createSlider(0.1, 5.0, energySettings["low"].gain, 0.01).parent(uiPanel);
+      uiElements.push(lowGainSlider);
+      // threshold
+      createSpan('Threshold').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
+      lowThresholdSlider = createSlider(0, 255, energySettings["low"].threshold, 1).parent(uiPanel);
+      uiElements.push(lowThresholdSlider);
+      // intensityGain
+      createSpan('IntensityGain').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
+      lowIntensityGainSlider = createSlider(0.0, 5.0, 1.0, 0.01).parent(uiPanel);
+      uiElements.push(lowIntensityGainSlider);
+      // angleSpeed
+      createSpan('AngleSpeed').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
+      lowAngleSpeedSlider = createSlider(0.0, 5.0, 1.0, 0.01).parent(uiPanel);
+      uiElements.push(lowAngleSpeedSlider);
 
       // 3. LowMid
       createDiv('LowMid Energy').parent(uiPanel).style('color', 'white');
@@ -211,6 +253,21 @@
       for (let key in drawFunctionMap) lowMidDrawSelector.option(key);
       lowMidDrawSelector.selected("drawNoisyContours");
       uiElements.push(lowMidDrawSelector);
+      // --- LowMid用追加スライダー ---
+      // gain
+      createSpan('Gain').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
+      lowMidGainSlider = createSlider(0.1, 5.0, energySettings["lowMid"].gain, 0.01).parent(uiPanel);
+      uiElements.push(lowMidGainSlider);
+      // threshold
+      createSpan('Threshold').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
+      lowMidThresholdSlider = createSlider(0, 255, energySettings["lowMid"].threshold, 1).parent(uiPanel);
+      uiElements.push(lowMidThresholdSlider);
+      createSpan('IntensityGain').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
+      lowMidIntensityGainSlider = createSlider(0.0, 5.0, 1.0, 0.01).parent(uiPanel);
+      uiElements.push(lowMidIntensityGainSlider);
+      createSpan('AngleSpeed').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
+      lowMidAngleSpeedSlider = createSlider(0.0, 5.0, 1.0, 0.01).parent(uiPanel);
+      uiElements.push(lowMidAngleSpeedSlider);
 
       // 4. Mid
       createDiv('Mid Energy').parent(uiPanel).style('color', 'white');
@@ -225,6 +282,21 @@
       for (let key in drawFunctionMap) midDrawSelector.option(key);
       midDrawSelector.selected("drawRotatingWaves");
       uiElements.push(midDrawSelector);
+      // --- Mid用追加スライダー ---
+      // gain
+      createSpan('Gain').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
+      midGainSlider = createSlider(0.1, 5.0, energySettings["mid"].gain, 0.01).parent(uiPanel);
+      uiElements.push(midGainSlider);
+      // threshold
+      createSpan('Threshold').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
+      midThresholdSlider = createSlider(0, 255, energySettings["mid"].threshold, 1).parent(uiPanel);
+      uiElements.push(midThresholdSlider);
+      createSpan('IntensityGain').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
+      midIntensityGainSlider = createSlider(0.0, 5.0, 1.0, 0.01).parent(uiPanel);
+      uiElements.push(midIntensityGainSlider);
+      createSpan('AngleSpeed').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
+      midAngleSpeedSlider = createSlider(0.0, 5.0, 1.0, 0.01).parent(uiPanel);
+      uiElements.push(midAngleSpeedSlider);
 
       // 5. UpperMid
       createDiv('UpperMid Energy').parent(uiPanel).style('color', 'white');
@@ -239,6 +311,21 @@
       for (let key in drawFunctionMap) upperMidDrawSelector.option(key);
       upperMidDrawSelector.selected("drawFloatingDots");
       uiElements.push(upperMidDrawSelector);
+      // --- UpperMid用追加スライダー ---
+      // gain
+      createSpan('Gain').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
+      upperMidGainSlider = createSlider(0.1, 5.0, energySettings["upperMid"].gain, 0.01).parent(uiPanel);
+      uiElements.push(upperMidGainSlider);
+      // threshold
+      createSpan('Threshold').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
+      upperMidThresholdSlider = createSlider(0, 255, energySettings["upperMid"].threshold, 1).parent(uiPanel);
+      uiElements.push(upperMidThresholdSlider);
+      createSpan('IntensityGain').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
+      upperMidIntensityGainSlider = createSlider(0.0, 5.0, 1.0, 0.01).parent(uiPanel);
+      uiElements.push(upperMidIntensityGainSlider);
+      createSpan('AngleSpeed').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
+      upperMidAngleSpeedSlider = createSlider(0.0, 5.0, 1.0, 0.01).parent(uiPanel);
+      uiElements.push(upperMidAngleSpeedSlider);
 
       // 6. Presence
       createDiv('Presence Energy').parent(uiPanel).style('color', 'white');
@@ -253,6 +340,21 @@
       for (let key in drawFunctionMap) presenceDrawSelector.option(key);
       presenceDrawSelector.selected("drawSparks");
       uiElements.push(presenceDrawSelector);
+      // --- Presence用追加スライダー ---
+      // gain
+      createSpan('Gain').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
+      presenceGainSlider = createSlider(0.1, 5.0, energySettings["presence"].gain, 0.01).parent(uiPanel);
+      uiElements.push(presenceGainSlider);
+      // threshold
+      createSpan('Threshold').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
+      presenceThresholdSlider = createSlider(0, 255, energySettings["presence"].threshold, 1).parent(uiPanel);
+      uiElements.push(presenceThresholdSlider);
+      createSpan('IntensityGain').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
+      presenceIntensityGainSlider = createSlider(0.0, 5.0, 1.0, 0.01).parent(uiPanel);
+      uiElements.push(presenceIntensityGainSlider);
+      createSpan('AngleSpeed').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
+      presenceAngleSpeedSlider = createSlider(0.0, 5.0, 1.0, 0.01).parent(uiPanel);
+      uiElements.push(presenceAngleSpeedSlider);
 
       // 7. Brilliance
       createDiv('Brilliance Energy').parent(uiPanel).style('color', 'white');
@@ -267,6 +369,21 @@
       for (let key in drawFunctionMap) brillianceDrawSelector.option(key);
       brillianceDrawSelector.selected("drawRadiantBeams");
       uiElements.push(brillianceDrawSelector);
+      // --- Brilliance用追加スライダー ---
+      // gain
+      createSpan('Gain').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
+      brillianceGainSlider = createSlider(0.1, 5.0, energySettings["brilliance"].gain, 0.01).parent(uiPanel);
+      uiElements.push(brillianceGainSlider);
+      // threshold
+      createSpan('Threshold').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
+      brillianceThresholdSlider = createSlider(0, 255, energySettings["brilliance"].threshold, 1).parent(uiPanel);
+      uiElements.push(brillianceThresholdSlider);
+      createSpan('IntensityGain').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
+      brillianceIntensityGainSlider = createSlider(0.0, 5.0, 1.0, 0.01).parent(uiPanel);
+      uiElements.push(brillianceIntensityGainSlider);
+      createSpan('AngleSpeed').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
+      brillianceAngleSpeedSlider = createSlider(0.0, 5.0, 1.0, 0.01).parent(uiPanel);
+      uiElements.push(brillianceAngleSpeedSlider);
 
       // 8. High
       createDiv('High Energy').parent(uiPanel).style('color', 'white');
@@ -281,6 +398,21 @@
       for (let key in drawFunctionMap) highDrawSelector.option(key);
       highDrawSelector.selected("drawRadialLines");
       uiElements.push(highDrawSelector);
+      // --- High用追加スライダー ---
+      // gain
+      createSpan('Gain').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
+      highGainSlider = createSlider(0.1, 5.0, energySettings["high"].gain, 0.01).parent(uiPanel);
+      uiElements.push(highGainSlider);
+      // threshold
+      createSpan('Threshold').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
+      highThresholdSlider = createSlider(0, 255, energySettings["high"].threshold, 1).parent(uiPanel);
+      uiElements.push(highThresholdSlider);
+      createSpan('IntensityGain').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
+      highIntensityGainSlider = createSlider(0.0, 5.0, 1.0, 0.01).parent(uiPanel);
+      uiElements.push(highIntensityGainSlider);
+      createSpan('AngleSpeed').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
+      highAngleSpeedSlider = createSlider(0.0, 5.0, 1.0, 0.01).parent(uiPanel);
+      uiElements.push(highAngleSpeedSlider);
 
       // 音域ごとの描画ON/OFFチェックボックスとラベル（低音域から高音域へ）
       // 1. SubBass
@@ -395,10 +527,17 @@
           };
           const selectedFuncName = subBassDrawSelector.value();
           const selectedEntry = drawFunctionMap[selectedFuncName];
-          const energyConfig = energySettings["subBass"];
-          let scaledEnergy = constrain(subBassEnergy * energyConfig.gain, 0, 255);
-          if (selectedEntry && selectedEntry.func && energyConfig && scaledEnergy > energyConfig.threshold) {
-            selectedEntry.func(scaledEnergy, frameCount, time, style);
+          // gain/threshold UI値を取得
+          let gain = subBassGainSlider.value();
+          let threshold = subBassThresholdSlider.value();
+          let scaledEnergy = constrain(subBassEnergy * gain, 0, 255);
+          // --- paramsオブジェクトでintensityGain, angleSpeedを渡す ---
+          const params = {
+            intensityGain: subBassIntensityGainSlider.value(),
+            angleSpeed: subBassAngleSpeedSlider.value()
+          };
+          if (selectedEntry && selectedEntry.func && scaledEnergy > threshold) {
+            selectedEntry.func(scaledEnergy, frameCount, time, style, params);
           }
         }
         pop();
@@ -409,6 +548,11 @@
         push();
         {
           let energyValue = lowEnergy;
+          // --- 新UIスライダーで値取得 ---
+          let gain = lowGainSlider.value();
+          let threshold = lowThresholdSlider.value();
+          let intensityGain = lowIntensityGainSlider.value();
+          let angleSpeed = lowAngleSpeedSlider.value();
           let baseAmount = 12;
           let intensity = map(energyValue, 0, 255, 0, 1);
           let angle = frameCount * 0.02;
@@ -423,10 +567,15 @@
           };
           const selectedFuncName = lowDrawSelector.value();
           const selectedEntry = drawFunctionMap[selectedFuncName];
-          const energyConfig = energySettings["low"];
-          let scaledEnergy = constrain(lowEnergy * energyConfig.gain, 0, 255);
-          if (selectedEntry && selectedEntry.func && energyConfig && scaledEnergy > energyConfig.threshold) {
-            selectedEntry.func(scaledEnergy, frameCount, time, style);
+          // energy 計算に gain/threshold を反映
+          let scaledEnergy = constrain(lowEnergy * gain, 0, 255);
+          // --- paramsオブジェクトでintensityGain, angleSpeedを渡す ---
+          const params = {
+            intensityGain: intensityGain,
+            angleSpeed: angleSpeed
+          };
+          if (selectedEntry && selectedEntry.func && scaledEnergy > threshold) {
+            selectedEntry.func(scaledEnergy, frameCount, time, style, params);
           }
         }
         pop();
@@ -451,10 +600,17 @@
           };
           const selectedFuncName = lowMidDrawSelector.value();
           const selectedEntry = drawFunctionMap[selectedFuncName];
-          const energyConfig = energySettings["lowMid"];
-          let scaledEnergy = constrain(lowMidEnergy * energyConfig.gain, 0, 255);
-          if (selectedEntry && selectedEntry.func && energyConfig && scaledEnergy > energyConfig.threshold) {
-            selectedEntry.func(scaledEnergy, frameCount, time, style);
+          // gain/threshold UI値を取得
+          let gain = lowMidGainSlider.value();
+          let threshold = lowMidThresholdSlider.value();
+          let scaledEnergy = constrain(lowMidEnergy * gain, 0, 255);
+          // --- paramsオブジェクトでintensityGain, angleSpeedを渡す ---
+          const params = {
+            intensityGain: lowMidIntensityGainSlider.value(),
+            angleSpeed: lowMidAngleSpeedSlider.value()
+          };
+          if (selectedEntry && selectedEntry.func && scaledEnergy > threshold) {
+            selectedEntry.func(scaledEnergy, frameCount, time, style, params);
           }
         }
         pop();
@@ -479,10 +635,17 @@
           };
           const selectedFuncName = midDrawSelector.value();
           const selectedEntry = drawFunctionMap[selectedFuncName];
-          const energyConfig = energySettings["mid"];
-          let scaledEnergy = constrain(midEnergy * energyConfig.gain, 0, 255);
-          if (selectedEntry && selectedEntry.func && energyConfig && scaledEnergy > energyConfig.threshold) {
-            selectedEntry.func(scaledEnergy, frameCount, time, style);
+          // gain/threshold UI値を取得
+          let gain = midGainSlider.value();
+          let threshold = midThresholdSlider.value();
+          let scaledEnergy = constrain(midEnergy * gain, 0, 255);
+          // --- paramsオブジェクトでintensityGain, angleSpeedを渡す ---
+          const params = {
+            intensityGain: midIntensityGainSlider.value(),
+            angleSpeed: midAngleSpeedSlider.value()
+          };
+          if (selectedEntry && selectedEntry.func && scaledEnergy > threshold) {
+            selectedEntry.func(scaledEnergy, frameCount, time, style, params);
           }
         }
         pop();
@@ -507,10 +670,17 @@
           };
           const selectedFuncName = upperMidDrawSelector.value();
           const selectedEntry = drawFunctionMap[selectedFuncName];
-          const energyConfig = energySettings["upperMid"];
-          let scaledEnergy = constrain(upperMidEnergy * energyConfig.gain, 0, 255);
-          if (selectedEntry && selectedEntry.func && energyConfig && scaledEnergy > energyConfig.threshold) {
-            selectedEntry.func(scaledEnergy, frameCount, time, style);
+          // gain/threshold UI値を取得
+          let gain = upperMidGainSlider.value();
+          let threshold = upperMidThresholdSlider.value();
+          let scaledEnergy = constrain(upperMidEnergy * gain, 0, 255);
+          // --- paramsオブジェクトでintensityGain, angleSpeedを渡す ---
+          const params = {
+            intensityGain: upperMidIntensityGainSlider.value(),
+            angleSpeed: upperMidAngleSpeedSlider.value()
+          };
+          if (selectedEntry && selectedEntry.func && scaledEnergy > threshold) {
+            selectedEntry.func(scaledEnergy, frameCount, time, style, params);
           }
         }
         pop();
@@ -535,10 +705,17 @@
           };
           const selectedFuncName = presenceDrawSelector.value();
           const selectedEntry = drawFunctionMap[selectedFuncName];
-          const energyConfig = energySettings["presence"];
-          let scaledEnergy = constrain(presenceEnergy * energyConfig.gain, 0, 255);
-          if (selectedEntry && selectedEntry.func && energyConfig && scaledEnergy > energyConfig.threshold) {
-            selectedEntry.func(scaledEnergy, frameCount, time, style);
+          // gain/threshold UI値を取得
+          let gain = presenceGainSlider.value();
+          let threshold = presenceThresholdSlider.value();
+          let scaledEnergy = constrain(presenceEnergy * gain, 0, 255);
+          // --- paramsオブジェクトでintensityGain, angleSpeedを渡す ---
+          const params = {
+            intensityGain: presenceIntensityGainSlider.value(),
+            angleSpeed: presenceAngleSpeedSlider.value()
+          };
+          if (selectedEntry && selectedEntry.func && scaledEnergy > threshold) {
+            selectedEntry.func(scaledEnergy, frameCount, time, style, params);
           }
         }
         pop();
@@ -563,10 +740,17 @@
           };
           const selectedFuncName = brillianceDrawSelector.value();
           const selectedEntry = drawFunctionMap[selectedFuncName];
-          const energyConfig = energySettings["brilliance"];
-          let scaledEnergy = constrain(brillianceEnergy * energyConfig.gain, 0, 255);
-          if (selectedEntry && selectedEntry.func && energyConfig && scaledEnergy > energyConfig.threshold) {
-            selectedEntry.func(scaledEnergy, frameCount, time, style);
+          // gain/threshold UI値を取得
+          let gain = brillianceGainSlider.value();
+          let threshold = brillianceThresholdSlider.value();
+          let scaledEnergy = constrain(brillianceEnergy * gain, 0, 255);
+          // --- paramsオブジェクトでintensityGain, angleSpeedを渡す ---
+          const params = {
+            intensityGain: brillianceIntensityGainSlider.value(),
+            angleSpeed: brillianceAngleSpeedSlider.value()
+          };
+          if (selectedEntry && selectedEntry.func && scaledEnergy > threshold) {
+            selectedEntry.func(scaledEnergy, frameCount, time, style, params);
           }
         }
         pop();
@@ -591,10 +775,17 @@
           };
           const selectedFuncName = highDrawSelector.value();
           const selectedEntry = drawFunctionMap[selectedFuncName];
-          const energyConfig = energySettings["high"];
-          let scaledEnergy = constrain(highEnergy * energyConfig.gain, 0, 255);
-          if (selectedEntry && selectedEntry.func && energyConfig && scaledEnergy > energyConfig.threshold) {
-            selectedEntry.func(scaledEnergy, frameCount, time, style);
+          // gain/threshold UI値を取得
+          let gain = highGainSlider.value();
+          let threshold = highThresholdSlider.value();
+          let scaledEnergy = constrain(highEnergy * gain, 0, 255);
+          // --- paramsオブジェクトでintensityGain, angleSpeedを渡す ---
+          const params = {
+            intensityGain: highIntensityGainSlider.value(),
+            angleSpeed: highAngleSpeedSlider.value()
+          };
+          if (selectedEntry && selectedEntry.func && scaledEnergy > threshold) {
+            selectedEntry.func(scaledEnergy, frameCount, time, style, params);
           }
         }
         pop();
@@ -622,24 +813,27 @@
     }
 
     // --- 各音域の描画処理 ---
-    function drawSmoothEllipse(energy, frameCount, time, style) {
+    function drawSmoothEllipse(energy, frameCount, time, style, params) {
       // 有機的な包み込むような低音: 滑らかな楕円波形構造 (curveVertex)
       let c = style.color;
       c.setAlpha(style.alpha);
       stroke(c);
       strokeWeight(style.weight);
       noFill();
+      // --- intensityGain, angleSpeed パラメータ取得（デフォルト1.0） ---
+      let intensityGain = (params && typeof params.intensityGain === "number") ? params.intensityGain : 1.0;
+      let angleSpeed = (params && typeof params.angleSpeed === "number") ? params.angleSpeed : 1.0;
       // energyに応じて可変
-      let baseA = map(energy, 0, 255, 80, 340);
-      let baseB = map(energy, 0, 255, 60, 240);
-      let waviness = map(energy, 0, 255, 5, 50);
+      let baseA = map(energy, 0, 255, 80, 340) * intensityGain;
+      let baseB = map(energy, 0, 255, 60, 240) * intensityGain;
+      let waviness = map(energy, 0, 255, 5, 50) * intensityGain;
       let waveCount = 2 + floor(map(energy, 0, 255, 2, 8));
       let detail = 2 + floor(map(energy, 0, 255, 1, 4));
       for (let d = 0; d < detail; d++) {
         beginShape();
         for (let t = 0; t <= TWO_PI + 0.05; t += 0.05) {
-          let a = baseA + sin(t * waveCount + time * 1.5 + d) * waviness;
-          let b = baseB + cos(t * waveCount + time * 1.4 + d) * (waviness * 0.7);
+          let a = baseA + sin(t * waveCount + time * 1.5 * angleSpeed + d) * waviness;
+          let b = baseB + cos(t * waveCount + time * 1.4 * angleSpeed + d) * (waviness * 0.7);
           let x = (a + noise(t + d * 0.3 + time) * 10) * cos(t);
           let y = (b + noise(t + d * 0.5 + time + 100) * 10) * sin(t);
           curveVertex(x, y);
