@@ -903,7 +903,7 @@ function draw() {
   // --- Spectrum Ring Layer ---
   if (spectrumRingCheckbox && spectrumRingCheckbox.checked()) {
     push();
-    drawSpectrumRing(spectrum);
+    drawSpectrumRingByBands(spectrum);
     pop();
   }
 
@@ -918,7 +918,7 @@ function draw() {
   prevSpectrum = spectrum.slice(); // 配列をコピー
 }
 
-// --- Spectrum Ring 描画関数 ---
+// --- Spectrum Ring 描画関数 (旧モードは未使用のため描画呼び出しなし。関数自体は残すがUIやdrawからは呼ばれない) ---
 function drawSpectrumRing(spectrum) {
   stroke(200, 100, 100, 100);
   noFill();
@@ -1187,67 +1187,115 @@ let drawFunctionMap = {
   drawFloatingDots: { func: drawFloatingDots, defaultWeight: 1.0 }
 }
 
-// --- 各セレクタにchangedイベントを追加し、選択時にストローク値をdefaultWeightに更新 ---
-subBassDrawSelector.changed(() => {
-  const selected = drawFunctionMap[subBassDrawSelector.value()];
-  if (selected && typeof selected.defaultWeight === "number") {
-    subBassStrokeSlider.value(selected.defaultWeight);
-  }
-});
-subBassDrawSelector.selected("drawExpandingDots").changed();
 
-lowDrawSelector.changed(() => {
-  const selected = drawFunctionMap[lowDrawSelector.value()];
-  if (selected && typeof selected.defaultWeight === "number") {
-    lowStrokeSlider.value(selected.defaultWeight);
-  }
-});
-lowDrawSelector.selected("drawSmoothEllipse").changed();
 
-lowMidDrawSelector.changed(() => {
-  const selected = drawFunctionMap[lowMidDrawSelector.value()];
-  if (selected && typeof selected.defaultWeight === "number") {
-    lowMidStrokeSlider.value(selected.defaultWeight);
-  }
-});
-lowMidDrawSelector.selected("drawNoisyContours").changed();
+// --- Spectrum Ring (8-band colored) 描画関数 ---
+function drawSpectrumRingByBands(spectrum) {
+  noFill();
+  let totalBands = spectrum.length;
 
-midDrawSelector.changed(() => {
-  const selected = drawFunctionMap[midDrawSelector.value()];
-  if (selected && typeof selected.defaultWeight === "number") {
-    midStrokeSlider.value(selected.defaultWeight);
-  }
-});
-midDrawSelector.selected("drawRotatingWaves").changed();
+  const bands = [
+    { name: "subBass", fromHz: 20, toHz: 60, color: subBassColorPicker.color() },
+    { name: "low", fromHz: 60, toHz: 140, color: lowColorPicker.color() },
+    { name: "lowMid", fromHz: 140, toHz: 400, color: lowMidColorPicker.color() },
+    { name: "mid", fromHz: 400, toHz: 1000, color: midColorPicker.color() },
+    { name: "upperMid", fromHz: 1000, toHz: 3000, color: upperMidColorPicker.color() },
+    { name: "presence", fromHz: 3000, toHz: 6000, color: presenceColorPicker.color() },
+    { name: "brilliance", fromHz: 6000, toHz: 16000, color: brillianceColorPicker.color() },
+    { name: "high", fromHz: 16000, toHz: 22050, color: highColorPicker.color() }
+  ];
 
-upperMidDrawSelector.changed(() => {
-  const selected = drawFunctionMap[upperMidDrawSelector.value()];
-  if (selected && typeof selected.defaultWeight === "number") {
-    upperMidStrokeSlider.value(selected.defaultWeight);
-  }
-});
-upperMidDrawSelector.selected("drawFloatingDots").changed();
+  for (let band of bands) {
+    let startIndex = floor(map(band.fromHz, 0, 22050, 0, totalBands));
+    let endIndex = floor(map(band.toHz, 0, 22050, 0, totalBands));
 
-presenceDrawSelector.changed(() => {
-  const selected = drawFunctionMap[presenceDrawSelector.value()];
-  if (selected && typeof selected.defaultWeight === "number") {
-    presenceStrokeSlider.value(selected.defaultWeight);
+    stroke(band.color);
+    strokeWeight(1);
+    beginShape();
+    for (let i = startIndex; i < endIndex; i++) {
+      let angle = map(i, 0, totalBands, 0, TWO_PI);
+      let radius = map(spectrum[i], 0, 255, 60, 280);
+      let x = cos(angle) * radius;
+      let y = sin(angle) * radius;
+      vertex(x, y);
+    }
+    endShape();
   }
-});
-presenceDrawSelector.selected("drawSparks").changed();
+}
 
-brillianceDrawSelector.changed(() => {
-  const selected = drawFunctionMap[brillianceDrawSelector.value()];
-  if (selected && typeof selected.defaultWeight === "number") {
-    brillianceStrokeSlider.value(selected.defaultWeight);
-  }
-});
-brillianceDrawSelector.selected("drawRadiantBeams").changed();
 
-highDrawSelector.changed(() => {
-  const selected = drawFunctionMap[highDrawSelector.value()];
-  if (selected && typeof selected.defaultWeight === "number") {
-    highStrokeSlider.value(selected.defaultWeight);
-  }
-});
-highDrawSelector.selected("drawRadialLines").changed();
+// --- 各音域の描画スタイルセレクタ changed イベント登録: setup()の末尾に移動 ---
+
+// --- 各音域の描画スタイルセレクタ changed イベント登録 ---
+if (subBassDrawSelector) {
+  subBassDrawSelector.changed(() => {
+    const selectedKey = subBassDrawSelector.value();
+    const selected = drawFunctionMap[selectedKey];
+    if (selected && typeof selected.defaultWeight === "number") {
+      subBassStrokeSlider.value(selected.defaultWeight);
+    }
+  });
+}
+if (lowDrawSelector) {
+  lowDrawSelector.changed(() => {
+    const selectedKey = lowDrawSelector.value();
+    const selected = drawFunctionMap[selectedKey];
+    if (selected && typeof selected.defaultWeight === "number") {
+      lowStrokeSlider.value(selected.defaultWeight);
+    }
+  });
+}
+if (lowMidDrawSelector) {
+  lowMidDrawSelector.changed(() => {
+    const selectedKey = lowMidDrawSelector.value();
+    const selected = drawFunctionMap[selectedKey];
+    if (selected && typeof selected.defaultWeight === "number") {
+      lowMidStrokeSlider.value(selected.defaultWeight);
+    }
+  });
+}
+if (midDrawSelector) {
+  midDrawSelector.changed(() => {
+    const selectedKey = midDrawSelector.value();
+    const selected = drawFunctionMap[selectedKey];
+    if (selected && typeof selected.defaultWeight === "number") {
+      midStrokeSlider.value(selected.defaultWeight);
+    }
+  });
+}
+if (upperMidDrawSelector) {
+  upperMidDrawSelector.changed(() => {
+    const selectedKey = upperMidDrawSelector.value();
+    const selected = drawFunctionMap[selectedKey];
+    if (selected && typeof selected.defaultWeight === "number") {
+      upperMidStrokeSlider.value(selected.defaultWeight);
+    }
+  });
+}
+if (presenceDrawSelector) {
+  presenceDrawSelector.changed(() => {
+    const selectedKey = presenceDrawSelector.value();
+    const selected = drawFunctionMap[selectedKey];
+    if (selected && typeof selected.defaultWeight === "number") {
+      presenceStrokeSlider.value(selected.defaultWeight);
+    }
+  });
+}
+if (brillianceDrawSelector) {
+  brillianceDrawSelector.changed(() => {
+    const selectedKey = brillianceDrawSelector.value();
+    const selected = drawFunctionMap[selectedKey];
+    if (selected && typeof selected.defaultWeight === "number") {
+      brillianceStrokeSlider.value(selected.defaultWeight);
+    }
+  });
+}
+if (highDrawSelector) {
+  highDrawSelector.changed(() => {
+    const selectedKey = highDrawSelector.value();
+    const selected = drawFunctionMap[selectedKey];
+    if (selected && typeof selected.defaultWeight === "number") {
+      highStrokeSlider.value(selected.defaultWeight);
+    }
+  });
+}
