@@ -1,12 +1,17 @@
 let fft,
   mic;
 
+// --- Spectrum Diff Color Picker ---
+let spectrumDiffColorPicker;
+
 // --- Spectrum Ring/Diffグローバル変数 ---
 let prevSpectrum = [];
 let spectrumRingCheckbox;
 let spectrumDiffCheckbox;
 
 // --- UI要素のグローバル変数宣言 ---
+
+let frameRateSlider;
 
 // 各音域ごとのエネルギー補正設定
 const energySettings = {
@@ -195,6 +200,8 @@ function setup() {
   uiElements.push(subBassColorPicker);
   createSpan('Alpha').parent(uiPanel).addClass('ui-section-title').style('font-weight', 'normal').style('color', 'white');
   subBassAlphaSlider = createSlider(0, 255, 20, 1).parent(uiPanel).addClass('ui-slider');
+  const subBassAlphaValueSpan = createSpan(subBassAlphaSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  subBassAlphaSlider.input(() => subBassAlphaValueSpan.html(subBassAlphaSlider.value()));
   uiElements.push(subBassAlphaSlider);
   // SubBass描画関数切り替えセレクタ
   subBassDrawSelector = createSelect().parent(uiPanel);
@@ -203,21 +210,31 @@ function setup() {
   uiElements.push(subBassDrawSelector);
   createSpan('Stroke').parent(uiPanel).addClass('ui-section-title').style('font-weight', 'normal').style('color', 'white');
   subBassStrokeSlider = createSlider(0.1, 5, drawFunctionMap["drawExpandingDots"].defaultWeight, 0.1).parent(uiPanel).addClass('ui-slider');
+  const subBassStrokeValueSpan = createSpan(subBassStrokeSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  subBassStrokeSlider.input(() => subBassStrokeValueSpan.html(subBassStrokeSlider.value()));
   uiElements.push(subBassStrokeSlider);
   // --- SubBass用追加スライダー ---
   // gain
   createSpan('Gain').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
   subBassGainSlider = createSlider(0.1, 5.0, energySettings["subBass"].gain, 0.01).parent(uiPanel).addClass('ui-slider');
+  const subBassGainValueSpan = createSpan(subBassGainSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  subBassGainSlider.input(() => subBassGainValueSpan.html(subBassGainSlider.value()));
   uiElements.push(subBassGainSlider);
   // threshold
   createSpan('Threshold').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
   subBassThresholdSlider = createSlider(0, 255, energySettings["subBass"].threshold, 1).parent(uiPanel).addClass('ui-slider');
+  const subBassThresholdValueSpan = createSpan(subBassThresholdSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  subBassThresholdSlider.input(() => subBassThresholdValueSpan.html(subBassThresholdSlider.value()));
   uiElements.push(subBassThresholdSlider);
   createSpan('IntensityGain').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
   subBassIntensityGainSlider = createSlider(0.0, 5.0, 1.0, 0.01).parent(uiPanel).addClass('ui-slider');
+  const subBassIntensityGainValueSpan = createSpan(subBassIntensityGainSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  subBassIntensityGainSlider.input(() => subBassIntensityGainValueSpan.html(subBassIntensityGainSlider.value()));
   uiElements.push(subBassIntensityGainSlider);
   createSpan('AngleSpeed').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
   subBassAngleSpeedSlider = createSlider(0.0, 5.0, 1.0, 0.01).parent(uiPanel).addClass('ui-slider');
+  const subBassAngleSpeedValueSpan = createSpan(subBassAngleSpeedSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  subBassAngleSpeedSlider.input(() => subBassAngleSpeedValueSpan.html(subBassAngleSpeedSlider.value()));
   uiElements.push(subBassAngleSpeedSlider);
 
   // 2. Low
@@ -226,6 +243,8 @@ function setup() {
   uiElements.push(lowColorPicker);
   createSpan('Alpha').parent(uiPanel).addClass('ui-section-title').style('font-weight', 'normal').style('color', 'white');
   lowAlphaSlider = createSlider(0, 255, 20, 1).parent(uiPanel).addClass('ui-slider');
+  const lowAlphaValueSpan = createSpan(lowAlphaSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  lowAlphaSlider.input(() => lowAlphaValueSpan.html(lowAlphaSlider.value()));
   uiElements.push(lowAlphaSlider);
   // lowEnergy 描画関数切り替えセレクタ
   lowDrawSelector = createSelect().parent(uiPanel);
@@ -234,23 +253,33 @@ function setup() {
   uiElements.push(lowDrawSelector);
   createSpan('Stroke').parent(uiPanel).addClass('ui-section-title').style('font-weight', 'normal').style('color', 'white');
   lowStrokeSlider = createSlider(0.1, 5, drawFunctionMap["drawSmoothEllipse"].defaultWeight, 0.1).parent(uiPanel).addClass('ui-slider');
+  const lowStrokeValueSpan = createSpan(lowStrokeSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  lowStrokeSlider.input(() => lowStrokeValueSpan.html(lowStrokeSlider.value()));
   uiElements.push(lowStrokeSlider);
   // --- Low用追加スライダー ---
   // gain
   createSpan('Gain').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
   lowGainSlider = createSlider(0.1, 5.0, energySettings["low"].gain, 0.01).parent(uiPanel).addClass('ui-slider');
+  const lowGainValueSpan = createSpan(lowGainSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  lowGainSlider.input(() => lowGainValueSpan.html(lowGainSlider.value()));
   uiElements.push(lowGainSlider);
   // threshold
   createSpan('Threshold').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
   lowThresholdSlider = createSlider(0, 255, energySettings["low"].threshold, 1).parent(uiPanel).addClass('ui-slider');
+  const lowThresholdValueSpan = createSpan(lowThresholdSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  lowThresholdSlider.input(() => lowThresholdValueSpan.html(lowThresholdSlider.value()));
   uiElements.push(lowThresholdSlider);
   // intensityGain
   createSpan('IntensityGain').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
   lowIntensityGainSlider = createSlider(0.0, 5.0, 1.0, 0.01).parent(uiPanel).addClass('ui-slider');
+  const lowIntensityGainValueSpan = createSpan(lowIntensityGainSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  lowIntensityGainSlider.input(() => lowIntensityGainValueSpan.html(lowIntensityGainSlider.value()));
   uiElements.push(lowIntensityGainSlider);
   // angleSpeed
   createSpan('AngleSpeed').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
   lowAngleSpeedSlider = createSlider(0.0, 5.0, 1.0, 0.01).parent(uiPanel).addClass('ui-slider');
+  const lowAngleSpeedValueSpan = createSpan(lowAngleSpeedSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  lowAngleSpeedSlider.input(() => lowAngleSpeedValueSpan.html(lowAngleSpeedSlider.value()));
   uiElements.push(lowAngleSpeedSlider);
 
   // 3. LowMid
@@ -259,6 +288,8 @@ function setup() {
   uiElements.push(lowMidColorPicker);
   createSpan('Alpha').parent(uiPanel).addClass('ui-section-title').style('font-weight', 'normal').style('color', 'white');
   lowMidAlphaSlider = createSlider(0, 255, 20, 1).parent(uiPanel).addClass('ui-slider');
+  const lowMidAlphaValueSpan = createSpan(lowMidAlphaSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  lowMidAlphaSlider.input(() => lowMidAlphaValueSpan.html(lowMidAlphaSlider.value()));
   uiElements.push(lowMidAlphaSlider);
   // LowMid描画関数切り替えセレクタ
   lowMidDrawSelector = createSelect().parent(uiPanel);
@@ -267,21 +298,31 @@ function setup() {
   uiElements.push(lowMidDrawSelector);
   createSpan('Stroke').parent(uiPanel).addClass('ui-section-title').style('font-weight', 'normal').style('color', 'white');
   lowMidStrokeSlider = createSlider(0.1, 5, drawFunctionMap["drawNoisyContours"].defaultWeight, 0.1).parent(uiPanel).addClass('ui-slider');
+  const lowMidStrokeValueSpan = createSpan(lowMidStrokeSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  lowMidStrokeSlider.input(() => lowMidStrokeValueSpan.html(lowMidStrokeSlider.value()));
   uiElements.push(lowMidStrokeSlider);
   // --- LowMid用追加スライダー ---
   // gain
   createSpan('Gain').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
   lowMidGainSlider = createSlider(0.1, 5.0, energySettings["lowMid"].gain, 0.01).parent(uiPanel).addClass('ui-slider');
+  const lowMidGainValueSpan = createSpan(lowMidGainSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  lowMidGainSlider.input(() => lowMidGainValueSpan.html(lowMidGainSlider.value()));
   uiElements.push(lowMidGainSlider);
   // threshold
   createSpan('Threshold').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
   lowMidThresholdSlider = createSlider(0, 255, energySettings["lowMid"].threshold, 1).parent(uiPanel).addClass('ui-slider');
+  const lowMidThresholdValueSpan = createSpan(lowMidThresholdSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  lowMidThresholdSlider.input(() => lowMidThresholdValueSpan.html(lowMidThresholdSlider.value()));
   uiElements.push(lowMidThresholdSlider);
   createSpan('IntensityGain').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
   lowMidIntensityGainSlider = createSlider(0.0, 5.0, 1.0, 0.01).parent(uiPanel).addClass('ui-slider');
+  const lowMidIntensityGainValueSpan = createSpan(lowMidIntensityGainSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  lowMidIntensityGainSlider.input(() => lowMidIntensityGainValueSpan.html(lowMidIntensityGainSlider.value()));
   uiElements.push(lowMidIntensityGainSlider);
   createSpan('AngleSpeed').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
   lowMidAngleSpeedSlider = createSlider(0.0, 5.0, 1.0, 0.01).parent(uiPanel).addClass('ui-slider');
+  const lowMidAngleSpeedValueSpan = createSpan(lowMidAngleSpeedSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  lowMidAngleSpeedSlider.input(() => lowMidAngleSpeedValueSpan.html(lowMidAngleSpeedSlider.value()));
   uiElements.push(lowMidAngleSpeedSlider);
 
   // 4. Mid
@@ -290,6 +331,8 @@ function setup() {
   uiElements.push(midColorPicker);
   createSpan('Alpha').parent(uiPanel).addClass('ui-section-title').style('font-weight', 'normal').style('color', 'white');
   midAlphaSlider = createSlider(0, 255, 20, 1).parent(uiPanel).addClass('ui-slider');
+  const midAlphaValueSpan = createSpan(midAlphaSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  midAlphaSlider.input(() => midAlphaValueSpan.html(midAlphaSlider.value()));
   uiElements.push(midAlphaSlider);
   // Mid描画関数切り替えセレクタ
   midDrawSelector = createSelect().parent(uiPanel);
@@ -298,21 +341,31 @@ function setup() {
   uiElements.push(midDrawSelector);
   createSpan('Stroke').parent(uiPanel).addClass('ui-section-title').style('font-weight', 'normal').style('color', 'white');
   midStrokeSlider = createSlider(0.1, 5, drawFunctionMap["drawRotatingWaves"].defaultWeight, 0.1).parent(uiPanel).addClass('ui-slider');
+  const midStrokeValueSpan = createSpan(midStrokeSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  midStrokeSlider.input(() => midStrokeValueSpan.html(midStrokeSlider.value()));
   uiElements.push(midStrokeSlider);
   // --- Mid用追加スライダー ---
   // gain
   createSpan('Gain').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
   midGainSlider = createSlider(0.1, 5.0, energySettings["mid"].gain, 0.01).parent(uiPanel).addClass('ui-slider');
+  const midGainValueSpan = createSpan(midGainSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  midGainSlider.input(() => midGainValueSpan.html(midGainSlider.value()));
   uiElements.push(midGainSlider);
   // threshold
   createSpan('Threshold').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
   midThresholdSlider = createSlider(0, 255, energySettings["mid"].threshold, 1).parent(uiPanel).addClass('ui-slider');
+  const midThresholdValueSpan = createSpan(midThresholdSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  midThresholdSlider.input(() => midThresholdValueSpan.html(midThresholdSlider.value()));
   uiElements.push(midThresholdSlider);
   createSpan('IntensityGain').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
   midIntensityGainSlider = createSlider(0.0, 5.0, 1.0, 0.01).parent(uiPanel).addClass('ui-slider');
+  const midIntensityGainValueSpan = createSpan(midIntensityGainSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  midIntensityGainSlider.input(() => midIntensityGainValueSpan.html(midIntensityGainSlider.value()));
   uiElements.push(midIntensityGainSlider);
   createSpan('AngleSpeed').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
   midAngleSpeedSlider = createSlider(0.0, 5.0, 1.0, 0.01).parent(uiPanel).addClass('ui-slider');
+  const midAngleSpeedValueSpan = createSpan(midAngleSpeedSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  midAngleSpeedSlider.input(() => midAngleSpeedValueSpan.html(midAngleSpeedSlider.value()));
   uiElements.push(midAngleSpeedSlider);
 
   // 5. UpperMid
@@ -321,6 +374,8 @@ function setup() {
   uiElements.push(upperMidColorPicker);
   createSpan('Alpha').parent(uiPanel).addClass('ui-section-title').style('font-weight', 'normal').style('color', 'white');
   upperMidAlphaSlider = createSlider(0, 255, 20, 1).parent(uiPanel).addClass('ui-slider');
+  const upperMidAlphaValueSpan = createSpan(upperMidAlphaSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  upperMidAlphaSlider.input(() => upperMidAlphaValueSpan.html(upperMidAlphaSlider.value()));
   uiElements.push(upperMidAlphaSlider);
   // UpperMid描画関数切り替えセレクタ
   upperMidDrawSelector = createSelect().parent(uiPanel);
@@ -329,21 +384,31 @@ function setup() {
   uiElements.push(upperMidDrawSelector);
   createSpan('Stroke').parent(uiPanel).addClass('ui-section-title').style('font-weight', 'normal').style('color', 'white');
   upperMidStrokeSlider = createSlider(0.1, 5, drawFunctionMap["drawFloatingDots"].defaultWeight, 0.1).parent(uiPanel).addClass('ui-slider');
+  const upperMidStrokeValueSpan = createSpan(upperMidStrokeSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  upperMidStrokeSlider.input(() => upperMidStrokeValueSpan.html(upperMidStrokeSlider.value()));
   uiElements.push(upperMidStrokeSlider);
   // --- UpperMid用追加スライダー ---
   // gain
   createSpan('Gain').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
   upperMidGainSlider = createSlider(0.1, 5.0, energySettings["upperMid"].gain, 0.01).parent(uiPanel).addClass('ui-slider');
+  const upperMidGainValueSpan = createSpan(upperMidGainSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  upperMidGainSlider.input(() => upperMidGainValueSpan.html(upperMidGainSlider.value()));
   uiElements.push(upperMidGainSlider);
   // threshold
   createSpan('Threshold').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
   upperMidThresholdSlider = createSlider(0, 255, energySettings["upperMid"].threshold, 1).parent(uiPanel).addClass('ui-slider');
+  const upperMidThresholdValueSpan = createSpan(upperMidThresholdSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  upperMidThresholdSlider.input(() => upperMidThresholdValueSpan.html(upperMidThresholdSlider.value()));
   uiElements.push(upperMidThresholdSlider);
   createSpan('IntensityGain').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
   upperMidIntensityGainSlider = createSlider(0.0, 5.0, 1.0, 0.01).parent(uiPanel).addClass('ui-slider');
+  const upperMidIntensityGainValueSpan = createSpan(upperMidIntensityGainSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  upperMidIntensityGainSlider.input(() => upperMidIntensityGainValueSpan.html(upperMidIntensityGainSlider.value()));
   uiElements.push(upperMidIntensityGainSlider);
   createSpan('AngleSpeed').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
   upperMidAngleSpeedSlider = createSlider(0.0, 5.0, 1.0, 0.01).parent(uiPanel).addClass('ui-slider');
+  const upperMidAngleSpeedValueSpan = createSpan(upperMidAngleSpeedSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  upperMidAngleSpeedSlider.input(() => upperMidAngleSpeedValueSpan.html(upperMidAngleSpeedSlider.value()));
   uiElements.push(upperMidAngleSpeedSlider);
 
   // 6. Presence
@@ -352,6 +417,8 @@ function setup() {
   uiElements.push(presenceColorPicker);
   createSpan('Alpha').parent(uiPanel).addClass('ui-section-title').style('font-weight', 'normal').style('color', 'white');
   presenceAlphaSlider = createSlider(0, 255, 20, 1).parent(uiPanel).addClass('ui-slider');
+  const presenceAlphaValueSpan = createSpan(presenceAlphaSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  presenceAlphaSlider.input(() => presenceAlphaValueSpan.html(presenceAlphaSlider.value()));
   uiElements.push(presenceAlphaSlider);
   // Presence描画関数切り替えセレクタ
   presenceDrawSelector = createSelect().parent(uiPanel);
@@ -360,21 +427,31 @@ function setup() {
   uiElements.push(presenceDrawSelector);
   createSpan('Stroke').parent(uiPanel).addClass('ui-section-title').style('font-weight', 'normal').style('color', 'white');
   presenceStrokeSlider = createSlider(0.1, 5, drawFunctionMap["drawSparks"].defaultWeight, 0.1).parent(uiPanel).addClass('ui-slider');
+  const presenceStrokeValueSpan = createSpan(presenceStrokeSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  presenceStrokeSlider.input(() => presenceStrokeValueSpan.html(presenceStrokeSlider.value()));
   uiElements.push(presenceStrokeSlider);
   // --- Presence用追加スライダー ---
   // gain
   createSpan('Gain').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
   presenceGainSlider = createSlider(0.1, 5.0, energySettings["presence"].gain, 0.01).parent(uiPanel).addClass('ui-slider');
+  const presenceGainValueSpan = createSpan(presenceGainSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  presenceGainSlider.input(() => presenceGainValueSpan.html(presenceGainSlider.value()));
   uiElements.push(presenceGainSlider);
   // threshold
   createSpan('Threshold').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
   presenceThresholdSlider = createSlider(0, 255, energySettings["presence"].threshold, 1).parent(uiPanel).addClass('ui-slider');
+  const presenceThresholdValueSpan = createSpan(presenceThresholdSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  presenceThresholdSlider.input(() => presenceThresholdValueSpan.html(presenceThresholdSlider.value()));
   uiElements.push(presenceThresholdSlider);
   createSpan('IntensityGain').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
   presenceIntensityGainSlider = createSlider(0.0, 5.0, 1.0, 0.01).parent(uiPanel).addClass('ui-slider');
+  const presenceIntensityGainValueSpan = createSpan(presenceIntensityGainSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  presenceIntensityGainSlider.input(() => presenceIntensityGainValueSpan.html(presenceIntensityGainSlider.value()));
   uiElements.push(presenceIntensityGainSlider);
   createSpan('AngleSpeed').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
   presenceAngleSpeedSlider = createSlider(0.0, 5.0, 1.0, 0.01).parent(uiPanel).addClass('ui-slider');
+  const presenceAngleSpeedValueSpan = createSpan(presenceAngleSpeedSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  presenceAngleSpeedSlider.input(() => presenceAngleSpeedValueSpan.html(presenceAngleSpeedSlider.value()));
   uiElements.push(presenceAngleSpeedSlider);
 
   // 7. Brilliance
@@ -383,6 +460,8 @@ function setup() {
   uiElements.push(brillianceColorPicker);
   createSpan('Alpha').parent(uiPanel).addClass('ui-section-title').style('font-weight', 'normal').style('color', 'white');
   brillianceAlphaSlider = createSlider(0, 255, 20, 1).parent(uiPanel).addClass('ui-slider');
+  const brillianceAlphaValueSpan = createSpan(brillianceAlphaSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  brillianceAlphaSlider.input(() => brillianceAlphaValueSpan.html(brillianceAlphaSlider.value()));
   uiElements.push(brillianceAlphaSlider);
   // Brilliance描画関数切り替えセレクタ
   brillianceDrawSelector = createSelect().parent(uiPanel);
@@ -391,21 +470,31 @@ function setup() {
   uiElements.push(brillianceDrawSelector);
   createSpan('Stroke').parent(uiPanel).addClass('ui-section-title').style('font-weight', 'normal').style('color', 'white');
   brillianceStrokeSlider = createSlider(0.1, 5, drawFunctionMap["drawRadiantBeams"].defaultWeight, 0.1).parent(uiPanel).addClass('ui-slider');
+  const brillianceStrokeValueSpan = createSpan(brillianceStrokeSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  brillianceStrokeSlider.input(() => brillianceStrokeValueSpan.html(brillianceStrokeSlider.value()));
   uiElements.push(brillianceStrokeSlider);
   // --- Brilliance用追加スライダー ---
   // gain
   createSpan('Gain').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
   brillianceGainSlider = createSlider(0.1, 5.0, energySettings["brilliance"].gain, 0.01).parent(uiPanel).addClass('ui-slider');
+  const brillianceGainValueSpan = createSpan(brillianceGainSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  brillianceGainSlider.input(() => brillianceGainValueSpan.html(brillianceGainSlider.value()));
   uiElements.push(brillianceGainSlider);
   // threshold
   createSpan('Threshold').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
   brillianceThresholdSlider = createSlider(0, 255, energySettings["brilliance"].threshold, 1).parent(uiPanel).addClass('ui-slider');
+  const brillianceThresholdValueSpan = createSpan(brillianceThresholdSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  brillianceThresholdSlider.input(() => brillianceThresholdValueSpan.html(brillianceThresholdSlider.value()));
   uiElements.push(brillianceThresholdSlider);
   createSpan('IntensityGain').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
   brillianceIntensityGainSlider = createSlider(0.0, 5.0, 1.0, 0.01).parent(uiPanel).addClass('ui-slider');
+  const brillianceIntensityGainValueSpan = createSpan(brillianceIntensityGainSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  brillianceIntensityGainSlider.input(() => brillianceIntensityGainValueSpan.html(brillianceIntensityGainSlider.value()));
   uiElements.push(brillianceIntensityGainSlider);
   createSpan('AngleSpeed').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
   brillianceAngleSpeedSlider = createSlider(0.0, 5.0, 1.0, 0.01).parent(uiPanel).addClass('ui-slider');
+  const brillianceAngleSpeedValueSpan = createSpan(brillianceAngleSpeedSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  brillianceAngleSpeedSlider.input(() => brillianceAngleSpeedValueSpan.html(brillianceAngleSpeedSlider.value()));
   uiElements.push(brillianceAngleSpeedSlider);
 
   // 8. High
@@ -414,6 +503,8 @@ function setup() {
   uiElements.push(highColorPicker);
   createSpan('Alpha').parent(uiPanel).addClass('ui-section-title').style('font-weight', 'normal').style('color', 'white');
   highAlphaSlider = createSlider(0, 255, 20, 1).parent(uiPanel).addClass('ui-slider');
+  const highAlphaValueSpan = createSpan(highAlphaSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  highAlphaSlider.input(() => highAlphaValueSpan.html(highAlphaSlider.value()));
   uiElements.push(highAlphaSlider);
   // High描画関数切り替えセレクタ
   highDrawSelector = createSelect().parent(uiPanel);
@@ -422,21 +513,31 @@ function setup() {
   uiElements.push(highDrawSelector);
   createSpan('Stroke').parent(uiPanel).addClass('ui-section-title').style('font-weight', 'normal').style('color', 'white');
   highStrokeSlider = createSlider(0.1, 5, drawFunctionMap["drawRadialLines"].defaultWeight, 0.1).parent(uiPanel).addClass('ui-slider');
+  const highStrokeValueSpan = createSpan(highStrokeSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  highStrokeSlider.input(() => highStrokeValueSpan.html(highStrokeSlider.value()));
   uiElements.push(highStrokeSlider);
   // --- High用追加スライダー ---
   // gain
   createSpan('Gain').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
   highGainSlider = createSlider(0.1, 5.0, energySettings["high"].gain, 0.01).parent(uiPanel).addClass('ui-slider');
+  const highGainValueSpan = createSpan(highGainSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  highGainSlider.input(() => highGainValueSpan.html(highGainSlider.value()));
   uiElements.push(highGainSlider);
   // threshold
   createSpan('Threshold').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
   highThresholdSlider = createSlider(0, 255, energySettings["high"].threshold, 1).parent(uiPanel).addClass('ui-slider');
+  const highThresholdValueSpan = createSpan(highThresholdSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  highThresholdSlider.input(() => highThresholdValueSpan.html(highThresholdSlider.value()));
   uiElements.push(highThresholdSlider);
   createSpan('IntensityGain').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
   highIntensityGainSlider = createSlider(0.0, 5.0, 1.0, 0.01).parent(uiPanel).addClass('ui-slider');
+  const highIntensityGainValueSpan = createSpan(highIntensityGainSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  highIntensityGainSlider.input(() => highIntensityGainValueSpan.html(highIntensityGainSlider.value()));
   uiElements.push(highIntensityGainSlider);
   createSpan('AngleSpeed').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
   highAngleSpeedSlider = createSlider(0.0, 5.0, 1.0, 0.01).parent(uiPanel).addClass('ui-slider');
+  const highAngleSpeedValueSpan = createSpan(highAngleSpeedSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  highAngleSpeedSlider.input(() => highAngleSpeedValueSpan.html(highAngleSpeedSlider.value()));
   uiElements.push(highAngleSpeedSlider);
 
   // --- Spectrum Ring/Diff チェックボックス追加 ---
@@ -445,6 +546,9 @@ function setup() {
 
   spectrumDiffCheckbox = createCheckbox('Draw Spectrum Diff', true).parent(uiPanel).style('color', 'white');
   uiElements.push(spectrumDiffCheckbox);
+  // Spectrum Diff Color Picker
+  spectrumDiffColorPicker = createColorPicker('#ffffff').parent(uiPanel);
+  uiElements.push(spectrumDiffColorPicker);
 
   // 音域ごとの描画ON/OFFチェックボックスとラベル（低音域から高音域へ）
   // 1. SubBass
@@ -484,7 +588,12 @@ function setup() {
   useMic = true;
   initMic();
 
-  frameRate(10); // フレームレートを10fpsに設定。描画負荷軽減や視覚的なスムーズさの調整に影響
+  // --- Frame Rate UI追加 ---
+  createDiv('Frame Rate').parent(uiPanel).style('color', 'white');
+  frameRateSlider = createSlider(1, 60, 10, 1).parent(uiPanel).addClass('ui-slider');
+  const frameRateValueSpan = createSpan(frameRateSlider.value()).parent(uiPanel).style('color', 'white').style('margin-left', '5px');
+  frameRateSlider.input(() => frameRateValueSpan.html(frameRateSlider.value()));
+  uiElements.push(frameRateSlider);
 }
 
 // マイク初期化関数
@@ -500,13 +609,16 @@ function initMic() {
 }
 
 function draw() {
+  // --- フレームレートスライダーによるフレームレート制御 ---
+  if (frameRateSlider) {
+    frameRate(frameRateSlider.value());
+  }
 
   // 変更点3: 入力ソースに応じた準備完了チェック
   if (useMic) {
     if (!mic || !mic.enabled) return; // マイクが準備できていなければ処理を中断
     console.log("Using microphone input.");
   }
-
   else {
     // 将来的な拡張のために音声ファイル入力の条件を残している
     // 現状はマイク入力のみなのでこの分岐は実質使われない
@@ -926,7 +1038,7 @@ function drawSpectrumRing(spectrum) {
   beginShape();
   for (let i = 0; i < spectrum.length; i++) {
     let angle = map(i, 0, spectrum.length, 0, TWO_PI);
-    let radius = map(spectrum[i], 0, 255, 60, 280);
+    let radius = map(spectrum[i], 0, 255, 100, 350);
     let x = cos(angle) * radius;
     let y = sin(angle) * radius;
     vertex(x, y);
@@ -934,21 +1046,23 @@ function drawSpectrumRing(spectrum) {
   endShape(CLOSE);
 }
 
-// --- Spectrum Diff 描画関数 ---
+// --- Spectrum Diff 描画関数（ドットで可視化） ---
 function drawSpectrumDiff(current, previous) {
-  stroke(50, 360, 100, 180);
+  let diffColor = spectrumDiffColorPicker ? spectrumDiffColorPicker.color() : color(255);
+  diffColor.setAlpha(180);
+  stroke(diffColor);
+  strokeWeight(2); // Thicker dots
   noFill();
-  strokeWeight(1);
-  beginShape();
   for (let i = 0; i < current.length; i++) {
     let diff = abs(current[i] - (previous[i] || 0));
     let angle = map(i, 0, current.length, 0, TWO_PI);
-    let radius = map(diff, 0, 255, 30, 180);
+    let baseRadius = map(diff, 0, 255, 120, 370);
+    let growth = frameCount * 0.1;
+    let radius = baseRadius + growth;
     let x = cos(angle) * radius;
     let y = sin(angle) * radius;
-    vertex(x, y);
+    point(x, y);
   }
-  endShape(CLOSE);
 }
 
 function keyPressed() {
@@ -1214,7 +1328,10 @@ function drawSpectrumRingByBands(spectrum) {
     beginShape();
     for (let i = startIndex; i < endIndex; i++) {
       let angle = map(i, 0, totalBands, 0, TWO_PI);
-      let radius = map(spectrum[i], 0, 255, 60, 280);
+      let baseRadius = map(spectrum[i], 0, 255, 60, 280);
+      let pulsate = sin(frameCount * 0.01 + angle) * 10;
+      let jitter = noise(angle + frameCount * 0.005) * 5;
+      let radius = baseRadius + pulsate + jitter;
       let x = cos(angle) * radius;
       let y = sin(angle) * radius;
       vertex(x, y);
