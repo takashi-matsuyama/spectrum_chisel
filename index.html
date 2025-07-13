@@ -34,9 +34,66 @@
   <div id="canvas-container" class="canvas-wrapper"></div>
 
   <script>
+
     let fft, mic;
 
     // --- UI要素のグローバル変数宣言 ---
+    // 描画関数マッピング（関数のみ保持）
+    let drawFunctionMap = {
+      drawSmoothEllipse: { func: drawSmoothEllipse },
+      drawRotatingWaves: { func: drawRotatingWaves },
+      drawRadialLines: { func: drawRadialLines },
+      drawExpandingDots: { func: drawExpandingDots },
+      drawRadiantBeams: { func: drawRadiantBeams },
+      drawSparks: { func: drawSparks },
+      drawNoisyContours: { func: drawNoisyContours },
+      drawFloatingDots: { func: drawFloatingDots }
+    };
+
+    // 各音域ごとのエネルギー補正設定
+    const energySettings = {
+      low: {
+        gain: 2.5,
+        threshold: 20
+      },
+      mid: {
+        gain: 1.5,
+        threshold: 25
+      },
+      high: {
+        gain: 2.2,
+        threshold: 30
+      },
+      subBass: {
+        gain: 2.8,
+        threshold: 20
+      },
+      lowMid: {
+        gain: 1.8,
+        threshold: 25
+      },
+      upperMid: {
+        gain: 2.0,
+        threshold: 30
+      },
+      presence: {
+        gain: 2.3,
+        threshold: 25
+      },
+      brilliance: {
+        gain: 2.4,
+        threshold: 30
+      }
+    };
+
+    let lowDrawSelector;
+    let subBassDrawSelector;
+    let lowMidDrawSelector;
+    let midDrawSelector;
+    let upperMidDrawSelector;
+    let presenceDrawSelector;
+    let brillianceDrawSelector;
+    let highDrawSelector;
     let lowColorPicker, lowStrokeSlider, lowAlphaSlider;
     let midColorPicker, midStrokeSlider, midAlphaSlider;
     let highColorPicker, highStrokeSlider, highAlphaSlider;
@@ -121,6 +178,11 @@
       uiElements.push(subBassStrokeSlider);
       subBassAlphaSlider = createSlider(0, 255, 20, 1).parent(uiPanel);
       uiElements.push(subBassAlphaSlider);
+      // SubBass描画関数切り替えセレクタ
+      subBassDrawSelector = createSelect().parent(uiPanel);
+      for (let key in drawFunctionMap) subBassDrawSelector.option(key);
+      subBassDrawSelector.selected("drawExpandingDots");
+      uiElements.push(subBassDrawSelector);
 
       // 2. Low
       createDiv('Low Energy').parent(uiPanel).style('color', 'white');
@@ -130,6 +192,11 @@
       uiElements.push(lowStrokeSlider);
       lowAlphaSlider = createSlider(0, 255, 20, 1).parent(uiPanel);
       uiElements.push(lowAlphaSlider);
+      // lowEnergy 描画関数切り替えセレクタ
+      lowDrawSelector = createSelect().parent(uiPanel);
+      for (let key in drawFunctionMap) lowDrawSelector.option(key);
+      lowDrawSelector.selected("drawSmoothEllipse");
+      uiElements.push(lowDrawSelector);
 
       // 3. LowMid
       createDiv('LowMid Energy').parent(uiPanel).style('color', 'white');
@@ -139,6 +206,11 @@
       uiElements.push(lowMidStrokeSlider);
       lowMidAlphaSlider = createSlider(0, 255, 20, 1).parent(uiPanel);
       uiElements.push(lowMidAlphaSlider);
+      // LowMid描画関数切り替えセレクタ
+      lowMidDrawSelector = createSelect().parent(uiPanel);
+      for (let key in drawFunctionMap) lowMidDrawSelector.option(key);
+      lowMidDrawSelector.selected("drawNoisyContours");
+      uiElements.push(lowMidDrawSelector);
 
       // 4. Mid
       createDiv('Mid Energy').parent(uiPanel).style('color', 'white');
@@ -148,6 +220,11 @@
       uiElements.push(midStrokeSlider);
       midAlphaSlider = createSlider(0, 255, 20, 1).parent(uiPanel);
       uiElements.push(midAlphaSlider);
+      // Mid描画関数切り替えセレクタ
+      midDrawSelector = createSelect().parent(uiPanel);
+      for (let key in drawFunctionMap) midDrawSelector.option(key);
+      midDrawSelector.selected("drawRotatingWaves");
+      uiElements.push(midDrawSelector);
 
       // 5. UpperMid
       createDiv('UpperMid Energy').parent(uiPanel).style('color', 'white');
@@ -157,6 +234,11 @@
       uiElements.push(upperMidStrokeSlider);
       upperMidAlphaSlider = createSlider(0, 255, 20, 1).parent(uiPanel);
       uiElements.push(upperMidAlphaSlider);
+      // UpperMid描画関数切り替えセレクタ
+      upperMidDrawSelector = createSelect().parent(uiPanel);
+      for (let key in drawFunctionMap) upperMidDrawSelector.option(key);
+      upperMidDrawSelector.selected("drawFloatingDots");
+      uiElements.push(upperMidDrawSelector);
 
       // 6. Presence
       createDiv('Presence Energy').parent(uiPanel).style('color', 'white');
@@ -166,6 +248,11 @@
       uiElements.push(presenceStrokeSlider);
       presenceAlphaSlider = createSlider(0, 255, 20, 1).parent(uiPanel);
       uiElements.push(presenceAlphaSlider);
+      // Presence描画関数切り替えセレクタ
+      presenceDrawSelector = createSelect().parent(uiPanel);
+      for (let key in drawFunctionMap) presenceDrawSelector.option(key);
+      presenceDrawSelector.selected("drawSparks");
+      uiElements.push(presenceDrawSelector);
 
       // 7. Brilliance
       createDiv('Brilliance Energy').parent(uiPanel).style('color', 'white');
@@ -175,6 +262,11 @@
       uiElements.push(brillianceStrokeSlider);
       brillianceAlphaSlider = createSlider(0, 255, 20, 1).parent(uiPanel);
       uiElements.push(brillianceAlphaSlider);
+      // Brilliance描画関数切り替えセレクタ
+      brillianceDrawSelector = createSelect().parent(uiPanel);
+      for (let key in drawFunctionMap) brillianceDrawSelector.option(key);
+      brillianceDrawSelector.selected("drawRadiantBeams");
+      uiElements.push(brillianceDrawSelector);
 
       // 8. High
       createDiv('High Energy').parent(uiPanel).style('color', 'white');
@@ -184,6 +276,11 @@
       uiElements.push(highStrokeSlider);
       highAlphaSlider = createSlider(0, 255, 20, 1).parent(uiPanel);
       uiElements.push(highAlphaSlider);
+      // High描画関数切り替えセレクタ
+      highDrawSelector = createSelect().parent(uiPanel);
+      for (let key in drawFunctionMap) highDrawSelector.option(key);
+      highDrawSelector.selected("drawRadialLines");
+      uiElements.push(highDrawSelector);
 
       // 音域ごとの描画ON/OFFチェックボックスとラベル（低音域から高音域へ）
       // 1. SubBass
@@ -279,58 +376,7 @@
       translate(width / 2, height / 2);
 
       // --- 関数化した音域描画 ---
-      // lowEnergy
-      if (lowEnabledCheckbox && lowEnabledCheckbox.checked()) {
-        push();
-        {
-          let energyValue = lowEnergy;
-          let baseAmount = 12;
-          let intensity = map(energyValue, 0, 255, 0, 1);
-          let angle = frameCount * 0.02;
-          let dx = sin(angle + time) * baseAmount * intensity;
-          let dy = cos(angle + time * 1.5) * baseAmount * intensity;
-          console.log("OFFSET lowEnergy:", dx, dy);
-          translate(dx, dy);
-          drawLowEnergy(lowEnergy, frameCount, time);
-        }
-        pop();
-      }
-
-      // midEnergy
-      if (midEnabledCheckbox && midEnabledCheckbox.checked()) {
-        push();
-        {
-          let energyValue = midEnergy;
-          let OFFSET = 2;
-          let baseAmount = 10;
-          let intensity = map(energyValue, 0, 255, 0, 1);
-          let dx = (noise(time + OFFSET) - 0.5) * baseAmount * intensity;
-          let dy = (noise(time + OFFSET + 100) - 0.5) * baseAmount * intensity;
-          console.log("OFFSET midEnergy:", dx, dy);
-          translate(dx, dy);
-          drawMidEnergy(midEnergy, frameCount, time);
-        }
-        pop();
-      }
-
-      // highEnergy
-      if (highEnabledCheckbox && highEnabledCheckbox.checked()) {
-        push();
-        {
-          let energyValue = highEnergy;
-          let OFFSET = 3;
-          let baseAmount = 16;
-          let intensity = map(energyValue, 0, 255, 0, 1);
-          let dx = (noise(time + OFFSET) - 0.5) * baseAmount * intensity;
-          let dy = (noise(time + OFFSET + 100) - 0.5) * baseAmount * intensity;
-          console.log("OFFSET highEnergy:", dx, dy);
-          translate(dx, dy);
-          drawHighEnergy(highEnergy, frameCount, time);
-        }
-        pop();
-      }
-
-      // subBassEnergy
+      // SubBass
       if (subBassEnabledCheckbox && subBassEnabledCheckbox.checked()) {
         push();
         {
@@ -342,46 +388,51 @@
           let dy = (noise(time + OFFSET + 100) - 0.5) * baseAmount * intensity;
           console.log("OFFSET subBassEnergy:", dx, dy);
           translate(dx, dy);
-          drawSubBassEnergy(subBassEnergy, time);
+          const style = {
+            color: subBassColorPicker.color(),
+            weight: subBassStrokeSlider.value(),
+            alpha: subBassAlphaSlider.value()
+          };
+          const selectedFuncName = subBassDrawSelector.value();
+          const selectedEntry = drawFunctionMap[selectedFuncName];
+          const energyConfig = energySettings["subBass"];
+          let scaledEnergy = constrain(subBassEnergy * energyConfig.gain, 0, 255);
+          if (selectedEntry && selectedEntry.func && energyConfig && scaledEnergy > energyConfig.threshold) {
+            selectedEntry.func(scaledEnergy, frameCount, time, style);
+          }
         }
         pop();
       }
 
-      // brillianceEnergy
-      if (brillianceEnabledCheckbox && brillianceEnabledCheckbox.checked()) {
+      // Low
+      if (lowEnabledCheckbox && lowEnabledCheckbox.checked()) {
         push();
         {
-          let energyValue = brillianceEnergy;
-          let OFFSET = 5;
-          let baseAmount = 20;
+          let energyValue = lowEnergy;
+          let baseAmount = 12;
           let intensity = map(energyValue, 0, 255, 0, 1);
-          let dx = (noise(time + OFFSET) - 0.5) * baseAmount * intensity;
-          let dy = (noise(time + OFFSET + 100) - 0.5) * baseAmount * intensity;
-          console.log("OFFSET brillianceEnergy:", dx, dy);
+          let angle = frameCount * 0.02;
+          let dx = sin(angle + time) * baseAmount * intensity;
+          let dy = cos(angle + time * 1.5) * baseAmount * intensity;
+          console.log("OFFSET lowEnergy:", dx, dy);
           translate(dx, dy);
-          drawBrillianceEnergy(brillianceEnergy, time, frameCount);
+          const style = {
+            color: lowColorPicker.color(),
+            weight: lowStrokeSlider.value(),
+            alpha: lowAlphaSlider.value()
+          };
+          const selectedFuncName = lowDrawSelector.value();
+          const selectedEntry = drawFunctionMap[selectedFuncName];
+          const energyConfig = energySettings["low"];
+          let scaledEnergy = constrain(lowEnergy * energyConfig.gain, 0, 255);
+          if (selectedEntry && selectedEntry.func && energyConfig && scaledEnergy > energyConfig.threshold) {
+            selectedEntry.func(scaledEnergy, frameCount, time, style);
+          }
         }
         pop();
       }
 
-      // presenceEnergy
-      if (presenceEnabledCheckbox && presenceEnabledCheckbox.checked()) {
-        push();
-        {
-          let energyValue = presenceEnergy;
-          let OFFSET = 6;
-          let baseAmount = 18;
-          let intensity = map(energyValue, 0, 255, 0, 1);
-          let dx = (noise(time + OFFSET) - 0.5) * baseAmount * intensity;
-          let dy = (noise(time + OFFSET + 100) - 0.5) * baseAmount * intensity;
-          console.log("OFFSET presenceEnergy:", dx, dy);
-          translate(dx, dy);
-          drawPresenceEnergy(presenceEnergy, frameCount);
-        }
-        pop();
-      }
-
-      // lowMidEnergy
+      // LowMid
       if (lowMidEnabledCheckbox && lowMidEnabledCheckbox.checked()) {
         push();
         {
@@ -393,12 +444,51 @@
           let dy = (noise(time + OFFSET + 100) - 0.5) * baseAmount * intensity;
           console.log("OFFSET lowMidEnergy:", dx, dy);
           translate(dx, dy);
-          drawLowMidEnergy(lowMidEnergy, time);
+          const style = {
+            color: lowMidColorPicker.color(),
+            weight: lowMidStrokeSlider.value(),
+            alpha: lowMidAlphaSlider.value()
+          };
+          const selectedFuncName = lowMidDrawSelector.value();
+          const selectedEntry = drawFunctionMap[selectedFuncName];
+          const energyConfig = energySettings["lowMid"];
+          let scaledEnergy = constrain(lowMidEnergy * energyConfig.gain, 0, 255);
+          if (selectedEntry && selectedEntry.func && energyConfig && scaledEnergy > energyConfig.threshold) {
+            selectedEntry.func(scaledEnergy, frameCount, time, style);
+          }
         }
         pop();
       }
 
-      // upperMidEnergy
+      // Mid
+      if (midEnabledCheckbox && midEnabledCheckbox.checked()) {
+        push();
+        {
+          let energyValue = midEnergy;
+          let OFFSET = 2;
+          let baseAmount = 10;
+          let intensity = map(energyValue, 0, 255, 0, 1);
+          let dx = (noise(time + OFFSET) - 0.5) * baseAmount * intensity;
+          let dy = (noise(time + OFFSET + 100) - 0.5) * baseAmount * intensity;
+          console.log("OFFSET midEnergy:", dx, dy);
+          translate(dx, dy);
+          const style = {
+            color: midColorPicker.color(),
+            weight: midStrokeSlider.value(),
+            alpha: midAlphaSlider.value()
+          };
+          const selectedFuncName = midDrawSelector.value();
+          const selectedEntry = drawFunctionMap[selectedFuncName];
+          const energyConfig = energySettings["mid"];
+          let scaledEnergy = constrain(midEnergy * energyConfig.gain, 0, 255);
+          if (selectedEntry && selectedEntry.func && energyConfig && scaledEnergy > energyConfig.threshold) {
+            selectedEntry.func(scaledEnergy, frameCount, time, style);
+          }
+        }
+        pop();
+      }
+
+      // UpperMid
       if (upperMidEnabledCheckbox && upperMidEnabledCheckbox.checked()) {
         push();
         {
@@ -410,7 +500,102 @@
           let dy = (noise(time + OFFSET + 100) - 0.5) * baseAmount * intensity;
           console.log("OFFSET upperMidEnergy:", dx, dy);
           translate(dx, dy);
-          drawUpperMidEnergy(upperMidEnergy);
+          const style = {
+            color: upperMidColorPicker.color(),
+            weight: upperMidStrokeSlider.value(),
+            alpha: upperMidAlphaSlider.value()
+          };
+          const selectedFuncName = upperMidDrawSelector.value();
+          const selectedEntry = drawFunctionMap[selectedFuncName];
+          const energyConfig = energySettings["upperMid"];
+          let scaledEnergy = constrain(upperMidEnergy * energyConfig.gain, 0, 255);
+          if (selectedEntry && selectedEntry.func && energyConfig && scaledEnergy > energyConfig.threshold) {
+            selectedEntry.func(scaledEnergy, frameCount, time, style);
+          }
+        }
+        pop();
+      }
+
+      // Presence
+      if (presenceEnabledCheckbox && presenceEnabledCheckbox.checked()) {
+        push();
+        {
+          let energyValue = presenceEnergy;
+          let OFFSET = 6;
+          let baseAmount = 18;
+          let intensity = map(energyValue, 0, 255, 0, 1);
+          let dx = (noise(time + OFFSET) - 0.5) * baseAmount * intensity;
+          let dy = (noise(time + OFFSET + 100) - 0.5) * baseAmount * intensity;
+          console.log("OFFSET presenceEnergy:", dx, dy);
+          translate(dx, dy);
+          const style = {
+            color: presenceColorPicker.color(),
+            weight: presenceStrokeSlider.value(),
+            alpha: presenceAlphaSlider.value()
+          };
+          const selectedFuncName = presenceDrawSelector.value();
+          const selectedEntry = drawFunctionMap[selectedFuncName];
+          const energyConfig = energySettings["presence"];
+          let scaledEnergy = constrain(presenceEnergy * energyConfig.gain, 0, 255);
+          if (selectedEntry && selectedEntry.func && energyConfig && scaledEnergy > energyConfig.threshold) {
+            selectedEntry.func(scaledEnergy, frameCount, time, style);
+          }
+        }
+        pop();
+      }
+
+      // Brilliance
+      if (brillianceEnabledCheckbox && brillianceEnabledCheckbox.checked()) {
+        push();
+        {
+          let energyValue = brillianceEnergy;
+          let OFFSET = 5;
+          let baseAmount = 20;
+          let intensity = map(energyValue, 0, 255, 0, 1);
+          let dx = (noise(time + OFFSET) - 0.5) * baseAmount * intensity;
+          let dy = (noise(time + OFFSET + 100) - 0.5) * baseAmount * intensity;
+          console.log("OFFSET brillianceEnergy:", dx, dy);
+          translate(dx, dy);
+          const style = {
+            color: brillianceColorPicker.color(),
+            weight: brillianceStrokeSlider.value(),
+            alpha: brillianceAlphaSlider.value()
+          };
+          const selectedFuncName = brillianceDrawSelector.value();
+          const selectedEntry = drawFunctionMap[selectedFuncName];
+          const energyConfig = energySettings["brilliance"];
+          let scaledEnergy = constrain(brillianceEnergy * energyConfig.gain, 0, 255);
+          if (selectedEntry && selectedEntry.func && energyConfig && scaledEnergy > energyConfig.threshold) {
+            selectedEntry.func(scaledEnergy, frameCount, time, style);
+          }
+        }
+        pop();
+      }
+
+      // High
+      if (highEnabledCheckbox && highEnabledCheckbox.checked()) {
+        push();
+        {
+          let energyValue = highEnergy;
+          let OFFSET = 3;
+          let baseAmount = 16;
+          let intensity = map(energyValue, 0, 255, 0, 1);
+          let dx = (noise(time + OFFSET) - 0.5) * baseAmount * intensity;
+          let dy = (noise(time + OFFSET + 100) - 0.5) * baseAmount * intensity;
+          console.log("OFFSET highEnergy:", dx, dy);
+          translate(dx, dy);
+          const style = {
+            color: highColorPicker.color(),
+            weight: highStrokeSlider.value(),
+            alpha: highAlphaSlider.value()
+          };
+          const selectedFuncName = highDrawSelector.value();
+          const selectedEntry = drawFunctionMap[selectedFuncName];
+          const energyConfig = energySettings["high"];
+          let scaledEnergy = constrain(highEnergy * energyConfig.gain, 0, 255);
+          if (selectedEntry && selectedEntry.func && energyConfig && scaledEnergy > energyConfig.threshold) {
+            selectedEntry.func(scaledEnergy, frameCount, time, style);
+          }
         }
         pop();
       }
@@ -437,219 +622,185 @@
     }
 
     // --- 各音域の描画処理 ---
-    function drawLowEnergy(lowEnergy, frameCount, time) {
+    function drawSmoothEllipse(energy, frameCount, time, style) {
       // 有機的な包み込むような低音: 滑らかな楕円波形構造 (curveVertex)
-      let c = lowColorPicker.color();
-      c.setAlpha(lowAlphaSlider.value());
+      let c = style.color;
+      c.setAlpha(style.alpha);
       stroke(c);
-      strokeWeight(lowStrokeSlider.value());
+      strokeWeight(style.weight);
       noFill();
-      if (lowEnergy > 50) {
-        let baseA = map(lowEnergy, 50, 200, 120, 320);
-        let baseB = map(lowEnergy, 50, 200, 90, 220);
-        let waviness = map(lowEnergy, 50, 200, 10, 40);
-        let waveCount = 2 + floor(map(lowEnergy, 50, 200, 2, 6));
-        let detail = 2 + floor(map(lowEnergy, 50, 200, 1, 3));
-        for (let d = 0; d < detail; d++) {
-          beginShape();
-          // curveVertexで滑らかに
-          for (let t = 0; t <= TWO_PI + 0.05; t += 0.05) {
-            let a = baseA + sin(t * waveCount + time * 1.5 + d) * waviness;
-            let b = baseB + cos(t * waveCount + time * 1.4 + d) * (waviness * 0.7);
-            // より滑らかな有機的な揺らぎ
-            let x = (a + noise(t + d * 0.3 + time) * 10) * cos(t);
-            let y = (b + noise(t + d * 0.5 + time + 100) * 10) * sin(t);
-            curveVertex(x, y);
-          }
-          endShape(CLOSE);
-        }
-      }
-    }
-
-    function drawMidEnergy(midEnergy, frameCount, time) {
-      if (midEnergy > 40) {
-        let c = midColorPicker.color();
-        c.setAlpha(midAlphaSlider.value());
-        stroke(c);
-        strokeWeight(midStrokeSlider.value());
-        // 回転: エネルギー依存
-        let rot = map(midEnergy, 40, 255, 0, PI / 2) + frameCount * 0.01;
-        rotate(rot);
-        let baseRadius = map(midEnergy, 50, 200, 90, 300);
-        let detail = floor(map(midEnergy, 40, 255, 3, 12));
-        // 中心の空洞半径
-        let innerRadius = map(midEnergy, 40, 200, 40, 80);
-        // ドット描画ロジックは削除
-        noFill();
+      // energyに応じて可変
+      let baseA = map(energy, 0, 255, 80, 340);
+      let baseB = map(energy, 0, 255, 60, 240);
+      let waviness = map(energy, 0, 255, 5, 50);
+      let waveCount = 2 + floor(map(energy, 0, 255, 2, 8));
+      let detail = 2 + floor(map(energy, 0, 255, 1, 4));
+      for (let d = 0; d < detail; d++) {
         beginShape();
-        for (let i = 0; i < detail + 2; i++) {
-          let angle = map(i, 0, detail + 1, 0, TWO_PI) + frameCount * 0.03;
-          let radius = baseRadius + sin(frameCount * 0.1 + i) * 30;
-          // 始点の揺らぎを追加
-          let x = (random(2, 20)) * cos(angle) + radius * cos(angle);
-          let y = (random(2, 20)) * sin(angle) + radius * sin(angle);
+        for (let t = 0; t <= TWO_PI + 0.05; t += 0.05) {
+          let a = baseA + sin(t * waveCount + time * 1.5 + d) * waviness;
+          let b = baseB + cos(t * waveCount + time * 1.4 + d) * (waviness * 0.7);
+          let x = (a + noise(t + d * 0.3 + time) * 10) * cos(t);
+          let y = (b + noise(t + d * 0.5 + time + 100) * 10) * sin(t);
           curveVertex(x, y);
         }
         endShape(CLOSE);
       }
     }
 
-    function drawHighEnergy(highEnergy, frameCount, time) {
-      if (highEnergy > 50) {
-        let c = highColorPicker.color();
-        c.setAlpha(highAlphaSlider.value());
-        stroke(c);
-        strokeWeight(highStrokeSlider.value());
-        noFill();
-        // 回転: エネルギー依存
-        let rot = map(highEnergy, 50, 255, 0, PI) + frameCount * 0.05;
-        rotate(rot);
-        let detail = floor(map(highEnergy, 50, 255, 2, 8));
-        for (let i = 0; i < detail; i++) {
-          // 中心を避けて放射しないように線を描画（空洞を保つ）
-          let minRadius = 60;
-          let angle = random(TWO_PI);
-          let x1 = cos(angle) * random(minRadius, minRadius + 20);
-          let y1 = sin(angle) * random(minRadius, minRadius + 20);
-          let x2 = x1 + cos(angle) * random(30, 70);
-          let y2 = y1 + sin(angle) * random(-10, 10);
+    function drawRotatingWaves(energy, frameCount, time, style) {
+      let c = style.color;
+      c.setAlpha(style.alpha);
+      stroke(c);
+      strokeWeight(style.weight);
+      let rot = map(energy, 0, 255, 0, PI / 2) + frameCount * 0.01;
+      rotate(rot);
+      let baseRadius = map(energy, 0, 255, 60, 320);
+      let detail = floor(map(energy, 0, 255, 3, 14));
+      let innerRadius = map(energy, 0, 255, 20, 100);
+      noFill();
+      beginShape();
+      for (let i = 0; i < detail + 2; i++) {
+        let angle = map(i, 0, detail + 1, 0, TWO_PI) + frameCount * 0.03;
+        let radius = baseRadius + sin(frameCount * 0.1 + i) * 30;
+        let x = (random(2, 20)) * cos(angle) + radius * cos(angle);
+        let y = (random(2, 20)) * sin(angle) + radius * sin(angle);
+        curveVertex(x, y);
+      }
+      endShape(CLOSE);
+    }
+
+    function drawRadialLines(energy, frameCount, time, style) {
+      let c = style.color;
+      c.setAlpha(style.alpha);
+      stroke(c);
+      strokeWeight(style.weight);
+      noFill();
+      let rot = map(energy, 0, 255, 0, PI) + frameCount * 0.05;
+      rotate(rot);
+      let detail = floor(map(energy, 0, 255, 2, 12));
+      for (let i = 0; i < detail; i++) {
+        let minRadius = 40;
+        let angle = random(TWO_PI);
+        let x1 = cos(angle) * random(minRadius, minRadius + 30);
+        let y1 = sin(angle) * random(minRadius, minRadius + 30);
+        let x2 = x1 + cos(angle) * random(20, 100);
+        let y2 = y1 + sin(angle) * random(-20, 20);
+        line(x1, y1, x2, y2);
+      }
+    }
+
+    function drawExpandingDots(energy, frameCount, time, style) {
+      let c = style.color;
+      c.setAlpha(style.alpha);
+      stroke(c);
+      strokeWeight(style.weight);
+      noFill();
+      let rot = map(energy, 0, 255, 0, PI / 2) + time * 0.2;
+      rotate(rot);
+      let ringCount = 1 + floor(map(energy, 0, 255, 1, 6));
+      for (let r = 0; r < ringCount; r++) {
+        let radius = map(energy, 0, 255, 20, 180) + r * 10;
+        let dotCount = floor(TWO_PI * radius / 14);
+        for (let i = 0; i < dotCount; i++) {
+          let angle = (TWO_PI / dotCount) * i;
+          let x = cos(angle) * radius;
+          let y = sin(angle) * radius;
+          strokeWeight(random(0.5, 1.5));
+          point(x, y);
+        }
+      }
+    }
+
+    function drawRadiantBeams(energy, frameCount, time, style) {
+      let c = style.color;
+      c.setAlpha(style.alpha);
+      stroke(c);
+      strokeWeight(style.weight);
+      noFill();
+      let rot = map(energy, 0, 255, 0, PI) + time * 1.2;
+      rotate(rot);
+      let rays = 6 + floor(map(energy, 0, 255, 2, 20));
+      let baseLen = map(energy, 0, 255, 80, 340);
+      let detail = floor(map(energy, 0, 255, 1, 4));
+      let innerRadius = map(energy, 0, 255, 20, 100);
+      for (let d = 0; d < detail; d++) {
+        for (let i = 0; i < rays; i++) {
+          let angle = (TWO_PI / rays) * i + time * 1.2 + d * 0.2;
+          let len = baseLen + sin(time * 2 + i + d) * 30 + random(-10, 10);
+          let x1 = cos(angle) * innerRadius;
+          let y1 = sin(angle) * innerRadius;
+          let x2 = cos(angle) * len;
+          let y2 = sin(angle) * len;
           line(x1, y1, x2, y2);
         }
       }
     }
 
-    function drawSubBassEnergy(subBassEnergy, time) {
-      if (subBassEnergy > 30) {
-        let c = subBassColorPicker.color();
-        c.setAlpha(subBassAlphaSlider.value());
-        stroke(c);
-        strokeWeight(subBassStrokeSlider.value());
-        noFill();
-        // 回転: エネルギー依存
-        let rot = map(subBassEnergy, 30, 255, 0, PI / 3) + time * 0.2;
-        rotate(rot);
-        // 楕円描画ロジックは削除
-        // 成長するドットの輪を追加（音エネルギーに応じて拡大）
-        let ringCount = 1 + floor(map(subBassEnergy, 30, 255, 1, 5));
-        for (let r = 0; r < ringCount; r++) {
-          let radius = map(subBassEnergy, 30, 255, 40, 160) + r * 8;
-          let dotCount = floor(TWO_PI * radius / 12);
-          for (let i = 0; i < dotCount; i++) {
-            let angle = (TWO_PI / dotCount) * i;
-            let x = cos(angle) * radius;
-            let y = sin(angle) * radius;
-            strokeWeight(random(0.5, 1.2));
-            point(x, y);
-          }
+    function drawSparks(energy, frameCount, time, style) {
+      let c = style.color;
+      c.setAlpha(style.alpha);
+      stroke(c);
+      strokeWeight(style.weight);
+      noFill();
+      let rot = map(energy, 0, 255, 0, PI / 2) + frameCount * 0.1;
+      rotate(rot);
+      let sparkCount = floor(map(energy, 0, 255, 3, 20));
+      let maxLength = map(energy, 0, 255, 20, 120);
+      let detail = floor(map(energy, 0, 255, 1, 4));
+      let minRadius = 20;
+      for (let d = 0; d < detail; d++) {
+        for (let i = 0; i < sparkCount; i++) {
+          let angle = (TWO_PI / sparkCount) * i + frameCount * 0.1 + d * 0.13;
+          let x1 = cos(angle) * random(minRadius, minRadius + 30);
+          let y1 = sin(angle) * random(minRadius, minRadius + 30);
+          let x2 = x1 + cos(angle) * random(maxLength * 0.5, maxLength);
+          let y2 = y1 + sin(angle) * random(maxLength * 0.5, maxLength);
+          line(x1, y1, x2, y2);
         }
       }
     }
 
-    function drawBrillianceEnergy(brillianceEnergy, time, frameCount) {
-      if (brillianceEnergy > 30) {
-        let c = brillianceColorPicker.color();
-        c.setAlpha(brillianceAlphaSlider.value());
-        stroke(c);
-        strokeWeight(brillianceStrokeSlider.value());
-        noFill();
-        // 回転: エネルギー依存
-        let rot = map(brillianceEnergy, 30, 255, 0, PI) + time * 1.2;
-        rotate(rot);
-        let rays = 10 + floor(map(brillianceEnergy, 30, 200, 2, 15));
-        let baseLen = map(brillianceEnergy, 30, 200, 120, 300);
-        let detail = floor(map(brillianceEnergy, 30, 255, 1, 3));
-        let innerRadius = map(brillianceEnergy, 30, 200, 40, 80);
-        for (let d = 0; d < detail; d++) {
-          for (let i = 0; i < rays; i++) {
-            let angle = (TWO_PI / rays) * i + time * 1.2 + d * 0.2;
-            let len = baseLen + sin(time * 2 + i + d) * 24 + random(-6, 6);
-            // 中央に空白を空けるため始点を内側の円周上に固定
-            let x1 = cos(angle) * innerRadius;
-            let y1 = sin(angle) * innerRadius;
-            let x2 = cos(angle) * len;
-            let y2 = sin(angle) * len;
-            line(x1, y1, x2, y2);
-          }
+    function drawNoisyContours(energy, frameCount, time, style) {
+      let c = style.color;
+      c.setAlpha(style.alpha);
+      stroke(c);
+      strokeWeight(style.weight);
+      noFill();
+      let rot = map(energy, 0, 255, 0, PI / 2) + time * 0.2;
+      rotate(rot);
+      let noiseFactor = map(energy, 0, 255, 10, 120);
+      let baseRadius = map(energy, 0, 255, 40, 260);
+      let layerCount = 2 + floor(map(energy, 0, 255, 1, 4));
+      for (let j = 0; j < layerCount; j++) {
+        beginShape();
+        let angleOffset = time * 0.5 + j * 0.5;
+        for (let i = 0; i < TWO_PI; i += random(0.08, 0.15)) {
+          let r = baseRadius + (noise(i * 5 + angleOffset) - 0.5) * noiseFactor + j * 3;
+          let x = r * cos(i);
+          let y = r * sin(i);
+          vertex(x, y);
         }
+        endShape(CLOSE);
       }
     }
 
-    function drawPresenceEnergy(presenceEnergy, frameCount) {
-      if (presenceEnergy > 30) {
-        let c = presenceColorPicker.color();
-        c.setAlpha(presenceAlphaSlider.value());
-        stroke(c);
-        strokeWeight(presenceStrokeSlider.value());
-        noFill();
-        // 回転: エネルギー依存
-        let rot = map(presenceEnergy, 30, 255, 0, PI / 2) + frameCount * 0.1;
-        rotate(rot);
-        let sparkCount = floor(map(presenceEnergy, 30, 255, 4, 16));
-        let maxLength = map(presenceEnergy, 30, 200, 30, 100);
-        let detail = floor(map(presenceEnergy, 30, 255, 1, 3));
-        let minRadius = 40;
-        for (let d = 0; d < detail; d++) {
-          for (let i = 0; i < sparkCount; i++) {
-            let angle = (TWO_PI / sparkCount) * i + frameCount * 0.1 + d * 0.13;
-            // 揺らぎを加えつつ、中心にminRadius以上の空洞を確保
-            let x1 = cos(angle) * random(minRadius, minRadius + 20);
-            let y1 = sin(angle) * random(minRadius, minRadius + 20);
-            let x2 = x1 + cos(angle) * random(maxLength * 0.5, maxLength);
-            let y2 = y1 + sin(angle) * random(maxLength * 0.5, maxLength);
-            line(x1, y1, x2, y2);
-          }
-        }
-      }
-    }
-
-    function drawLowMidEnergy(lowMidEnergy, time) {
-      // ノイジーで構造的なギザギザ: vertexを使った彫刻的中低音
-      if (lowMidEnergy > 20) {
-        let c = lowMidColorPicker.color();
-        c.setAlpha(lowMidAlphaSlider.value());
-        stroke(c);
-        strokeWeight(lowMidStrokeSlider.value());
-        noFill();
-        // 回転: エネルギー依存
-        let rot = map(lowMidEnergy, 20, 255, 0, PI / 2) + time * 0.2;
-        rotate(rot);
-        let noiseFactor = map(lowMidEnergy, 20, 200, 20, 100);
-        let baseRadius = map(lowMidEnergy, 20, 200, 70, 250);
-        let layerCount = 2 + floor(map(lowMidEnergy, 20, 200, 1, 3));
-        for (let j = 0; j < layerCount; j++) {
-          beginShape();
-          let angleOffset = time * 0.5 + j * 0.5;
-          for (let i = 0; i < TWO_PI; i += random(0.08, 0.15)) {
-            let r = baseRadius + (noise(i * 5 + angleOffset) - 0.5) * noiseFactor + j * 3;
-            let x = r * cos(i);
-            let y = r * sin(i);
-            vertex(x, y);
-          }
-          endShape(CLOSE);
-        }
-      }
-    }
-
-    function drawUpperMidEnergy(upperMidEnergy) {
-      if (upperMidEnergy > 30) {
-        let c = upperMidColorPicker.color();
-        c.setAlpha(upperMidAlphaSlider.value());
-        stroke(c);
-        strokeWeight(upperMidStrokeSlider.value());
-        // 回転: エネルギー依存
-        let rot = map(upperMidEnergy, 30, 255, 0, PI * 2) * 0.3;
-        rotate(rot);
-        let count = floor(map(upperMidEnergy, 30, 255, 20, 100));
-        let detail = floor(map(upperMidEnergy, 30, 255, 1, 4));
-        for (let d = 0; d < detail; d++) {
-          for (let i = 0; i < count; i++) {
-            let angle = random(TWO_PI);
-            // radiusの起点に揺らぎを加える
-            let radius = random(200, 350) + random(-30, 30);
-            let x = radius * cos(angle);
-            let y = radius * sin(angle);
-            point(x, y);
-          }
+    function drawFloatingDots(energy, frameCount, time, style) {
+      let c = style.color;
+      c.setAlpha(style.alpha);
+      stroke(c);
+      strokeWeight(style.weight);
+      let count = floor(map(energy, 0, 255, 10, 100));
+      let detail = floor(map(energy, 0, 255, 1, 4));
+      let rot = map(energy, 0, 255, 0, PI * 2) * 0.3;
+      rotate(rot);
+      for (let d = 0; d < detail; d++) {
+        for (let i = 0; i < count; i++) {
+          let angle = random(TWO_PI);
+          let radius = random(200, 350) + random(-30, 30);
+          let x = radius * cos(angle);
+          let y = radius * sin(angle);
+          point(x, y);
         }
       }
     }
