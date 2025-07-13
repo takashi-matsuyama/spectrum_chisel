@@ -634,6 +634,18 @@ function draw() {
   redrawCanvas(this);
 }
 
+// Helper: compute average energy from a recorded spectrum array
+function getEnergyFromSpectrumArray(spectrumArray, fromHz, toHz) {
+  let totalBands = spectrumArray.length;
+  let startIndex = floor(map(fromHz, 0, 22050, 0, totalBands));
+  let endIndex = floor(map(toHz, 0, 22050, 0, totalBands));
+  let sum = 0;
+  for (let i = startIndex; i < endIndex; i++) {
+    sum += spectrumArray[i];
+  }
+  return sum / (endIndex - startIndex);
+}
+
 // Extracted drawing logic; accepts a p5 graphics context
 function drawVisuals(pg, frameOverride = null, overrideSpectrum = null) {
   const currentFrame = (frameOverride !== null) ? frameOverride : pg.frameCount;
@@ -668,16 +680,16 @@ function drawVisuals(pg, frameOverride = null, overrideSpectrum = null) {
   // 音の総エネルギーが閾値未満なら描画しない（ノイズ除去や無音時の無駄な描画防止）
   if (totalEnergy < (useMic ? 100 : 500)) return;
 
-  // fft.getEnergy("bass"), "mid", "treble"はそれぞれ低音域、中音域、高音域のエネルギーを取得
-  // これらの値を使って周波数帯ごとに異なるビジュアル表現を行う
-  let subBassEnergy = fft.getEnergy(20, 60); // 低低音域（約20Hz～60Hz）
-  let lowEnergy = fft.getEnergy("bass"); // 低音域（約20Hz～140Hz）
-  let lowMidEnergy = fft.getEnergy(140, 400); // 低中音域（約140Hz～400Hz）
-  let midEnergy = fft.getEnergy("mid"); // 中音域（約140Hz～4000Hz）
-  let upperMidEnergy = fft.getEnergy(1000, 3000); // 高中音域（約1000Hz～3000Hz）
-  let presenceEnergy = fft.getEnergy(3000, 6000); // 低高音域（約3000Hz～6000Hz）
-  let brillianceEnergy = fft.getEnergy(6000, 16000); // 中高音域（約6000Hz～16000Hz）
-  let highEnergy = fft.getEnergy("treble"); // 高音域（約4000Hz～20000Hz）
+  // compute per-band energy, using recorded spectrum when exporting SVG
+  const useArray = overrideSpectrum !== null;
+  let subBassEnergy = useArray ? getEnergyFromSpectrumArray(overrideSpectrum, 20, 60) : fft.getEnergy(20, 60);
+  let lowEnergy = useArray ? getEnergyFromSpectrumArray(overrideSpectrum, 60, 140) : fft.getEnergy("bass");
+  let lowMidEnergy = useArray ? getEnergyFromSpectrumArray(overrideSpectrum, 140, 400) : fft.getEnergy(140, 400);
+  let midEnergy = useArray ? getEnergyFromSpectrumArray(overrideSpectrum, 400, 1000) : fft.getEnergy("mid");
+  let upperMidEnergy = useArray ? getEnergyFromSpectrumArray(overrideSpectrum, 1000, 3000) : fft.getEnergy(1000, 3000);
+  let presenceEnergy = useArray ? getEnergyFromSpectrumArray(overrideSpectrum, 3000, 6000) : fft.getEnergy(3000, 6000);
+  let brillianceEnergy = useArray ? getEnergyFromSpectrumArray(overrideSpectrum, 6000, 16000) : fft.getEnergy(6000, 16000);
+  let highEnergy = useArray ? getEnergyFromSpectrumArray(overrideSpectrum, 16000, 22050) : fft.getEnergy("treble");
 
   pg.push();
   pg.translate(pg.width / 2, pg.height / 2);
