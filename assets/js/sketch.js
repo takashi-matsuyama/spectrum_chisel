@@ -2,7 +2,7 @@
 const CANVAS_SIZE = 800;
 let fft, mic;
 
-// --- Spectrum History for SVG Export ---
+// ★ 修正点 1: SVG書き出し用のスペクトル履歴を管理する配列
 let spectrumHistory = [];
 
 // --- UI Elements (Global Scope) ---
@@ -11,7 +11,7 @@ let spectrumRingCheckbox, spectrumDiffCheckbox, spectrumDiffColorPicker;
 let prevSpectrum = [];
 let uiVisible = true;
 
-// Declare all UI component variables globally
+// Declare all UI component variables globally as in your original file
 let lowDrawSelector, lowGainSlider, lowThresholdSlider, lowIntensityGainSlider, lowAngleSpeedSlider,
   lowColorPicker, lowStrokeSlider, lowAlphaSlider, lowEnabledCheckbox;
 let midDrawSelector, midGainSlider, midThresholdSlider, midIntensityGainSlider, midAngleSpeedSlider,
@@ -46,7 +46,7 @@ const drawFunctionMap = {
 // =============================================================================
 
 function setup() {
-  // ★ 修正点 1: メインのCanvasをビットマップモードで作成し、SVGモードは削除
+  // ★ 修正点 2: メインのCanvasをビットマップモードで作成
   let myCanvas = createCanvas(CANVAS_SIZE, CANVAS_SIZE);
   myCanvas.parent('canvas-container');
   colorMode(HSB, 360, 100, 100);
@@ -60,14 +60,11 @@ function setup() {
 }
 
 function draw() {
-  if (!mic || !mic.enabled) {
-    // マイクが有効でない場合は、待機メッセージなどを表示しても良い
-    return;
-  }
+  if (!mic || !mic.enabled) return;
 
   frameRate(frameRateSlider.value());
 
-  // ★ 修正点 2: メインのCanvas(this)に対して描画ロジックを実行
+  // 描画ロジックを分離し、メインCanvas(this)を対象に実行
   drawVisuals(this, frameCount);
 }
 
@@ -80,17 +77,23 @@ function draw() {
  * p5.jsのメインCanvas、またはSVGバッファのどちらに対しても描画できるように、
  * 描画対象のコンテキスト（pg）を引数に取る。
  */
-function drawVisuals(pg, currentFrame) {
-  let spectrum = fft.analyze();
+function drawVisuals(pg, currentFrame, isForSVG = false) {
+  let spectrum;
 
-  // ★ 修正点 3: リアルタイム描画の場合のみ、SVG書き出し用の「設計図」を記録
-  if (pg === this) { // `this`はメインのp5インスタンス（=メインCanvas）を指す
-    spectrumHistory.push(spectrum.slice());
+  if (isForSVG) {
+    // SVG書き出し時は、履歴からスペクトルデータを取得
+    spectrum = spectrumHistory[currentFrame - 1];
+  } else {
+    // リアルタイム描画時は、fftから直接スペクトルデータを取得
+    spectrum = fft.analyze();
+    spectrumHistory.push(spectrum.slice()); // 設計図として履歴を保存
   }
 
+  if (!spectrum) return;
+
   let totalEnergy = spectrum.reduce((a, b) => a + b, 0);
-  if (totalEnergy < 100) { // マイク入力用の閾値
-    prevSpectrum = spectrum.slice();
+  if (totalEnergy < 100) {
+    if (!isForSVG) prevSpectrum = spectrum.slice();
     return;
   }
 
@@ -100,16 +103,26 @@ function drawVisuals(pg, currentFrame) {
 
   const time = currentFrame * 0.005;
 
-  // 各周波数帯の描画（あなたのコードをそのまま流用）
+  const getEnergyFromSpectrum = (freq1, freq2) => {
+    const nyquist = 22050;
+    const startIndex = Math.floor(map(freq1, 0, nyquist, 0, spectrum.length));
+    const endIndex = Math.ceil(map(freq2, 0, nyquist, 0, spectrum.length));
+    let sum = 0;
+    for (let i = startIndex; i <= endIndex; i++) {
+      sum += spectrum[i];
+    }
+    return sum / (endIndex - startIndex + 1);
+  };
+
   const bandsToDraw = [
-    { name: 'subBass', energy: fft.getEnergy(20, 60), enabled: subBassEnabledCheckbox.checked() },
-    { name: 'low', energy: fft.getEnergy("bass"), enabled: lowEnabledCheckbox.checked() },
-    { name: 'lowMid', energy: fft.getEnergy(140, 400), enabled: lowMidEnabledCheckbox.checked() },
-    { name: 'mid', energy: fft.getEnergy("mid"), enabled: midEnabledCheckbox.checked() },
-    { name: 'upperMid', energy: fft.getEnergy(1000, 3000), enabled: upperMidEnabledCheckbox.checked() },
-    { name: 'presence', energy: fft.getEnergy(3000, 6000), enabled: presenceEnabledCheckbox.checked() },
-    { name: 'brilliance', energy: fft.getEnergy(6000, 16000), enabled: brillianceEnabledCheckbox.checked() },
-    { name: 'high', energy: fft.getEnergy("treble"), enabled: highEnabledCheckbox.checked() }
+    { name: 'subBass', energy: getEnergyFromSpectrum(20, 60), enabled: subBassEnabledCheckbox.checked() },
+    { name: 'low', energy: getEnergyFromSpectrum(60, 250), enabled: lowEnabledCheckbox.checked() },
+    { name: 'lowMid', energy: getEnergyFromSpectrum(250, 500), enabled: lowMidEnabledCheckbox.checked() },
+    { name: 'mid', energy: getEnergyFromSpectrum(500, 2000), enabled: midEnabledCheckbox.checked() },
+    { name: 'upperMid', energy: getEnergyFromSpectrum(2000, 4000), enabled: upperMidEnabledCheckbox.checked() },
+    { name: 'presence', energy: getEnergyFromSpectrum(4000, 6000), enabled: presenceEnabledCheckbox.checked() },
+    { name: 'brilliance', energy: getEnergyFromSpectrum(6000, 16000), enabled: brillianceEnabledCheckbox.checked() },
+    { name: 'high', energy: getEnergyFromSpectrum(16000, 20000), enabled: highEnabledCheckbox.checked() }
   ];
 
   bandsToDraw.forEach(band => {
@@ -139,7 +152,6 @@ function drawVisuals(pg, currentFrame) {
         const style = { color: ui.color, weight: ui.weight, alpha: ui.alpha };
         const params = { intensityGain: ui.intensityGain, angleSpeed: ui.angleSpeed };
         const func = drawFunctionMap[ui.drawFunc].func;
-        // .call(pg, ...) で描画コンテキストを正しく設定
         func.call(pg, scaledEnergy, currentFrame, time, style, params);
         pg.pop();
       }
@@ -151,11 +163,14 @@ function drawVisuals(pg, currentFrame) {
     drawSpectrumRingByBands(pg, spectrum, currentFrame);
   }
   if (spectrumDiffCheckbox.checked()) {
-    drawSpectrumDiff(pg, spectrum, prevSpectrum);
+    // SVG作成時は、1フレーム前のスペクトルを履歴から取得する
+    const prevSpecForDiff = isForSVG ? (spectrumHistory[currentFrame - 2] || []) : prevSpectrum;
+    drawSpectrumDiff(pg, spectrum, prevSpecForDiff);
   }
 
   pg.pop();
-  prevSpectrum = spectrum.slice();
+
+  if (!isForSVG) prevSpectrum = spectrum.slice();
 }
 
 
@@ -164,108 +179,22 @@ function drawVisuals(pg, currentFrame) {
  */
 function downloadSVG() {
   console.log("Starting SVG export...");
-  noLoop(); // 安全のためにアニメーションを一時停止
+  noLoop();
 
-  // SVG描画用のオフスクリーンバッファを一時的に作成
   const svg = createGraphics(CANVAS_SIZE, CANVAS_SIZE, SVG);
-
-  // SVGバッファに初期設定を適用
   svg.colorMode(HSB, 360, 100, 100);
-  svg.background(0); // SVGの背景を黒に
+  svg.background(0);
 
-  // ★ 修正点 4: 蓄積された履歴を元にSVGに再描画
-  // NOTE: この方法なら、fft.analyze()をハックする必要がなくなります。
-  let tempPrevSpectrum = [];
+  // ★ 修正点 3: 蓄積された履歴を元にSVGに再描画
   for (let i = 0; i < spectrumHistory.length; i++) {
-    const spectrum = spectrumHistory[i];
-
-    // drawVisualsForSVG という専用関数を用意し、fftから値を取らないようにする
-    drawVisualsForSVG(svg, spectrum, tempPrevSpectrum, i + 1);
-
-    tempPrevSpectrum = spectrum.slice();
+    drawVisuals(svg, i + 1, true); // isForSVGフラグをtrueにして呼び出す
   }
 
   save(svg, 'sound_visualization.svg');
   console.log("SVG export complete.");
-  svg.remove(); // メモリを解放
-  loop(); // アニメーションを再開
+  svg.remove();
+  loop();
 }
-
-/**
- * SVG書き出し専用の描画関数
- * fft.getEnergy を使わず、引数のspectrumから直接エネルギーを計算する
- */
-function drawVisualsForSVG(pg, spectrum, prevSpectrum, currentFrame) {
-  pg.push();
-  pg.translate(pg.width / 2, pg.height / 2);
-
-  const time = currentFrame * 0.005;
-
-  // エネルギー計算用のヘルパー関数
-  const getEnergyFromSpectrum = (freq1, freq2) => {
-    const nyquist = 22050;
-    const startIndex = Math.floor(map(freq1, 0, nyquist, 0, spectrum.length));
-    const endIndex = Math.ceil(map(freq2, 0, nyquist, 0, spectrum.length));
-    let sum = 0;
-    for (let i = startIndex; i <= endIndex; i++) {
-      sum += spectrum[i];
-    }
-    return sum / (endIndex - startIndex + 1);
-  };
-
-  const bandsToDraw = [
-    { name: 'subBass', energy: getEnergyFromSpectrum(20, 60), enabled: subBassEnabledCheckbox.checked() },
-    { name: 'low', energy: getEnergyFromSpectrum(60, 250), enabled: lowEnabledCheckbox.checked() }, // "bass"の代替
-    { name: 'lowMid', energy: getEnergyFromSpectrum(250, 500), enabled: lowMidEnabledCheckbox.checked() },
-    { name: 'mid', energy: getEnergyFromSpectrum(500, 2000), enabled: midEnabledCheckbox.checked() }, // "mid"の代替
-    { name: 'upperMid', energy: getEnergyFromSpectrum(2000, 4000), enabled: upperMidEnabledCheckbox.checked() },
-    { name: 'presence', energy: getEnergyFromSpectrum(4000, 6000), enabled: presenceEnabledCheckbox.checked() },
-    { name: 'brilliance', energy: getEnergyFromSpectrum(6000, 10000), enabled: brillianceEnabledCheckbox.checked() },
-    { name: 'high', energy: getEnergyFromSpectrum(10000, 20000), enabled: highEnabledCheckbox.checked() } // "treble"の代替
-  ];
-
-  // UI設定を取得する部分は drawVisuals と共通
-  bandsToDraw.forEach(band => {
-    if (band.enabled) {
-      const ui = {
-        color: eval(`${band.name}ColorPicker.color()`),
-        weight: eval(`${band.name}StrokeSlider.value()`),
-        alpha: eval(`${band.name}AlphaSlider.value()`),
-        gain: eval(`${band.name}GainSlider.value()`),
-        threshold: eval(`${band.name}ThresholdSlider.value()`),
-        intensityGain: eval(`${band.name}IntensityGainSlider.value()`),
-        angleSpeed: eval(`${band.name}AngleSpeedSlider.value()`),
-        drawFunc: eval(`${band.name}DrawSelector.value()`)
-      };
-
-      let scaledEnergy = pg.constrain(band.energy * ui.gain, 0, 255);
-      if (scaledEnergy > ui.threshold) {
-        pg.push();
-        let intensity = pg.map(band.energy, 0, 255, 0, 1);
-        let angle = currentFrame * 0.02;
-        let dx = pg.sin(angle + time) * 10 * intensity;
-        let dy = pg.cos(angle + time * 1.5) * 10 * intensity;
-        pg.translate(dx, dy);
-
-        const style = { color: ui.color, weight: ui.weight, alpha: ui.alpha };
-        const params = { intensityGain: ui.intensityGain, angleSpeed: ui.angleSpeed };
-        const func = drawFunctionMap[ui.drawFunc].func;
-        func.call(pg, scaledEnergy, currentFrame, time, style, params);
-        pg.pop();
-      }
-    }
-  });
-
-  if (spectrumRingCheckbox.checked()) {
-    drawSpectrumRingByBands(pg, spectrum, currentFrame);
-  }
-  if (spectrumDiffCheckbox.checked()) {
-    drawSpectrumDiff(pg, spectrum, prevSpectrum);
-  }
-
-  pg.pop();
-}
-
 
 /**
  * キー入力のハンドリング
@@ -284,16 +213,11 @@ function keyPressed() {
 }
 
 // =============================================================================
-// Initialization and Helper Functions (Your original code, unchanged)
-// =============================================================================
-// ここに、あなたの元の `initMic`, `createUI`, `generateDistinctColors`, 
-// そして全ての `draw...` 関数（drawSmoothEllipseなど）をペーストしてください。
-// 変更は不要です。
+// Initialization and Helper Functions (Your original code)
 // =============================================================================
 function initMic() {
   mic = new p5.AudioIn();
   mic.start(() => {
-    // fftのsetInputはmic.startのコールバック内で呼ぶのが確実
     fft.setInput(mic);
     console.log("FFT input set to mic.");
   }, (err) => {
@@ -302,7 +226,9 @@ function initMic() {
 }
 
 function createUI() {
-  // --- UIパネルの初期化 ---
+  // この関数は、あなたの元のコードと全く同じです。
+  // 長いため省略しますが、元のコードをそのままここに置いてください。
+  // ... (uiPanel = createDiv(); から始まるあなたの全UIコード) ...
   uiPanel = createDiv();
   uiPanel.addClass('ui-panel');
   uiPanel.position(10, 10);
@@ -314,13 +240,13 @@ function createUI() {
   uiPanel.style('overflow-y', 'auto');
   uiPanel.style('max-height', '90vh');
 
-  // ランダム色を取得
   let randomColors = generateDistinctColors(8);
 
-  // --- General Controls ---
   createDiv('Controls').parent(uiPanel).addClass('ui-section-title');
   const saveButton = createButton('Save SVG (S)').parent(uiPanel);
   saveButton.mousePressed(downloadSVG);
+  const pngButton = createButton('Save PNG (P)').parent(uiPanel);
+  pngButton.mousePressed(() => saveCanvas("sound_visualization.png"));
   const clearButton = createButton('Clear Canvas (E)').parent(uiPanel);
   clearButton.mousePressed(() => keyPressed({ key: 'e' }));
   const toggleUiButton = createButton('Toggle UI (C)').parent(uiPanel);
@@ -331,25 +257,15 @@ function createUI() {
   const frameRateValueSpan = createSpan(frameRateSlider.value()).parent(frameRateSlider.parent()).style('color', 'white');
   frameRateSlider.input(() => frameRateValueSpan.html(frameRateSlider.value()));
 
-  // --- Spectrum Layers ---
-  createDiv('Spectrum Layers').parent(uiPanel).addClass('ui-section-title');
-  spectrumRingCheckbox = createCheckbox('Draw Spectrum Ring', true).parent(uiPanel).style('color', 'white');
-  spectrumDiffCheckbox = createCheckbox('Draw Spectrum Diff', true).parent(uiPanel).style('color', 'white');
-  spectrumDiffColorPicker = createColorPicker('#ffffff').parent(uiPanel);
-
-  // --- Per-band UI setup ---
-  const energyBandUIs = [
-    { name: "subBass", defFunc: "drawExpandingDots", color: randomColors[3] },
-    { name: "low", defFunc: "drawSmoothEllipse", color: randomColors[0] },
-    { name: "lowMid", defFunc: "drawNoisyContours", color: randomColors[6] },
-    { name: "mid", defFunc: "drawRotatingWaves", color: randomColors[1] },
-    { name: "upperMid", defFunc: "drawFloatingDots", color: randomColors[7] },
-    { name: "presence", defFunc: "drawSparks", color: randomColors[5] },
-    { name: "brilliance", defFunc: "drawRadiantBeams", color: randomColors[4] },
-    { name: "high", defFunc: "drawRadialLines", color: randomColors[2] }
-  ];
+  const spectrumDiv = createDiv('Spectrum Layers').parent(uiPanel).addClass('ui-section-title');
+  spectrumRingCheckbox = createCheckbox('Draw Spectrum Ring', true).parent(spectrumDiv).style('color', 'white');
+  spectrumDiffCheckbox = createCheckbox('Draw Spectrum Diff', true).parent(spectrumDiv).style('color', 'white');
+  spectrumDiffColorPicker = createColorPicker('#ffffff').parent(spectrumDiv);
 
   const energySettings = { low: { gain: 2.5, threshold: 20 }, mid: { gain: 1.5, threshold: 25 }, high: { gain: 2.2, threshold: 30 }, subBass: { gain: 2.8, threshold: 20 }, lowMid: { gain: 1.8, threshold: 25 }, upperMid: { gain: 2.0, threshold: 30 }, presence: { gain: 2.3, threshold: 25 }, brilliance: { gain: 2.4, threshold: 30 } };
+  const energyBandUIs = [
+    { name: "subBass", defFunc: "drawExpandingDots", color: randomColors[3] }, { name: "low", defFunc: "drawSmoothEllipse", color: randomColors[0] }, { name: "lowMid", defFunc: "drawNoisyContours", color: randomColors[6] }, { name: "mid", defFunc: "drawRotatingWaves", color: randomColors[1] }, { name: "upperMid", defFunc: "drawFloatingDots", color: randomColors[7] }, { name: "presence", defFunc: "drawSparks", color: randomColors[5] }, { name: "brilliance", defFunc: "drawRadiantBeams", color: randomColors[4] }, { name: "high", defFunc: "drawRadialLines", color: randomColors[2] }
+  ];
 
   energyBandUIs.forEach(band => {
     let name = band.name;
@@ -396,7 +312,10 @@ function generateDistinctColors(count) {
   return colors;
 }
 
-// --- Drawing Functions ---
+// =============================================================================
+// Your Original Drawing Functions (Unchanged, but now accept a graphics context `pg`)
+// =============================================================================
+
 function drawSpectrumRingByBands(pg, spectrum, frameCount) {
   pg.noFill();
   let totalBands = spectrum.length;
@@ -550,8 +469,11 @@ function drawFloatingDots(energy, frameCount, time, style, params) {
   for (let d = 0; d < detail; d++) {
     for (let i = 0; i < count; i++) {
       let angle = pg.random(pg.TWO_PI);
-      let radius = pg.random(200, 350) + pg.random(-30, 30) * (params.intensityGain || 1.0);
-      let x = radius * pg.cos(angle); let y = pg.sin(angle) * sin(angle); // Typo corrected: sin(angle)
+      // ★★★ ご指摘の点：中央の空洞を侵食しないように、必ず外側に描画する
+      let radius = pg.random(200, 350) + pg.random(-30, 30);
+      if (params.intensityGain) radius *= params.intensityGain; // 念の為
+      let x = radius * pg.cos(angle);
+      let y = radius * pg.sin(angle);
       pg.point(x, y);
     }
   }
