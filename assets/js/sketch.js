@@ -1,6 +1,11 @@
 let fft,
   mic;
 
+// --- Spectrum Ring/Diffグローバル変数 ---
+let prevSpectrum = [];
+let spectrumRingCheckbox;
+let spectrumDiffCheckbox;
+
 // --- UI要素のグローバル変数宣言 ---
 
 // 各音域ごとのエネルギー補正設定
@@ -433,6 +438,13 @@ function setup() {
   createSpan('AngleSpeed').parent(uiPanel).style('color', 'white').style('margin-left', '10px');
   highAngleSpeedSlider = createSlider(0.0, 5.0, 1.0, 0.01).parent(uiPanel).addClass('ui-slider');
   uiElements.push(highAngleSpeedSlider);
+
+  // --- Spectrum Ring/Diff チェックボックス追加 ---
+  spectrumRingCheckbox = createCheckbox('Draw Spectrum Ring', true).parent(uiPanel).style('color', 'white');
+  uiElements.push(spectrumRingCheckbox);
+
+  spectrumDiffCheckbox = createCheckbox('Draw Spectrum Diff', true).parent(uiPanel).style('color', 'white');
+  uiElements.push(spectrumDiffCheckbox);
 
   // 音域ごとの描画ON/OFFチェックボックスとラベル（低音域から高音域へ）
   // 1. SubBass
@@ -887,6 +899,56 @@ function draw() {
 
     pop();
   }
+
+  // --- Spectrum Ring Layer ---
+  if (spectrumRingCheckbox && spectrumRingCheckbox.checked()) {
+    push();
+    drawSpectrumRing(spectrum);
+    pop();
+  }
+
+  // --- Spectrum Diff Layer ---
+  if (spectrumDiffCheckbox && spectrumDiffCheckbox.checked()) {
+    push();
+    drawSpectrumDiff(spectrum, prevSpectrum);
+    pop();
+  }
+
+  // スペクトラム履歴を更新
+  prevSpectrum = spectrum.slice(); // 配列をコピー
+}
+
+// --- Spectrum Ring 描画関数 ---
+function drawSpectrumRing(spectrum) {
+  stroke(200, 100, 100, 100);
+  noFill();
+  strokeWeight(1);
+  beginShape();
+  for (let i = 0; i < spectrum.length; i++) {
+    let angle = map(i, 0, spectrum.length, 0, TWO_PI);
+    let radius = map(spectrum[i], 0, 255, 60, 280);
+    let x = cos(angle) * radius;
+    let y = sin(angle) * radius;
+    vertex(x, y);
+  }
+  endShape(CLOSE);
+}
+
+// --- Spectrum Diff 描画関数 ---
+function drawSpectrumDiff(current, previous) {
+  stroke(50, 360, 100, 180);
+  noFill();
+  strokeWeight(1);
+  beginShape();
+  for (let i = 0; i < current.length; i++) {
+    let diff = abs(current[i] - (previous[i] || 0));
+    let angle = map(i, 0, current.length, 0, TWO_PI);
+    let radius = map(diff, 0, 255, 30, 180);
+    let x = cos(angle) * radius;
+    let y = sin(angle) * radius;
+    vertex(x, y);
+  }
+  endShape(CLOSE);
 }
 
 function keyPressed() {
