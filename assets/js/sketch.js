@@ -185,17 +185,24 @@ function downloadSVG() {
   loop();
 }
 
+function toggleUIVisibility() {
+  uiVisible = !uiVisible;
+  uiPanel.style('display', uiVisible ? 'block' : 'none');
+  select('#sound-controls').style('display', uiVisible ? 'flex' : 'none');
+}
+
 function keyPressed() {
-  if (key === 's' || key === 'S') downloadSVG();
-  if (key === 'p' || key === 'P') saveCanvas("sound_visualization.png");
+  if (key === 's' || key === 'S') {
+    downloadSVG();
+  }
+  if (key === 'p' || key === 'P') {
+    saveCanvas("sound_visualization.png");
+  }
   if (key === 'c' || key === 'C') {
-    uiVisible = !uiVisible;
-    uiPanel.style('display', uiVisible ? 'block' : 'none');
-    // ★ Phase 1 追記: 新しいUIも表示/非表示
-    select('#sound-controls').style('display', uiVisible ? 'flex' : 'none');
+    toggleUIVisibility();
   }
   if (key === 'e' || key === 'E') {
-    stopAndReset(); // ★ Phase 1 変更: Eキーの挙動を新しい関数に統合
+    stopAndReset();
   }
 }
 
@@ -251,7 +258,14 @@ function handleSoundFile(event) {
   }
 }
 
+
 function togglePlayPause() {
+  // ★★★ 修正点: 音声エンジンが一時停止していたら再開させる ★★★
+  if (getAudioContext().state !== 'running') {
+    userStartAudio();
+  }
+  // ★★★ ここまで ★★★
+
   isPlaying = !isPlaying;
   const playPauseBtn = select('#play-pause-btn');
 
@@ -334,9 +348,9 @@ function createUI() {
   const pngButton = createButton('Save PNG (P)').parent(uiPanel);
   pngButton.mousePressed(() => saveCanvas("sound_visualization.png"));
   const clearButton = createButton('Clear Canvas (E)').parent(uiPanel);
-  clearButton.mousePressed(() => keyPressed({ key: 'e' }));
+  clearButton.mousePressed(stopAndReset);
   const toggleUiButton = createButton('Toggle UI (C)').parent(uiPanel);
-  toggleUiButton.mousePressed(() => keyPressed({ key: 'c' }));
+  toggleUiButton.mousePressed(toggleUIVisibility);
 
   createDiv('Frame Rate').parent(uiPanel).addClass('ui-section-title');
   frameRateSlider = createSlider(1, 60, 15, 1).parent(uiPanel);
