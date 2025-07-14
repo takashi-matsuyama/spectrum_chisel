@@ -63,6 +63,11 @@ canvas {
   z-index: 10;
 }
 
+#sound-controls input[type=range] {
+  width: 120px;
+  accent-color: #ffaa00;
+}
+
 .control-group {
   display: flex;
   align-items: center;

@@ -208,12 +208,29 @@ function setupSoundControls() {
   const playPauseBtn = select('#play-pause-btn');
   const stopBtn = select('#stop-btn');
 
-  micBtn.mousePressed(() => switchInputMode('mic'));
-  fileBtn.mousePressed(() => uploadInput.elt.click()); // ファイル選択ダイアログを開く
+  // ★★★ ボリュームスライダーの要素を取得 ★★★
+  const fileVolumeSlider = select('#file-volume-slider');
+  const fileVolumeGroup = select('#file-volume-group');
 
-  uploadInput.changed(handleSoundFile);
+  micBtn.mousePressed(() => {
+    switchInputMode('mic');
+    // ★★★ マイクモードではスライダーを非表示 ★★★
+    fileVolumeGroup.style('display', 'none');
+  });
+
+  fileBtn.mousePressed(() => uploadInput.elt.click());
+
+  uploadInput.changed(event => handleSoundFile(event, fileVolumeGroup)); // 引数を追加
+
   playPauseBtn.mousePressed(togglePlayPause);
   stopBtn.mousePressed(stopAndReset);
+
+  // ★★★ スライダーが動かされたときの処理を追加 ★★★
+  fileVolumeSlider.input(() => {
+    if (soundFile) {
+      soundFile.setVolume(fileVolumeSlider.value());
+    }
+  });
 }
 
 function switchInputMode(mode) {
@@ -236,15 +253,19 @@ function switchInputMode(mode) {
   }
 }
 
-function handleSoundFile(event) {
+function handleSoundFile(event, fileVolumeGroup) { // 引数を追加
   if (event.target.files[0]) {
     if (soundFile && soundFile.isPlaying()) {
       soundFile.stop();
     }
     soundFile = loadSound(event.target.files[0], () => {
       console.log("Sound file loaded.");
+      // ★★★ ファイルが読み込まれたらスライダーを表示 ★★★
+      fileVolumeGroup.style('display', 'flex');
+      const fileVolumeSlider = select('#file-volume-slider');
+      soundFile.setVolume(fileVolumeSlider.value());
       switchInputMode('file');
-      togglePlayPause(); // ロードされたら自動再生
+      togglePlayPause();
     });
   }
 }
