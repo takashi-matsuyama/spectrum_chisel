@@ -360,7 +360,7 @@ function createUI() {
   spectrumDiffCheckbox = createCheckbox('Draw Spectrum Diff', true).parent(spectrumDiv).style('color', 'white');
   spectrumDiffColorPicker = createColorPicker('#ffffff').parent(spectrumDiv);
 
-  const energySettings = { low: { gain: 2.5, threshold: 20 }, mid: { gain: 1.5, threshold: 25 }, high: { gain: 2.2, threshold: 30 }, subBass: { gain: 2.8, threshold: 20 }, lowMid: { gain: 1.8, threshold: 25 }, upperMid: { gain: 2.0, threshold: 30 }, presence: { gain: 2.3, threshold: 25 }, brilliance: { gain: 2.4, threshold: 30 } };
+  const energySettings = { low: { gain: 1.0, threshold: 100 }, mid: { gain: 1.0, threshold: 100 }, high: { gain: 1.0, threshold: 100 }, subBass: { gain: 1.0, threshold: 100 }, lowMid: { gain: 1.0, threshold: 100 }, upperMid: { gain: 1.0, threshold: 100 }, presence: { gain: 1.0, threshold: 100 }, brilliance: { gain: 1.0, threshold: 100 } };
   const energyBandUIs = [
     { name: "subBass", defFunc: "drawExpandingDots", color: randomColors[3] }, { name: "low", defFunc: "drawSmoothEllipse", color: randomColors[0] }, { name: "lowMid", defFunc: "drawNoisyContours", color: randomColors[6] }, { name: "mid", defFunc: "drawRotatingWaves", color: randomColors[1] }, { name: "upperMid", defFunc: "drawFloatingDots", color: randomColors[7] }, { name: "presence", defFunc: "drawSparks", color: randomColors[5] }, { name: "brilliance", defFunc: "drawRadiantBeams", color: randomColors[4] }, { name: "high", defFunc: "drawRadialLines", color: randomColors[2] }
   ];
