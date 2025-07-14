@@ -80,7 +80,6 @@ function drawVisuals(pg, currentFrame, isForSVG = false) {
 
   pg.push();
   pg.translate(pg.width / 2, pg.height / 2);
-  // ★★★ ウィンドウサイズに応じて描画全体をスケーリング ★★★
   const scaleFactor = min(pg.width, pg.height) / 800;
   pg.scale(scaleFactor);
 
@@ -100,67 +99,63 @@ function drawVisuals(pg, currentFrame, isForSVG = false) {
   };
 
   const bandDefinitions = [
-    { name: 'subBass', freq: [20, 60] },
-    { name: 'low', freq: [60, 250] },
-    { name: 'lowMid', freq: [250, 500] },
-    { name: 'mid', freq: [500, 2000] },
-    { name: 'upperMid', freq: [2000, 4000] },
-    { name: 'presence', freq: [4000, 6000] },
-    { name: 'brilliance', freq: [6000, 16000] },
-    { name: 'high', freq: [16000, 20000] }
+    { name: 'subBass', freq: [20, 60] }, { name: 'low', freq: [60, 250] },
+    { name: 'lowMid', freq: [250, 500] }, { name: 'mid', freq: [500, 2000] },
+    { name: 'upperMid', freq: [2000, 4000] }, { name: 'presence', freq: [4000, 6000] },
+    { name: 'brilliance', freq: [6000, 16000] }, { name: 'high', freq: [16000, 20000] }
   ];
 
   let totalGain = 0;
   let totalThreshold = 0;
-  let activeBandsCount = 0;
 
   bandDefinitions.forEach(bandInfo => {
     const components = uiComponents[bandInfo.name];
-    if (components && components.enabledCheckbox.checked()) {
-      // 平均値計算のために値を加算
+    if (components) {
+      // ★★★ チェックボックスの状態に関わらず値を集計 ★★★
       totalGain += components.gainSlider.value();
       totalThreshold += components.thresholdSlider.value();
-      activeBandsCount++;
 
-      // 従来通りの描画処理
-      const bandEnergy = getEnergyFromSpectrum(bandInfo.freq[0], bandInfo.freq[1]);
-      const ui = {
-        color: components.colorPicker.color(),
-        weight: components.strokeSlider.value(),
-        alpha: components.alphaSlider.value(),
-        gain: components.gainSlider.value(),
-        threshold: components.thresholdSlider.value(),
-        intensityGain: components.intensityGainSlider.value(),
-        angleSpeed: components.angleSpeedSlider.value(),
-        drawFunc: components.drawSelector.value()
-      };
-
-      let scaledEnergy = pg.constrain(bandEnergy * ui.gain, 0, 255);
-      if (scaledEnergy > ui.threshold) {
-        pg.push();
-        let intensity = pg.map(bandEnergy, 0, 255, 0, 1);
-        let angle = currentFrame * 0.02;
-        let dx = pg.sin(angle + time) * 10 * intensity;
-        let dy = pg.cos(angle + time * 1.5) * 10 * intensity;
-        pg.translate(dx, dy);
-        const style = { color: ui.color, weight: ui.weight, alpha: ui.alpha };
-        const params = { intensityGain: ui.intensityGain, angleSpeed: ui.angleSpeed, threshold: ui.threshold };
-        const func = drawFunctionMap[ui.drawFunc].func;
-        func(pg, scaledEnergy, currentFrame, time, style, params);
-        pg.pop();
+      if (components.enabledCheckbox.checked()) {
+        const bandEnergy = getEnergyFromSpectrum(bandInfo.freq[0], bandInfo.freq[1]);
+        const ui = {
+          color: components.colorPicker.color(),
+          weight: components.strokeSlider.value(),
+          alpha: components.alphaSlider.value(),
+          gain: components.gainSlider.value(),
+          threshold: components.thresholdSlider.value(),
+          intensityGain: components.intensityGainSlider.value(),
+          angleSpeed: components.angleSpeedSlider.value(),
+          drawFunc: components.drawSelector.value()
+        };
+        let scaledEnergy = pg.constrain(bandEnergy * ui.gain, 0, 255);
+        if (scaledEnergy > ui.threshold) {
+          pg.push();
+          let intensity = pg.map(bandEnergy, 0, 255, 0, 1);
+          let angle = currentFrame * 0.02;
+          let dx = pg.sin(angle + time) * 10 * intensity;
+          let dy = pg.cos(angle + time * 1.5) * 10 * intensity;
+          pg.translate(dx, dy);
+          const style = { color: ui.color, weight: ui.weight, alpha: ui.alpha };
+          const params = { intensityGain: ui.intensityGain, angleSpeed: ui.angleSpeed, threshold: ui.threshold };
+          const func = drawFunctionMap[ui.drawFunc].func;
+          func(pg, scaledEnergy, currentFrame, time, style, params);
+          pg.pop();
+        }
       }
     }
   });
 
-  const avgGain = activeBandsCount > 0 ? totalGain / activeBandsCount : 1.0;
-  const avgThreshold = activeBandsCount > 0 ? totalThreshold / activeBandsCount : 100;
+  const avgGain = totalGain / bandDefinitions.length;
+  const avgThreshold = totalThreshold / bandDefinitions.length;
 
   if (spectrumRingCheckbox.checked()) {
-    drawSpectrumRingByBands(pg, spectrum, currentFrame, avgGain, avgThreshold);
+    const ringCoefficient = uiComponents.ring.coefficientSlider.value();
+    drawSpectrumRingByBands(pg, spectrum, currentFrame, avgGain * ringCoefficient, avgThreshold * ringCoefficient);
   }
   if (spectrumDiffCheckbox.checked()) {
     const prevSpecForDiff = isForSVG ? (spectrumHistory[currentFrame - 2] || []) : prevSpectrum;
-    drawSpectrumDiff(pg, spectrum, prevSpecForDiff, avgGain, avgThreshold);
+    const diffCoefficient = uiComponents.diff.coefficientSlider.value();
+    drawSpectrumDiff(pg, spectrum, prevSpecForDiff, avgGain * diffCoefficient, avgThreshold * diffCoefficient);
   }
 
   pg.pop();
@@ -351,6 +346,15 @@ function createUI() {
 
   let randomColors = generateDistinctColors(8);
 
+  // createSliderWithLabelを関数の先頭に移動し、parentEl引数を追加
+  const createSliderWithLabel = (label, min, max, initial, step, parentEl) => {
+    let container = createDiv(label + ': ').parent(parentEl);
+    let slider = createSlider(min, max, initial, step).parent(container).addClass('ui-slider');
+    let valueSpan = createSpan(initial).parent(container).style('margin-left', '5px');
+    slider.input(() => valueSpan.html(slider.value()));
+    return slider;
+  };
+
   createDiv('Controls').parent(uiPanel).addClass('ui-section-title');
   const saveButton = createButton('Save SVG (S)').parent(uiPanel);
   saveButton.mousePressed(downloadSVG);
@@ -367,11 +371,25 @@ function createUI() {
   frameRateSlider.input(() => frameRateValueSpan.html(frameRateSlider.value()));
 
   const spectrumDiv = createDiv('Spectrum Layers').parent(uiPanel).addClass('ui-section-title');
-  spectrumRingCheckbox = createCheckbox('Draw Spectrum Ring', true).parent(spectrumDiv).style('color', 'white');
-  spectrumDiffCheckbox = createCheckbox('Draw Spectrum Diff', true).parent(spectrumDiv).style('color', 'white');
-  spectrumDiffColorPicker = createColorPicker('#ffffff').parent(spectrumDiv);
 
-  const energySettings = { low: { gain: 1.0, threshold: 150 }, mid: { gain: 1.0, threshold: 150 }, high: { gain: 1.0, threshold: 150 }, subBass: { gain: 1.0, threshold: 150 }, lowMid: { gain: 1.0, threshold: 150 }, upperMid: { gain: 1.0, threshold: 150 }, presence: { gain: 1.0, threshold: 150 }, brilliance: { gain: 1.0, threshold: 150 } };
+  // ★★★ RingとDiffに係数スライダーを追加 ★★★
+  spectrumRingCheckbox = createCheckbox('Draw Spectrum Ring', true).parent(spectrumDiv).style('color', 'white');
+  const ringControls = createDiv().parent(spectrumDiv).style('padding-left', '20px');
+  uiComponents.ring = {
+    coefficientSlider: createSliderWithLabel('Coefficient', 1, 10000, 500, 1, ringControls)
+  };
+
+  spectrumDiffCheckbox = createCheckbox('Draw Spectrum Diff', true).parent(spectrumDiv).style('color', 'white');
+  const diffControls = createDiv().parent(spectrumDiv).style('padding-left', '20px');
+  spectrumDiffColorPicker = createColorPicker('#ffffff').parent(diffControls);
+  uiComponents.diff = {
+    coefficientSlider: createSliderWithLabel('Coefficient', 1, 10000, 500, 1, diffControls),
+    colorPicker: spectrumDiffColorPicker
+  };
+
+
+  // 8つの周波数帯のUI作成ループ
+  const energySettings = { low: { gain: 1.0, threshold: 100 }, mid: { gain: 1.0, threshold: 100 }, high: { gain: 1.0, threshold: 100 }, subBass: { gain: 1.0, threshold: 100 }, lowMid: { gain: 1.0, threshold: 100 }, upperMid: { gain: 1.0, threshold: 100 }, presence: { gain: 1.0, threshold: 100 }, brilliance: { gain: 1.0, threshold: 100 } };
   const energyBandUIs = [
     { name: "subBass", defFunc: "drawExpandingDots", color: randomColors[3] }, { name: "low", defFunc: "drawSmoothEllipse", color: randomColors[0] }, { name: "lowMid", defFunc: "drawNoisyContours", color: randomColors[6] }, { name: "mid", defFunc: "drawRotatingWaves", color: randomColors[1] }, { name: "upperMid", defFunc: "drawFloatingDots", color: randomColors[7] }, { name: "presence", defFunc: "drawSparks", color: randomColors[5] }, { name: "brilliance", defFunc: "drawRadiantBeams", color: randomColors[4] }, { name: "high", defFunc: "drawRadialLines", color: randomColors[2] }
   ];
@@ -381,34 +399,23 @@ function createUI() {
     let title = name.charAt(0).toUpperCase() + name.slice(1).replace(/([A-Z])/g, ' $1');
     const section = createDiv(title).parent(uiPanel).addClass('ui-section-title');
 
-    // ★★★ evalを使わず、オブジェクトにUI要素を格納する ★★★
-    uiComponents[name] = {}; // 各バンドのオブジェクトを初期化
-
-    const createSliderWithLabel = (label, min, max, initial, step) => {
-      let container = createDiv(label + ': ').parent(section);
-      let slider = createSlider(min, max, initial, step).parent(container).addClass('ui-slider');
-      let valueSpan = createSpan(initial).parent(container).style('margin-left', '5px');
-      slider.input(() => valueSpan.html(slider.value()));
-      return slider;
-    };
+    uiComponents[name] = {};
 
     uiComponents[name].enabledCheckbox = createCheckbox('Enabled', true).parent(section);
     uiComponents[name].colorPicker = createColorPicker(band.color).parent(section);
-
     const drawSelector = createSelect().parent(section);
     for (let key in drawFunctionMap) {
       drawSelector.option(key);
     }
     drawSelector.selected(band.defFunc);
     uiComponents[name].drawSelector = drawSelector;
-
     const defaultWeight = drawFunctionMap[band.defFunc].defaultWeight;
-    uiComponents[name].strokeSlider = createSliderWithLabel('Stroke', 0.1, 5, defaultWeight, 0.1);
-    uiComponents[name].alphaSlider = createSliderWithLabel('Alpha', 0, 255, 20, 1);
-    uiComponents[name].gainSlider = createSliderWithLabel('Gain', 0.1, 5.0, energySettings[name].gain, 0.01);
-    uiComponents[name].thresholdSlider = createSliderWithLabel('Threshold', 0, 255, energySettings[name].threshold, 1);
-    uiComponents[name].intensityGainSlider = createSliderWithLabel('IntensityGain', 0.0, 5.0, 1.0, 0.01);
-    uiComponents[name].angleSpeedSlider = createSliderWithLabel('AngleSpeed', 0.0, 5.0, 1.0, 0.01);
+    uiComponents[name].strokeSlider = createSliderWithLabel('Stroke', 0.1, 5, defaultWeight, 0.1, section);
+    uiComponents[name].alphaSlider = createSliderWithLabel('Alpha', 0, 255, 20, 1, section);
+    uiComponents[name].gainSlider = createSliderWithLabel('Gain', 0.1, 5.0, energySettings[name].gain, 0.01, section);
+    uiComponents[name].thresholdSlider = createSliderWithLabel('Threshold', 0, 255, energySettings[name].threshold, 1, section);
+    uiComponents[name].intensityGainSlider = createSliderWithLabel('IntensityGain', 0.0, 5.0, 1.0, 0.01, section);
+    uiComponents[name].angleSpeedSlider = createSliderWithLabel('AngleSpeed', 0.0, 5.0, 1.0, 0.01, section);
 
     drawSelector.changed(() => {
       const selectedKey = drawSelector.value();
