@@ -134,7 +134,11 @@ function drawVisuals(pg, currentFrame, isForSVG = false) {
         pg.translate(dx, dy);
 
         const style = { color: ui.color, weight: ui.weight, alpha: ui.alpha };
-        const params = { intensityGain: ui.intensityGain, angleSpeed: ui.angleSpeed };
+        const params = {
+          intensityGain: ui.intensityGain,
+          angleSpeed: ui.angleSpeed,
+          threshold: ui.threshold
+        };
         const func = drawFunctionMap[ui.drawFunc].func;
         func(pg, scaledEnergy, currentFrame, time, style, params);
         pg.pop();
@@ -360,7 +364,7 @@ function createUI() {
   spectrumDiffCheckbox = createCheckbox('Draw Spectrum Diff', true).parent(spectrumDiv).style('color', 'white');
   spectrumDiffColorPicker = createColorPicker('#ffffff').parent(spectrumDiv);
 
-  const energySettings = { low: { gain: 1.0, threshold: 100 }, mid: { gain: 1.0, threshold: 100 }, high: { gain: 1.0, threshold: 100 }, subBass: { gain: 1.0, threshold: 100 }, lowMid: { gain: 1.0, threshold: 100 }, upperMid: { gain: 1.0, threshold: 100 }, presence: { gain: 1.0, threshold: 100 }, brilliance: { gain: 1.0, threshold: 100 } };
+  const energySettings = { low: { gain: 1.0, threshold: 150 }, mid: { gain: 1.0, threshold: 150 }, high: { gain: 1.0, threshold: 150 }, subBass: { gain: 1.0, threshold: 150 }, lowMid: { gain: 1.0, threshold: 150 }, upperMid: { gain: 1.0, threshold: 150 }, presence: { gain: 1.0, threshold: 150 }, brilliance: { gain: 1.0, threshold: 150 } };
   const energyBandUIs = [
     { name: "subBass", defFunc: "drawExpandingDots", color: randomColors[3] }, { name: "low", defFunc: "drawSmoothEllipse", color: randomColors[0] }, { name: "lowMid", defFunc: "drawNoisyContours", color: randomColors[6] }, { name: "mid", defFunc: "drawRotatingWaves", color: randomColors[1] }, { name: "upperMid", defFunc: "drawFloatingDots", color: randomColors[7] }, { name: "presence", defFunc: "drawSparks", color: randomColors[5] }, { name: "brilliance", defFunc: "drawRadiantBeams", color: randomColors[4] }, { name: "high", defFunc: "drawRadialLines", color: randomColors[2] }
   ];
@@ -475,7 +479,8 @@ function drawSmoothEllipse(pg, energy, frameCount, time, style, params) {
   let angleSpeed = (params && typeof params.angleSpeed === "number") ? params.angleSpeed : 1.0;
   let baseA = pg.map(energy, 0, 255, 80, 340) * intensityGain; let baseB = pg.map(energy, 0, 255, 60, 240) * intensityGain;
   let waviness = pg.map(energy, 0, 255, 5, 50) * intensityGain; let waveCount = 2 + pg.floor(pg.map(energy, 0, 255, 2, 8));
-  let detail = 2 + pg.floor(pg.map(energy, 0, 255, 1, 4));
+  // ★★★ エネルギー量に応じて描画数を変更 ★★★
+  let detail = pg.ceil(pg.map(energy, params.threshold, 255, 1, 4));
   for (let d = 0; d < detail; d++) {
     pg.beginShape();
     for (let t = 0; t <= pg.TWO_PI + 0.05; t += 0.05) {
@@ -491,7 +496,9 @@ function drawRotatingWaves(pg, energy, frameCount, time, style, params) {
   let c = pg.color(style.color); c.setAlpha(style.alpha); pg.stroke(c); pg.strokeWeight(style.weight);
   let rot = pg.map(energy, 0, 255, 0, pg.PI / 2) + frameCount * 0.01 * (params.angleSpeed || 1.0); pg.rotate(rot);
   let baseRadius = pg.map(energy, 0, 255, 60, 320) * (params.intensityGain || 1.0);
-  let detail = pg.floor(pg.map(energy, 0, 255, 3, 14)); pg.noFill(); pg.beginShape();
+  // ★★★ エネルギー量に応じて描画数を変更 ★★★
+  let detail = pg.ceil(pg.map(energy, params.threshold, 255, 3, 14));
+  pg.noFill(); pg.beginShape();
   for (let i = 0; i < detail + 2; i++) {
     let angle = pg.map(i, 0, detail + 1, 0, pg.TWO_PI) + frameCount * 0.03 * (params.angleSpeed || 1.0);
     let radius = baseRadius + pg.sin(frameCount * 0.1 + i) * 30;
@@ -503,7 +510,8 @@ function drawRotatingWaves(pg, energy, frameCount, time, style, params) {
 function drawRadialLines(pg, energy, frameCount, time, style, params) {
   let c = pg.color(style.color); c.setAlpha(style.alpha); pg.stroke(c); pg.strokeWeight(style.weight); pg.noFill();
   let rot = pg.map(energy, 0, 255, 0, pg.PI) + frameCount * 0.05 * (params.angleSpeed || 1.0); pg.rotate(rot);
-  let detail = pg.floor(pg.map(energy, 0, 255, 2, 12));
+  // ★★★ エネルギー量に応じて描画数を変更 ★★★
+  let detail = pg.ceil(pg.map(energy, params.threshold, 255, 2, 12));
   for (let i = 0; i < detail; i++) {
     let minRadius = 40 * (params.intensityGain || 1.0);
     let angle = pg.random(pg.TWO_PI);
@@ -515,7 +523,8 @@ function drawRadialLines(pg, energy, frameCount, time, style, params) {
 function drawExpandingDots(pg, energy, frameCount, time, style, params) {
   let c = pg.color(style.color); c.setAlpha(style.alpha); pg.stroke(c); pg.strokeWeight(style.weight); pg.noFill();
   let rot = pg.map(energy, 0, 255, 0, pg.PI / 2) + time * 0.2 * (params.angleSpeed || 1.0); pg.rotate(rot);
-  let ringCount = 1 + pg.floor(pg.map(energy, 0, 255, 1, 6));
+  // ★★★ エネルギー量に応じて描画数を変更 ★★★
+  let ringCount = 1 + pg.floor(pg.map(energy, params.threshold, 255, 1, 6));
   for (let r = 0; r < ringCount; r++) {
     let radius = (pg.map(energy, 0, 255, 20, 180) + r * 10) * (params.intensityGain || 1.0);
     let dotCount = pg.floor(pg.TWO_PI * radius / 14);
@@ -529,7 +538,8 @@ function drawExpandingDots(pg, energy, frameCount, time, style, params) {
 function drawRadiantBeams(pg, energy, frameCount, time, style, params) {
   let c = pg.color(style.color); c.setAlpha(style.alpha); pg.stroke(c); pg.strokeWeight(style.weight); pg.noFill();
   let rot = pg.map(energy, 0, 255, 0, pg.PI) + time * 1.2 * (params.angleSpeed || 1.0); pg.rotate(rot);
-  let rays = 6 + pg.floor(pg.map(energy, 0, 255, 2, 20));
+  // ★★★ エネルギー量に応じて描画数を変更 ★★★
+  let rays = 6 + pg.floor(pg.map(energy, params.threshold, 255, 2, 20));
   let baseLen = pg.map(energy, 0, 255, 80, 340) * (params.intensityGain || 1.0);
   let detail = pg.floor(pg.map(energy, 0, 255, 1, 4));
   let innerRadius = pg.map(energy, 0, 255, 20, 100) * (params.intensityGain || 1.0);
@@ -546,7 +556,8 @@ function drawRadiantBeams(pg, energy, frameCount, time, style, params) {
 function drawSparks(pg, energy, frameCount, time, style, params) {
   let c = pg.color(style.color); c.setAlpha(style.alpha); pg.stroke(c); pg.strokeWeight(style.weight); pg.noFill();
   let rot = pg.map(energy, 0, 255, 0, pg.PI / 2) + frameCount * 0.1 * (params.angleSpeed || 1.0); pg.rotate(rot);
-  let sparkCount = pg.floor(pg.map(energy, 0, 255, 3, 20));
+  // ★★★ エネルギー量に応じて描画数を変更 ★★★
+  let sparkCount = pg.floor(pg.map(energy, params.threshold, 255, 3, 20));
   let maxLength = pg.map(energy, 0, 255, 20, 120) * (params.intensityGain || 1.0);
   let detail = pg.floor(pg.map(energy, 0, 255, 1, 4));
   let minRadius = pg.map(energy, 0, 255, 150, 250) * (params.intensityGain || 1.0);
@@ -565,7 +576,8 @@ function drawNoisyContours(pg, energy, frameCount, time, style, params) {
   let rot = pg.map(energy, 0, 255, 0, pg.PI / 2) + time * 0.2 * (params.angleSpeed || 1.0); pg.rotate(rot);
   let noiseFactor = pg.map(energy, 0, 255, 10, 120) * (params.intensityGain || 1.0);
   let baseRadius = pg.map(energy, 0, 255, 40, 260) * (params.intensityGain || 1.0);
-  let layerCount = 2 + pg.floor(pg.map(energy, 0, 255, 1, 4));
+  // ★★★ エネルギー量に応じて描画数を変更 ★★★
+  let layerCount = 2 + pg.floor(pg.map(energy, params.threshold, 255, 1, 4));
   for (let j = 0; j < layerCount; j++) {
     pg.beginShape();
     let angleOffset = time * 0.5 + j * 0.5;
@@ -579,7 +591,8 @@ function drawNoisyContours(pg, energy, frameCount, time, style, params) {
 }
 function drawFloatingDots(pg, energy, frameCount, time, style, params) {
   let c = pg.color(style.color); c.setAlpha(style.alpha); pg.stroke(c); pg.strokeWeight(style.weight);
-  let count = pg.floor(pg.map(energy, 0, 255, 10, 100));
+  // ★★★ エネルギー量に応じて描画数を変更 ★★★
+  let count = pg.floor(pg.map(energy, params.threshold, 255, 1, 100));
   let detail = pg.floor(pg.map(energy, 0, 255, 1, 4));
   let rot = pg.map(energy, 0, 255, 0, pg.PI * 2) * 0.3; pg.rotate(rot);
   for (let d = 0; d < detail; d++) {
