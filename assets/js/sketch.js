@@ -92,26 +92,38 @@ function drawVisuals(pg, currentFrame, isForSVG = false) {
     const endIndex = Math.ceil(map(freq2, 0, nyquist, 0, spectrum.length));
     let sum = 0;
     for (let i = startIndex; i <= endIndex; i++) {
-      sum += spectrum[i];
+      if (spectrum[i] !== undefined) {
+        sum += spectrum[i];
+      }
     }
     return sum / (endIndex - startIndex + 1);
   };
 
-  const bandsToDraw = [
-    { name: 'subBass', energy: getEnergyFromSpectrum(20, 60) },
-    { name: 'low', energy: getEnergyFromSpectrum(60, 250) },
-    { name: 'lowMid', energy: getEnergyFromSpectrum(250, 500) },
-    { name: 'mid', energy: getEnergyFromSpectrum(500, 2000) },
-    { name: 'upperMid', energy: getEnergyFromSpectrum(2000, 4000) },
-    { name: 'presence', energy: getEnergyFromSpectrum(4000, 6000) },
-    { name: 'brilliance', energy: getEnergyFromSpectrum(6000, 16000) },
-    { name: 'high', energy: getEnergyFromSpectrum(16000, 20000) }
+  const bandDefinitions = [
+    { name: 'subBass', freq: [20, 60] },
+    { name: 'low', freq: [60, 250] },
+    { name: 'lowMid', freq: [250, 500] },
+    { name: 'mid', freq: [500, 2000] },
+    { name: 'upperMid', freq: [2000, 4000] },
+    { name: 'presence', freq: [4000, 6000] },
+    { name: 'brilliance', freq: [6000, 16000] },
+    { name: 'high', freq: [16000, 20000] }
   ];
 
-  bandsToDraw.forEach(band => {
-    const components = uiComponents[band.name];
-    // ★★★ 修正点2: チェックを1つに統合 ★★★
+  let totalGain = 0;
+  let totalThreshold = 0;
+  let activeBandsCount = 0;
+
+  bandDefinitions.forEach(bandInfo => {
+    const components = uiComponents[bandInfo.name];
     if (components && components.enabledCheckbox.checked()) {
+      // 平均値計算のために値を加算
+      totalGain += components.gainSlider.value();
+      totalThreshold += components.thresholdSlider.value();
+      activeBandsCount++;
+
+      // 従来通りの描画処理
+      const bandEnergy = getEnergyFromSpectrum(bandInfo.freq[0], bandInfo.freq[1]);
       const ui = {
         color: components.colorPicker.color(),
         weight: components.strokeSlider.value(),
@@ -123,22 +135,16 @@ function drawVisuals(pg, currentFrame, isForSVG = false) {
         drawFunc: components.drawSelector.value()
       };
 
-      let scaledEnergy = pg.constrain(band.energy * ui.gain, 0, 255);
+      let scaledEnergy = pg.constrain(bandEnergy * ui.gain, 0, 255);
       if (scaledEnergy > ui.threshold) {
         pg.push();
-
-        let intensity = pg.map(band.energy, 0, 255, 0, 1);
+        let intensity = pg.map(bandEnergy, 0, 255, 0, 1);
         let angle = currentFrame * 0.02;
         let dx = pg.sin(angle + time) * 10 * intensity;
         let dy = pg.cos(angle + time * 1.5) * 10 * intensity;
         pg.translate(dx, dy);
-
         const style = { color: ui.color, weight: ui.weight, alpha: ui.alpha };
-        const params = {
-          intensityGain: ui.intensityGain,
-          angleSpeed: ui.angleSpeed,
-          threshold: ui.threshold
-        };
+        const params = { intensityGain: ui.intensityGain, angleSpeed: ui.angleSpeed, threshold: ui.threshold };
         const func = drawFunctionMap[ui.drawFunc].func;
         func(pg, scaledEnergy, currentFrame, time, style, params);
         pg.pop();
@@ -146,19 +152,20 @@ function drawVisuals(pg, currentFrame, isForSVG = false) {
     }
   });
 
+  const avgGain = activeBandsCount > 0 ? totalGain / activeBandsCount : 1.0;
+  const avgThreshold = activeBandsCount > 0 ? totalThreshold / activeBandsCount : 100;
+
   if (spectrumRingCheckbox.checked()) {
-    drawSpectrumRingByBands(pg, spectrum, currentFrame);
+    drawSpectrumRingByBands(pg, spectrum, currentFrame, avgGain, avgThreshold);
   }
   if (spectrumDiffCheckbox.checked()) {
     const prevSpecForDiff = isForSVG ? (spectrumHistory[currentFrame - 2] || []) : prevSpectrum;
-    drawSpectrumDiff(pg, spectrum, prevSpecForDiff);
+    drawSpectrumDiff(pg, spectrum, prevSpecForDiff, avgGain, avgThreshold);
   }
 
   pg.pop();
-
   if (!isForSVG) prevSpectrum = spectrum.slice();
 }
-
 
 function downloadSVG() {
   console.log("Starting SVG export...");
@@ -425,22 +432,26 @@ function generateDistinctColors(count) {
 // Drawing Functions
 // =============================================================================
 
-function drawSpectrumRingByBands(pg, spectrum, frameCount) {
+// この2つの関数をまるごと置き換えてください
+
+function drawSpectrumRingByBands(pg, spectrum, frameCount, gain, threshold) {
+  const overallEnergy = spectrum.reduce((sum, value) => sum + value, 0) / spectrum.length;
+  if (overallEnergy * gain < threshold) {
+    return;
+  }
+
   pg.noFill();
   let totalBands = spectrum.length;
-
-  // ★★★ uiComponents オブジェクトから色を取得するように変更 ★★★
   const bands = [
-    { fromHz: 20, toHz: 60, color: uiComponents.subBass.colorPicker.color() },
-    { fromHz: 60, toHz: 140, color: uiComponents.low.colorPicker.color() },
-    { fromHz: 140, toHz: 400, color: uiComponents.lowMid.colorPicker.color() },
-    { fromHz: 400, toHz: 1000, color: uiComponents.mid.colorPicker.color() },
-    { fromHz: 1000, toHz: 3000, color: uiComponents.upperMid.colorPicker.color() },
-    { fromHz: 3000, toHz: 6000, color: uiComponents.presence.colorPicker.color() },
-    { fromHz: 6000, toHz: 16000, color: uiComponents.brilliance.colorPicker.color() },
-    { fromHz: 16000, toHz: 22050, color: uiComponents.high.colorPicker.color() }
+    { name: "subBass", fromHz: 20, toHz: 60, color: uiComponents.subBass.colorPicker.color() },
+    { name: "low", fromHz: 60, toHz: 140, color: uiComponents.low.colorPicker.color() },
+    { name: "lowMid", fromHz: 140, toHz: 400, color: uiComponents.lowMid.colorPicker.color() },
+    { name: "mid", fromHz: 400, toHz: 1000, color: uiComponents.mid.colorPicker.color() },
+    { name: "upperMid", fromHz: 1000, toHz: 3000, color: uiComponents.upperMid.colorPicker.color() },
+    { name: "presence", fromHz: 3000, toHz: 6000, color: uiComponents.presence.colorPicker.color() },
+    { name: "brilliance", fromHz: 6000, toHz: 16000, color: uiComponents.brilliance.colorPicker.color() },
+    { name: "high", fromHz: 16000, toHz: 22050, color: uiComponents.high.colorPicker.color() }
   ];
-
   for (let band of bands) {
     let startIndex = floor(pg.map(band.fromHz, 0, 22050, 0, totalBands));
     let endIndex = floor(pg.map(band.toHz, 0, 22050, 0, totalBands));
@@ -458,13 +469,14 @@ function drawSpectrumRingByBands(pg, spectrum, frameCount) {
     pg.endShape();
   }
 }
-function drawSpectrumDiff(pg, current, previous) {
+
+function drawSpectrumDiff(pg, current, previous, gain, threshold) {
   if (!previous || previous.length === 0) return;
   let diffColor = spectrumDiffColorPicker ? spectrumDiffColorPicker.color() : pg.color(255);
   diffColor.setAlpha(180); pg.noFill();
   for (let i = 0; i < current.length; i++) {
     let diff = Math.abs(current[i] - (previous[i] || 0));
-    if (diff > 10) {
+    if (diff * gain > threshold) {
       let angle = pg.map(i, 0, current.length, 0, pg.TWO_PI);
       let radius = pg.map(diff, 10, 255, 120, 370);
       let x = pg.cos(angle) * radius; let y = pg.sin(angle) * radius;
@@ -473,6 +485,7 @@ function drawSpectrumDiff(pg, current, previous) {
     }
   }
 }
+
 function drawSmoothEllipse(pg, energy, frameCount, time, style, params) {
   let c = pg.color(style.color); c.setAlpha(style.alpha); pg.stroke(c); pg.strokeWeight(style.weight); pg.noFill();
   let intensityGain = (params && typeof params.intensityGain === "number") ? params.intensityGain : 1.0;
