@@ -1,6 +1,11 @@
 // --- Canvas Size Constant ---
 const CANVAS_SIZE = 800;
-let fft, mic;
+let fft;
+
+// ★ Phase 1 変更点: 音源管理用の変数を追加
+let mic, soundFile;
+let currentInputMode = 'mic'; // 'mic' or 'file'
+let isPlaying = false; // 再生状態を管理
 
 // ★ 修正点 1: SVG書き出し用のスペクトル履歴を管理する配列
 let spectrumHistory = [];
@@ -46,25 +51,24 @@ const drawFunctionMap = {
 // =============================================================================
 
 function setup() {
-  // ★ 修正点 2: メインのCanvasをビットマップモードで作成
   let myCanvas = createCanvas(CANVAS_SIZE, CANVAS_SIZE);
   myCanvas.parent('canvas-container');
   colorMode(HSB, 360, 100, 100);
-
-  // 描画が蓄積されるように、background()はsetup()で一度だけ呼び出す
   background(0);
 
   fft = new p5.FFT(0.9, 512);
+
+  // ★ Phase 1 変更点: UI初期化と音源初期化
   initMic();
-  createUI(); // あなたのUIセットアップコードをそのまま呼び出し
+  setupSoundControls(); // 新しい音源コントロールUIのセットアップ
+  createUI(); // 既存のUIセットアップ
 }
 
 function draw() {
-  if (!mic || !mic.enabled) return;
+  // ★ Phase 1 変更点: isPlayingがfalseの時は描画を止める
+  if (!isPlaying) return;
 
   frameRate(frameRateSlider.value());
-
-  // 描画ロジックを分離し、メインCanvas(this)を対象に実行
   drawVisuals(this, frameCount);
 }
 
@@ -72,21 +76,14 @@ function draw() {
 // Core Drawing and Event Handling
 // =============================================================================
 
-/**
- * 描画ロジック本体。
- * p5.jsのメインCanvas、またはSVGバッファのどちらに対しても描画できるように、
- * 描画対象のコンテキスト（pg）を引数に取る。
- */
 function drawVisuals(pg, currentFrame, isForSVG = false) {
   let spectrum;
 
   if (isForSVG) {
-    // SVG書き出し時は、履歴からスペクトルデータを取得
     spectrum = spectrumHistory[currentFrame - 1];
   } else {
-    // リアルタイム描画時は、fftから直接スペクトルデータを取得
     spectrum = fft.analyze();
-    spectrumHistory.push(spectrum.slice()); // 設計図として履歴を保存
+    spectrumHistory.push(spectrum.slice());
   }
 
   if (!spectrum) return;
@@ -97,7 +94,6 @@ function drawVisuals(pg, currentFrame, isForSVG = false) {
     return;
   }
 
-  // あなたの描画ロジックをそのまま実行
   pg.push();
   pg.translate(pg.width / 2, pg.height / 2);
 
@@ -142,7 +138,6 @@ function drawVisuals(pg, currentFrame, isForSVG = false) {
       if (scaledEnergy > ui.threshold) {
         pg.push();
 
-        // あなたのオフセット計算ロジック
         let intensity = pg.map(band.energy, 0, 255, 0, 1);
         let angle = currentFrame * 0.02;
         let dx = pg.sin(angle + time) * 10 * intensity;
@@ -158,12 +153,10 @@ function drawVisuals(pg, currentFrame, isForSVG = false) {
     }
   });
 
-  // --- Spectrum Ring & Diff Layers ---
   if (spectrumRingCheckbox.checked()) {
     drawSpectrumRingByBands(pg, spectrum, currentFrame);
   }
   if (spectrumDiffCheckbox.checked()) {
-    // SVG作成時は、1フレーム前のスペクトルを履歴から取得する
     const prevSpecForDiff = isForSVG ? (spectrumHistory[currentFrame - 2] || []) : prevSpectrum;
     drawSpectrumDiff(pg, spectrum, prevSpecForDiff);
   }
@@ -174,9 +167,6 @@ function drawVisuals(pg, currentFrame, isForSVG = false) {
 }
 
 
-/**
- * SVG書き出し処理
- */
 function downloadSVG() {
   console.log("Starting SVG export...");
   noLoop();
@@ -185,9 +175,8 @@ function downloadSVG() {
   svg.colorMode(HSB, 360, 100, 100);
   svg.background(0);
 
-  // ★ 修正点 3: 蓄積された履歴を元にSVGに再描画
   for (let i = 0; i < spectrumHistory.length; i++) {
-    drawVisuals(svg, i + 1, true); // isForSVGフラグをtrueにして呼び出す
+    drawVisuals(svg, i + 1, true);
   }
 
   save(svg, 'sound_visualization.svg');
@@ -196,40 +185,137 @@ function downloadSVG() {
   loop();
 }
 
-/**
- * キー入力のハンドリング
- */
 function keyPressed() {
   if (key === 's' || key === 'S') downloadSVG();
   if (key === 'p' || key === 'P') saveCanvas("sound_visualization.png");
   if (key === 'c' || key === 'C') {
     uiVisible = !uiVisible;
     uiPanel.style('display', uiVisible ? 'block' : 'none');
+    // ★ Phase 1 追記: 新しいUIも表示/非表示
+    select('#sound-controls').style('display', uiVisible ? 'flex' : 'none');
   }
   if (key === 'e' || key === 'E') {
-    background(0);
-    spectrumHistory = []; // 履歴もリセット
+    stopAndReset(); // ★ Phase 1 変更: Eキーの挙動を新しい関数に統合
   }
 }
 
 // =============================================================================
-// Initialization and Helper Functions (Your original code)
+// ★ Phase 1 変更点: Sound Control Functions
+// =============================================================================
+
+function setupSoundControls() {
+  const micBtn = select('#mic-mode-btn');
+  const fileBtn = select('#file-mode-btn');
+  const uploadInput = select('#upload-sound');
+  const playPauseBtn = select('#play-pause-btn');
+  const stopBtn = select('#stop-btn');
+
+  micBtn.mousePressed(() => switchInputMode('mic'));
+  fileBtn.mousePressed(() => uploadInput.elt.click()); // ファイル選択ダイアログを開く
+
+  uploadInput.changed(handleSoundFile);
+  playPauseBtn.mousePressed(togglePlayPause);
+  stopBtn.mousePressed(stopAndReset);
+}
+
+function switchInputMode(mode) {
+  if (isPlaying) stopAndReset(); // モード切替時はリセット
+
+  currentInputMode = mode;
+  const micBtn = select('#mic-mode-btn');
+  const fileBtn = select('#file-mode-btn');
+
+  if (mode === 'mic') {
+    micBtn.addClass('active');
+    fileBtn.removeClass('active');
+    fft.setInput(mic);
+    console.log("Input mode: Mic");
+  } else if (mode === 'file' && soundFile) {
+    micBtn.removeClass('active');
+    fileBtn.addClass('active');
+    fft.setInput(soundFile);
+    console.log("Input mode: File");
+  }
+}
+
+function handleSoundFile(event) {
+  if (event.target.files[0]) {
+    if (soundFile && soundFile.isPlaying()) {
+      soundFile.stop();
+    }
+    soundFile = loadSound(event.target.files[0], () => {
+      console.log("Sound file loaded.");
+      switchInputMode('file');
+      togglePlayPause(); // ロードされたら自動再生
+    });
+  }
+}
+
+function togglePlayPause() {
+  isPlaying = !isPlaying;
+  const playPauseBtn = select('#play-pause-btn');
+
+  if (isPlaying) {
+    if (currentInputMode === 'mic') {
+      mic.start();
+    } else if (soundFile) {
+      soundFile.loop(); // ファイルの場合はループ再生
+    }
+    loop(); // p5.jsの描画ループを開始
+    playPauseBtn.html('一時停止');
+  } else {
+    if (currentInputMode === 'mic') {
+      mic.stop();
+    } else if (soundFile) {
+      soundFile.pause();
+    }
+    noLoop(); // p5.jsの描画ループを停止
+    playPauseBtn.html('再生');
+  }
+}
+
+function stopAndReset() {
+  if (isPlaying) {
+    // isPlaying = false と playPauseBtn.html('再生') は togglePlayPause 内で処理される
+    togglePlayPause();
+  }
+
+  // 状態を完全に初期に戻す
+  isPlaying = false;
+  select('#play-pause-btn').html('再生');
+
+  if (soundFile) {
+    soundFile.stop();
+  }
+  if (mic.started) {
+    mic.stop();
+  }
+
+  // キャンバスと履歴をリセット
+  background(0);
+  spectrumHistory = [];
+  prevSpectrum = [];
+  console.log("Canvas and history cleared.");
+}
+
+// =============================================================================
+// Initialization and Helper Functions
 // =============================================================================
 function initMic() {
   mic = new p5.AudioIn();
   mic.start(() => {
+    console.log("Mic ready.");
     fft.setInput(mic);
-    console.log("FFT input set to mic.");
+    mic.stop(); // 初期状態は停止させておく
   }, (err) => {
     console.error("Mic error:", err);
+    alert("マイクの初期化に失敗しました。ブラウザの設定を確認してください。");
   });
 }
 
 function createUI() {
-  // この関数は、あなたの元のコードと全く同じです。
-  // 長いため省略しますが、元のコードをそのままここに置いてください。
-  // ... (uiPanel = createDiv(); から始まるあなたの全UIコード) ...
   uiPanel = createDiv();
+  uiPanel.parent('ui-container');
   uiPanel.addClass('ui-panel');
   uiPanel.position(10, 10);
   uiPanel.style('color', 'white');
@@ -313,7 +399,7 @@ function generateDistinctColors(count) {
 }
 
 // =============================================================================
-// Your Original Drawing Functions (Unchanged, but now accept a graphics context `pg`)
+// Drawing Functions
 // =============================================================================
 
 function drawSpectrumRingByBands(pg, spectrum, frameCount) {
@@ -469,9 +555,8 @@ function drawFloatingDots(energy, frameCount, time, style, params) {
   for (let d = 0; d < detail; d++) {
     for (let i = 0; i < count; i++) {
       let angle = pg.random(pg.TWO_PI);
-      // ★★★ ご指摘の点：中央の空洞を侵食しないように、必ず外側に描画する
       let radius = pg.random(200, 350) + pg.random(-30, 30);
-      if (params.intensityGain) radius *= params.intensityGain; // 念の為
+      if (params.intensityGain) radius *= params.intensityGain;
       let x = radius * pg.cos(angle);
       let y = radius * pg.sin(angle);
       pg.point(x, y);

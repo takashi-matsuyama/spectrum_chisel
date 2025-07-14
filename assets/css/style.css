@@ -38,3 +38,45 @@ canvas {
   margin: 4px 10px;
   accent-color: #ffaa00;
 }
+
+/* style.css の末尾に追記 */
+
+#sound-controls {
+  position: absolute;
+  top: 10px;
+  left: 350px;
+  /* UIパネルの隣あたりに配置 */
+  background: rgba(0, 0, 0, 0.6);
+  padding: 10px;
+  border-radius: 8px;
+  color: white;
+  font-family: 'Segoe UI', sans-serif;
+  font-size: 14px;
+  display: flex;
+  gap: 20px;
+}
+
+.control-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#sound-controls button {
+  background-color: #333;
+  color: white;
+  border: 1px solid #555;
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+#sound-controls button:hover {
+  background-color: #444;
+}
+
+#sound-controls button.active {
+  background-color: #ffaa00;
+  color: black;
+  border-color: #ffaa00;
+}
