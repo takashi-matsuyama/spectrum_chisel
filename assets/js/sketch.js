@@ -60,6 +60,7 @@ function draw() {
 // Core Drawing and Event Handling
 // =============================================================================
 
+
 function drawVisuals(pg, currentFrame, isForSVG = false) {
   let spectrum;
 
@@ -105,57 +106,43 @@ function drawVisuals(pg, currentFrame, isForSVG = false) {
     { name: 'brilliance', freq: [6000, 16000] }, { name: 'high', freq: [16000, 20000] }
   ];
 
-  let totalGain = 0;
-  let totalThreshold = 0;
-
   bandDefinitions.forEach(bandInfo => {
     const components = uiComponents[bandInfo.name];
-    if (components) {
-      // ★★★ チェックボックスの状態に関わらず値を集計 ★★★
-      totalGain += components.gainSlider.value();
-      totalThreshold += components.thresholdSlider.value();
-
-      if (components.enabledCheckbox.checked()) {
-        const bandEnergy = getEnergyFromSpectrum(bandInfo.freq[0], bandInfo.freq[1]);
-        const ui = {
-          color: components.colorPicker.color(),
-          weight: components.strokeSlider.value(),
-          alpha: components.alphaSlider.value(),
-          gain: components.gainSlider.value(),
-          threshold: components.thresholdSlider.value(),
-          intensityGain: components.intensityGainSlider.value(),
-          angleSpeed: components.angleSpeedSlider.value(),
-          drawFunc: components.drawSelector.value()
-        };
-        let scaledEnergy = pg.constrain(bandEnergy * ui.gain, 0, 255);
-        if (scaledEnergy > ui.threshold) {
-          pg.push();
-          let intensity = pg.map(bandEnergy, 0, 255, 0, 1);
-          let angle = currentFrame * 0.02;
-          let dx = pg.sin(angle + time) * 10 * intensity;
-          let dy = pg.cos(angle + time * 1.5) * 10 * intensity;
-          pg.translate(dx, dy);
-          const style = { color: ui.color, weight: ui.weight, alpha: ui.alpha };
-          const params = { intensityGain: ui.intensityGain, angleSpeed: ui.angleSpeed, threshold: ui.threshold };
-          const func = drawFunctionMap[ui.drawFunc].func;
-          func(pg, scaledEnergy, currentFrame, time, style, params);
-          pg.pop();
-        }
+    if (components && components.enabledCheckbox.checked()) {
+      const bandEnergy = getEnergyFromSpectrum(bandInfo.freq[0], bandInfo.freq[1]);
+      const ui = {
+        color: components.colorPicker.color(),
+        weight: components.strokeSlider.value(),
+        alpha: components.alphaSlider.value(),
+        gain: components.gainSlider.value(),
+        threshold: components.thresholdSlider.value(),
+        intensityGain: components.intensityGainSlider.value(),
+        angleSpeed: components.angleSpeedSlider.value(),
+        drawFunc: components.drawSelector.value()
+      };
+      let scaledEnergy = pg.constrain(bandEnergy * ui.gain, 0, 255);
+      if (scaledEnergy > ui.threshold) {
+        pg.push();
+        let intensity = pg.map(bandEnergy, 0, 255, 0, 1);
+        let angle = currentFrame * 0.02;
+        let dx = pg.sin(angle + time) * 10 * intensity;
+        let dy = pg.cos(angle + time * 1.5) * 10 * intensity;
+        pg.translate(dx, dy);
+        const style = { color: ui.color, weight: ui.weight, alpha: ui.alpha };
+        const params = { intensityGain: ui.intensityGain, angleSpeed: ui.angleSpeed, threshold: ui.threshold };
+        const func = drawFunctionMap[ui.drawFunc].func;
+        func(pg, scaledEnergy, currentFrame, time, style, params);
+        pg.pop();
       }
     }
   });
 
-  const avgGain = totalGain / bandDefinitions.length;
-  const avgThreshold = totalThreshold / bandDefinitions.length;
-
   if (spectrumRingCheckbox.checked()) {
-    const ringCoefficient = uiComponents.ring.coefficientSlider.value();
-    drawSpectrumRingByBands(pg, spectrum, currentFrame, avgGain * ringCoefficient, avgThreshold * ringCoefficient);
+    drawSpectrumRingByBands(pg, spectrum, currentFrame);
   }
   if (spectrumDiffCheckbox.checked()) {
     const prevSpecForDiff = isForSVG ? (spectrumHistory[currentFrame - 2] || []) : prevSpectrum;
-    const diffCoefficient = uiComponents.diff.coefficientSlider.value();
-    drawSpectrumDiff(pg, spectrum, prevSpecForDiff, avgGain * diffCoefficient, avgThreshold * diffCoefficient);
+    drawSpectrumDiff(pg, spectrum, prevSpecForDiff);
   }
 
   pg.pop();
@@ -346,7 +333,6 @@ function createUI() {
 
   let randomColors = generateDistinctColors(8);
 
-  // createSliderWithLabelを関数の先頭に移動し、parentEl引数を追加
   const createSliderWithLabel = (label, min, max, initial, step, parentEl) => {
     let container = createDiv(label + ': ').parent(parentEl);
     let slider = createSlider(min, max, initial, step).parent(container).addClass('ui-slider');
@@ -372,21 +358,22 @@ function createUI() {
 
   const spectrumDiv = createDiv('Spectrum Layers').parent(uiPanel).addClass('ui-section-title');
 
-  // ★★★ RingとDiffに係数スライダーを追加 ★★★
+  // ★★★ RingとDiffに専用のGainとThresholdスライダーを追加 ★★★
   spectrumRingCheckbox = createCheckbox('Draw Spectrum Ring', true).parent(spectrumDiv).style('color', 'white');
   const ringControls = createDiv().parent(spectrumDiv).style('padding-left', '20px');
   uiComponents.ring = {
-    coefficientSlider: createSliderWithLabel('Coefficient', 1, 10000, 500, 1, ringControls)
+    gainSlider: createSliderWithLabel('Gain', 0.1, 10.0, 1.0, 0.1, ringControls),
+    thresholdSlider: createSliderWithLabel('Threshold', 0, 255, 30, 1, ringControls)
   };
 
   spectrumDiffCheckbox = createCheckbox('Draw Spectrum Diff', true).parent(spectrumDiv).style('color', 'white');
   const diffControls = createDiv().parent(spectrumDiv).style('padding-left', '20px');
   spectrumDiffColorPicker = createColorPicker('#ffffff').parent(diffControls);
   uiComponents.diff = {
-    coefficientSlider: createSliderWithLabel('Coefficient', 1, 10000, 500, 1, diffControls),
+    gainSlider: createSliderWithLabel('Gain', 0.1, 10.0, 1.0, 0.1, diffControls),
+    thresholdSlider: createSliderWithLabel('Threshold', 0, 255, 15, 1, diffControls),
     colorPicker: spectrumDiffColorPicker
   };
-
 
   // 8つの周波数帯のUI作成ループ
   const energySettings = { low: { gain: 1.0, threshold: 100 }, mid: { gain: 1.0, threshold: 100 }, high: { gain: 1.0, threshold: 100 }, subBass: { gain: 1.0, threshold: 100 }, lowMid: { gain: 1.0, threshold: 100 }, upperMid: { gain: 1.0, threshold: 100 }, presence: { gain: 1.0, threshold: 100 }, brilliance: { gain: 1.0, threshold: 100 } };
@@ -439,10 +426,13 @@ function generateDistinctColors(count) {
 // Drawing Functions
 // =============================================================================
 
-// この2つの関数をまるごと置き換えてください
 
-function drawSpectrumRingByBands(pg, spectrum, frameCount, gain, threshold) {
+function drawSpectrumRingByBands(pg, spectrum, frameCount) {
+  const ringUI = uiComponents.ring;
+  const gain = ringUI.gainSlider.value();
+  const threshold = ringUI.thresholdSlider.value();
   const overallEnergy = spectrum.reduce((sum, value) => sum + value, 0) / spectrum.length;
+
   if (overallEnergy * gain < threshold) {
     return;
   }
@@ -477,9 +467,14 @@ function drawSpectrumRingByBands(pg, spectrum, frameCount, gain, threshold) {
   }
 }
 
-function drawSpectrumDiff(pg, current, previous, gain, threshold) {
+function drawSpectrumDiff(pg, current, previous) {
   if (!previous || previous.length === 0) return;
-  let diffColor = spectrumDiffColorPicker ? spectrumDiffColorPicker.color() : pg.color(255);
+
+  const diffUI = uiComponents.diff;
+  let diffColor = diffUI.colorPicker.color();
+  const gain = diffUI.gainSlider.value();
+  const threshold = diffUI.thresholdSlider.value();
+
   diffColor.setAlpha(180); pg.noFill();
   for (let i = 0; i < current.length; i++) {
     let diff = Math.abs(current[i] - (previous[i] || 0));
