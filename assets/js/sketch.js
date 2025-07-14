@@ -73,11 +73,10 @@ function drawVisuals(pg, currentFrame, isForSVG = false) {
 
   if (!spectrum) return;
 
-  // ★★★ Mic Boostの値を取得。ファイル入力時は1（影響なし）になる ★★★
   const micBoost = (currentInputMode === 'mic') ? select('#mic-boost-slider').value() : 1;
 
   let totalEnergy = spectrum.reduce((a, b) => a + b, 0);
-  if (totalEnergy * micBoost < 100) { // 全体エネルギーにもブーストを適用
+  if (totalEnergy * micBoost < 100) {
     if (!isForSVG) prevSpectrum = spectrum.slice();
     return;
   }
@@ -124,12 +123,11 @@ function drawVisuals(pg, currentFrame, isForSVG = false) {
         drawFunc: components.drawSelector.value()
       };
 
-      // ★★★ scaledEnergyの計算でmicBoostを掛ける ★★★
       let scaledEnergy = pg.constrain(bandEnergy * ui.gain * micBoost, 0, 255);
 
       if (scaledEnergy > ui.threshold) {
         pg.push();
-        let intensity = pg.map(bandEnergy * micBoost, 0, 255, 0, 1); // ここもブースト
+        let intensity = pg.map(bandEnergy * micBoost, 0, 255, 0, 1);
         let angle = currentFrame * 0.02;
         let dx = pg.sin(angle + time) * 10 * intensity;
         let dy = pg.cos(angle + time * 1.5) * 10 * intensity;
@@ -144,12 +142,13 @@ function drawVisuals(pg, currentFrame, isForSVG = false) {
   });
 
   if (spectrumRingCheckbox.checked()) {
-    drawSpectrumRingByBands(pg, spectrum, currentFrame);
+    drawSpectrumRingByBands(pg, spectrum, currentFrame, micBoost);
   }
   if (spectrumDiffCheckbox.checked()) {
     const prevSpecForDiff = isForSVG ? (spectrumHistory[currentFrame - 2] || []) : prevSpectrum;
-    drawSpectrumDiff(pg, spectrum, prevSpecForDiff);
+    drawSpectrumDiff(pg, spectrum, prevSpecForDiff, micBoost);
   }
+  // ★★★ ここまで修正 ★★★
 
   pg.pop();
   if (!isForSVG) prevSpectrum = spectrum.slice();
@@ -450,13 +449,14 @@ function generateDistinctColors(count) {
 // =============================================================================
 
 
-function drawSpectrumRingByBands(pg, spectrum, frameCount) {
+function drawSpectrumRingByBands(pg, spectrum, frameCount, boost) {
   const ringUI = uiComponents.ring;
   const gain = ringUI.gainSlider.value();
   const threshold = ringUI.thresholdSlider.value();
   const overallEnergy = spectrum.reduce((sum, value) => sum + value, 0) / spectrum.length;
 
-  if (overallEnergy * gain < threshold) {
+  // ★★★ micBoostを適用 ★★★
+  if (overallEnergy * gain * boost < threshold) {
     return;
   }
 
@@ -490,7 +490,7 @@ function drawSpectrumRingByBands(pg, spectrum, frameCount) {
   }
 }
 
-function drawSpectrumDiff(pg, current, previous) {
+function drawSpectrumDiff(pg, current, previous, boost) {
   if (!previous || previous.length === 0) return;
 
   const diffUI = uiComponents.diff;
@@ -501,7 +501,8 @@ function drawSpectrumDiff(pg, current, previous) {
   diffColor.setAlpha(180); pg.noFill();
   for (let i = 0; i < current.length; i++) {
     let diff = Math.abs(current[i] - (previous[i] || 0));
-    if (diff * gain > threshold) {
+    // ★★★ micBoostを適用 ★★★
+    if (diff * gain * boost > threshold) {
       let angle = pg.map(i, 0, current.length, 0, pg.TWO_PI);
       let radius = pg.map(diff, 10, 255, 120, 370);
       let x = pg.cos(angle) * radius; let y = pg.sin(angle) * radius;
