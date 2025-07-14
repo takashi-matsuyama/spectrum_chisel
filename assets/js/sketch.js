@@ -134,7 +134,7 @@ function drawVisuals(pg, currentFrame, isForSVG = false) {
         const style = { color: ui.color, weight: ui.weight, alpha: ui.alpha };
         const params = { intensityGain: ui.intensityGain, angleSpeed: ui.angleSpeed };
         const func = drawFunctionMap[ui.drawFunc].func;
-        func.call(pg, scaledEnergy, currentFrame, time, style, params);
+        func(pg, scaledEnergy, currentFrame, time, style, params);
         pg.pop();
       }
     }
@@ -458,8 +458,8 @@ function drawSpectrumDiff(pg, current, previous) {
     }
   }
 }
-function drawSmoothEllipse(energy, frameCount, time, style, params) {
-  let pg = this; let c = pg.color(style.color); c.setAlpha(style.alpha); pg.stroke(c); pg.strokeWeight(style.weight); pg.noFill();
+function drawSmoothEllipse(pg, energy, frameCount, time, style, params) {
+  let c = pg.color(style.color); c.setAlpha(style.alpha); pg.stroke(c); pg.strokeWeight(style.weight); pg.noFill();
   let intensityGain = (params && typeof params.intensityGain === "number") ? params.intensityGain : 1.0;
   let angleSpeed = (params && typeof params.angleSpeed === "number") ? params.angleSpeed : 1.0;
   let baseA = pg.map(energy, 0, 255, 80, 340) * intensityGain; let baseB = pg.map(energy, 0, 255, 60, 240) * intensityGain;
@@ -476,8 +476,8 @@ function drawSmoothEllipse(energy, frameCount, time, style, params) {
     pg.endShape(pg.CLOSE);
   }
 }
-function drawRotatingWaves(energy, frameCount, time, style, params) {
-  let pg = this; let c = pg.color(style.color); c.setAlpha(style.alpha); pg.stroke(c); pg.strokeWeight(style.weight);
+function drawRotatingWaves(pg, energy, frameCount, time, style, params) {
+  let c = pg.color(style.color); c.setAlpha(style.alpha); pg.stroke(c); pg.strokeWeight(style.weight);
   let rot = pg.map(energy, 0, 255, 0, pg.PI / 2) + frameCount * 0.01 * (params.angleSpeed || 1.0); pg.rotate(rot);
   let baseRadius = pg.map(energy, 0, 255, 60, 320) * (params.intensityGain || 1.0);
   let detail = pg.floor(pg.map(energy, 0, 255, 3, 14)); pg.noFill(); pg.beginShape();
@@ -489,8 +489,8 @@ function drawRotatingWaves(energy, frameCount, time, style, params) {
   }
   pg.endShape(pg.CLOSE);
 }
-function drawRadialLines(energy, frameCount, time, style, params) {
-  let pg = this; let c = pg.color(style.color); c.setAlpha(style.alpha); pg.stroke(c); pg.strokeWeight(style.weight); pg.noFill();
+function drawRadialLines(pg, energy, frameCount, time, style, params) {
+  let c = pg.color(style.color); c.setAlpha(style.alpha); pg.stroke(c); pg.strokeWeight(style.weight); pg.noFill();
   let rot = pg.map(energy, 0, 255, 0, pg.PI) + frameCount * 0.05 * (params.angleSpeed || 1.0); pg.rotate(rot);
   let detail = pg.floor(pg.map(energy, 0, 255, 2, 12));
   for (let i = 0; i < detail; i++) {
@@ -501,8 +501,8 @@ function drawRadialLines(energy, frameCount, time, style, params) {
     pg.line(x1, y1, x2, y2);
   }
 }
-function drawExpandingDots(energy, frameCount, time, style, params) {
-  let pg = this; let c = pg.color(style.color); c.setAlpha(style.alpha); pg.stroke(c); pg.strokeWeight(style.weight); pg.noFill();
+function drawExpandingDots(pg, energy, frameCount, time, style, params) {
+  let c = pg.color(style.color); c.setAlpha(style.alpha); pg.stroke(c); pg.strokeWeight(style.weight); pg.noFill();
   let rot = pg.map(energy, 0, 255, 0, pg.PI / 2) + time * 0.2 * (params.angleSpeed || 1.0); pg.rotate(rot);
   let ringCount = 1 + pg.floor(pg.map(energy, 0, 255, 1, 6));
   for (let r = 0; r < ringCount; r++) {
@@ -515,8 +515,8 @@ function drawExpandingDots(energy, frameCount, time, style, params) {
     }
   }
 }
-function drawRadiantBeams(energy, frameCount, time, style, params) {
-  let pg = this; let c = pg.color(style.color); c.setAlpha(style.alpha); pg.stroke(c); pg.strokeWeight(style.weight); pg.noFill();
+function drawRadiantBeams(pg, energy, frameCount, time, style, params) {
+  let c = pg.color(style.color); c.setAlpha(style.alpha); pg.stroke(c); pg.strokeWeight(style.weight); pg.noFill();
   let rot = pg.map(energy, 0, 255, 0, pg.PI) + time * 1.2 * (params.angleSpeed || 1.0); pg.rotate(rot);
   let rays = 6 + pg.floor(pg.map(energy, 0, 255, 2, 20));
   let baseLen = pg.map(energy, 0, 255, 80, 340) * (params.intensityGain || 1.0);
@@ -532,8 +532,8 @@ function drawRadiantBeams(energy, frameCount, time, style, params) {
     }
   }
 }
-function drawSparks(energy, frameCount, time, style, params) {
-  let pg = this; let c = pg.color(style.color); c.setAlpha(style.alpha); pg.stroke(c); pg.strokeWeight(style.weight); pg.noFill();
+function drawSparks(pg, energy, frameCount, time, style, params) {
+  let c = pg.color(style.color); c.setAlpha(style.alpha); pg.stroke(c); pg.strokeWeight(style.weight); pg.noFill();
   let rot = pg.map(energy, 0, 255, 0, pg.PI / 2) + frameCount * 0.1 * (params.angleSpeed || 1.0); pg.rotate(rot);
   let sparkCount = pg.floor(pg.map(energy, 0, 255, 3, 20));
   let maxLength = pg.map(energy, 0, 255, 20, 120) * (params.intensityGain || 1.0);
@@ -549,8 +549,8 @@ function drawSparks(energy, frameCount, time, style, params) {
     }
   }
 }
-function drawNoisyContours(energy, frameCount, time, style, params) {
-  let pg = this; let c = pg.color(style.color); c.setAlpha(style.alpha); pg.stroke(c); pg.strokeWeight(style.weight); pg.noFill();
+function drawNoisyContours(pg, energy, frameCount, time, style, params) {
+  let c = pg.color(style.color); c.setAlpha(style.alpha); pg.stroke(c); pg.strokeWeight(style.weight); pg.noFill();
   let rot = pg.map(energy, 0, 255, 0, pg.PI / 2) + time * 0.2 * (params.angleSpeed || 1.0); pg.rotate(rot);
   let noiseFactor = pg.map(energy, 0, 255, 10, 120) * (params.intensityGain || 1.0);
   let baseRadius = pg.map(energy, 0, 255, 40, 260) * (params.intensityGain || 1.0);
@@ -566,8 +566,8 @@ function drawNoisyContours(energy, frameCount, time, style, params) {
     pg.endShape(pg.CLOSE);
   }
 }
-function drawFloatingDots(energy, frameCount, time, style, params) {
-  let pg = this; let c = pg.color(style.color); c.setAlpha(style.alpha); pg.stroke(c); pg.strokeWeight(style.weight);
+function drawFloatingDots(pg, energy, frameCount, time, style, params) {
+  let c = pg.color(style.color); c.setAlpha(style.alpha); pg.stroke(c); pg.strokeWeight(style.weight);
   let count = pg.floor(pg.map(energy, 0, 255, 10, 100));
   let detail = pg.floor(pg.map(energy, 0, 255, 1, 4));
   let rot = pg.map(energy, 0, 255, 0, pg.PI * 2) * 0.3; pg.rotate(rot);
