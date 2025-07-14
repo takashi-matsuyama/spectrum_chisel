@@ -18,14 +18,18 @@
       <button id="file-mode-btn">ファイル再生</button>
       <input type="file" id="upload-sound" accept="audio/*" style="display: none;">
     </div>
-    <div class="control-group">
-      <label>操作:</label>
-      <button id="play-pause-btn">再生</button>
-      <button id="stop-btn">停止・リセット</button>
+    <div class="control-group" id="mic-boost-group">
+      <label>Mic Boost:</label>
+      <input type="range" id="mic-boost-slider" min="1" max="100" value="1" step="1">
     </div>
     <div class="control-group" id="file-volume-group" style="display: none;">
       <label>File Volume:</label>
       <input type="range" id="file-volume-slider" min="0" max="1" value="0.5" step="0.01">
+    </div>
+    <div class="control-group">
+      <label>操作:</label>
+      <button id="play-pause-btn">再生</button>
+      <button id="stop-btn">停止・リセット</button>
     </div>
   </div>
   <div id="canvas-container" class="canvas-wrapper"></div>

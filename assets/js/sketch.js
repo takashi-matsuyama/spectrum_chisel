@@ -73,8 +73,11 @@ function drawVisuals(pg, currentFrame, isForSVG = false) {
 
   if (!spectrum) return;
 
+  // ★★★ Mic Boostの値を取得。ファイル入力時は1（影響なし）になる ★★★
+  const micBoost = (currentInputMode === 'mic') ? select('#mic-boost-slider').value() : 1;
+
   let totalEnergy = spectrum.reduce((a, b) => a + b, 0);
-  if (totalEnergy < 100) {
+  if (totalEnergy * micBoost < 100) { // 全体エネルギーにもブーストを適用
     if (!isForSVG) prevSpectrum = spectrum.slice();
     return;
   }
@@ -120,10 +123,13 @@ function drawVisuals(pg, currentFrame, isForSVG = false) {
         angleSpeed: components.angleSpeedSlider.value(),
         drawFunc: components.drawSelector.value()
       };
-      let scaledEnergy = pg.constrain(bandEnergy * ui.gain, 0, 255);
+
+      // ★★★ scaledEnergyの計算でmicBoostを掛ける ★★★
+      let scaledEnergy = pg.constrain(bandEnergy * ui.gain * micBoost, 0, 255);
+
       if (scaledEnergy > ui.threshold) {
         pg.push();
-        let intensity = pg.map(bandEnergy, 0, 255, 0, 1);
+        let intensity = pg.map(bandEnergy * micBoost, 0, 255, 0, 1); // ここもブースト
         let angle = currentFrame * 0.02;
         let dx = pg.sin(angle + time) * 10 * intensity;
         let dy = pg.cos(angle + time * 1.5) * 10 * intensity;
@@ -207,25 +213,23 @@ function setupSoundControls() {
   const uploadInput = select('#upload-sound');
   const playPauseBtn = select('#play-pause-btn');
   const stopBtn = select('#stop-btn');
-
-  // ★★★ ボリュームスライダーの要素を取得 ★★★
   const fileVolumeSlider = select('#file-volume-slider');
   const fileVolumeGroup = select('#file-volume-group');
+  const micBoostGroup = select('#mic-boost-group');
 
   micBtn.mousePressed(() => {
     switchInputMode('mic');
-    // ★★★ マイクモードではスライダーを非表示 ★★★
     fileVolumeGroup.style('display', 'none');
+    micBoostGroup.style('display', 'flex');
   });
 
   fileBtn.mousePressed(() => uploadInput.elt.click());
 
-  uploadInput.changed(event => handleSoundFile(event, fileVolumeGroup)); // 引数を追加
+  uploadInput.changed(event => handleSoundFile(event, fileVolumeGroup, micBoostGroup));
 
   playPauseBtn.mousePressed(togglePlayPause);
   stopBtn.mousePressed(stopAndReset);
 
-  // ★★★ スライダーが動かされたときの処理を追加 ★★★
   fileVolumeSlider.input(() => {
     if (soundFile) {
       soundFile.setVolume(fileVolumeSlider.value());
@@ -253,15 +257,16 @@ function switchInputMode(mode) {
   }
 }
 
-function handleSoundFile(event, fileVolumeGroup) { // 引数を追加
+function handleSoundFile(event, fileVolumeGroup, micBoostGroup) {
   if (event.target.files[0]) {
     if (soundFile && soundFile.isPlaying()) {
       soundFile.stop();
     }
     soundFile = loadSound(event.target.files[0], () => {
       console.log("Sound file loaded.");
-      // ★★★ ファイルが読み込まれたらスライダーを表示 ★★★
       fileVolumeGroup.style('display', 'flex');
+      micBoostGroup.style('display', 'none');
+
       const fileVolumeSlider = select('#file-volume-slider');
       soundFile.setVolume(fileVolumeSlider.value());
       switchInputMode('file');
@@ -269,7 +274,6 @@ function handleSoundFile(event, fileVolumeGroup) { // 引数を追加
     });
   }
 }
-
 
 function togglePlayPause() {
   // ★★★ 修正点: 音声エンジンが一時停止していたら再開させる ★★★
@@ -379,7 +383,6 @@ function createUI() {
 
   const spectrumDiv = createDiv('Spectrum Layers').parent(uiPanel).addClass('ui-section-title');
 
-  // ★★★ RingとDiffに専用のGainとThresholdスライダーを追加 ★★★
   spectrumRingCheckbox = createCheckbox('Draw Spectrum Ring', true).parent(spectrumDiv).style('color', 'white');
   const ringControls = createDiv().parent(spectrumDiv).style('padding-left', '20px');
   uiComponents.ring = {
@@ -396,8 +399,7 @@ function createUI() {
     colorPicker: spectrumDiffColorPicker
   };
 
-  // 8つの周波数帯のUI作成ループ
-  const energySettings = { low: { gain: 1.0, threshold: 100 }, mid: { gain: 1.0, threshold: 100 }, high: { gain: 1.0, threshold: 100 }, subBass: { gain: 1.0, threshold: 100 }, lowMid: { gain: 1.0, threshold: 100 }, upperMid: { gain: 1.0, threshold: 100 }, presence: { gain: 1.0, threshold: 100 }, brilliance: { gain: 1.0, threshold: 100 } };
+  const energySettings = { low: { gain: 1.0, threshold: 150 }, mid: { gain: 1.0, threshold: 150 }, high: { gain: 1.0, threshold: 150 }, subBass: { gain: 1.0, threshold: 150 }, lowMid: { gain: 1.0, threshold: 150 }, upperMid: { gain: 1.0, threshold: 150 }, presence: { gain: 1.0, threshold: 150 }, brilliance: { gain: 1.0, threshold: 150 } };
   const energyBandUIs = [
     { name: "subBass", defFunc: "drawExpandingDots", color: randomColors[3] }, { name: "low", defFunc: "drawSmoothEllipse", color: randomColors[0] }, { name: "lowMid", defFunc: "drawNoisyContours", color: randomColors[6] }, { name: "mid", defFunc: "drawRotatingWaves", color: randomColors[1] }, { name: "upperMid", defFunc: "drawFloatingDots", color: randomColors[7] }, { name: "presence", defFunc: "drawSparks", color: randomColors[5] }, { name: "brilliance", defFunc: "drawRadiantBeams", color: randomColors[4] }, { name: "high", defFunc: "drawRadialLines", color: randomColors[2] }
   ];
