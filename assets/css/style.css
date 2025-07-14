@@ -13,9 +13,7 @@ body {
 
 
 canvas {
-  /* ★★★ 修正点: canvasを画面左上に固定 ★★★ */
   display: block;
-  margin: 0 auto;
 }
 
 .ui-panel {

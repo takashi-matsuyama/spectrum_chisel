@@ -1,5 +1,3 @@
-// --- Canvas Size Constant ---
-const CANVAS_SIZE = 800;
 let fft;
 
 // ★ Phase 1 変更点: 音源管理用の変数を追加
@@ -36,7 +34,8 @@ const drawFunctionMap = {
 // =============================================================================
 
 function setup() {
-  let myCanvas = createCanvas(CANVAS_SIZE, CANVAS_SIZE);
+  // ★★★ ウィンドウサイズでキャンバスを作成 ★★★
+  let myCanvas = createCanvas(windowWidth, windowHeight);
   myCanvas.parent('canvas-container');
   colorMode(HSB, 360, 100, 100);
   background(0);
@@ -81,6 +80,9 @@ function drawVisuals(pg, currentFrame, isForSVG = false) {
 
   pg.push();
   pg.translate(pg.width / 2, pg.height / 2);
+  // ★★★ ウィンドウサイズに応じて描画全体をスケーリング ★★★
+  const scaleFactor = min(pg.width, pg.height) / 800;
+  pg.scale(scaleFactor);
 
   const time = currentFrame * 0.005;
 
@@ -158,7 +160,8 @@ function downloadSVG() {
   console.log("Starting SVG export...");
   noLoop();
 
-  const svg = createGraphics(CANVAS_SIZE, CANVAS_SIZE, SVG);
+  // ★★★ 現在のキャンバスサイズでSVGを作成 ★★★
+  const svg = createGraphics(width, height, SVG);
   svg.colorMode(HSB, 360, 100, 100);
   svg.background(0);
 
@@ -191,6 +194,14 @@ function keyPressed() {
   if (key === 'e' || key === 'E') {
     stopAndReset();
   }
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+  // リサイズ時に描画履歴をリセットして、きれいに再描画を開始
+  background(0);
+  spectrumHistory = [];
+  prevSpectrum = [];
 }
 
 // =============================================================================
