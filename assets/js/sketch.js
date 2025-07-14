@@ -16,23 +16,8 @@ let spectrumRingCheckbox, spectrumDiffCheckbox, spectrumDiffColorPicker;
 let prevSpectrum = [];
 let uiVisible = true;
 
-// Declare all UI component variables globally as in your original file
-let lowDrawSelector, lowGainSlider, lowThresholdSlider, lowIntensityGainSlider, lowAngleSpeedSlider,
-  lowColorPicker, lowStrokeSlider, lowAlphaSlider, lowEnabledCheckbox;
-let midDrawSelector, midGainSlider, midThresholdSlider, midIntensityGainSlider, midAngleSpeedSlider,
-  midColorPicker, midStrokeSlider, midAlphaSlider, midEnabledCheckbox;
-let highDrawSelector, highGainSlider, highThresholdSlider, highIntensityGainSlider, highAngleSpeedSlider,
-  highColorPicker, highStrokeSlider, highAlphaSlider, highEnabledCheckbox;
-let subBassDrawSelector, subBassGainSlider, subBassThresholdSlider, subBassIntensityGainSlider, subBassAngleSpeedSlider,
-  subBassColorPicker, subBassStrokeSlider, subBassAlphaSlider, subBassEnabledCheckbox;
-let lowMidDrawSelector, lowMidGainSlider, lowMidThresholdSlider, lowMidIntensityGainSlider, lowMidAngleSpeedSlider,
-  lowMidColorPicker, lowMidStrokeSlider, lowMidAlphaSlider, lowMidEnabledCheckbox;
-let upperMidDrawSelector, upperMidGainSlider, upperMidThresholdSlider, upperMidIntensityGainSlider, upperMidAngleSpeedSlider,
-  upperMidColorPicker, upperMidStrokeSlider, upperMidAlphaSlider, upperMidEnabledCheckbox;
-let presenceDrawSelector, presenceGainSlider, presenceThresholdSlider, presenceIntensityGainSlider, presenceAngleSpeedSlider,
-  presenceColorPicker, presenceStrokeSlider, presenceAlphaSlider, presenceEnabledCheckbox;
-let brillianceDrawSelector, brillianceGainSlider, brillianceThresholdSlider, brillianceIntensityGainSlider, brillianceAngleSpeedSlider,
-  brillianceColorPicker, brillianceStrokeSlider, brillianceAlphaSlider, brillianceEnabledCheckbox;
+// ★★★ UIコンポーネントを格納するオブジェクトを準備 ★★★
+const uiComponents = {};
 
 // Drawing function map from your original code
 const drawFunctionMap = {
@@ -111,27 +96,29 @@ function drawVisuals(pg, currentFrame, isForSVG = false) {
   };
 
   const bandsToDraw = [
-    { name: 'subBass', energy: getEnergyFromSpectrum(20, 60), enabled: subBassEnabledCheckbox.checked() },
-    { name: 'low', energy: getEnergyFromSpectrum(60, 250), enabled: lowEnabledCheckbox.checked() },
-    { name: 'lowMid', energy: getEnergyFromSpectrum(250, 500), enabled: lowMidEnabledCheckbox.checked() },
-    { name: 'mid', energy: getEnergyFromSpectrum(500, 2000), enabled: midEnabledCheckbox.checked() },
-    { name: 'upperMid', energy: getEnergyFromSpectrum(2000, 4000), enabled: upperMidEnabledCheckbox.checked() },
-    { name: 'presence', energy: getEnergyFromSpectrum(4000, 6000), enabled: presenceEnabledCheckbox.checked() },
-    { name: 'brilliance', energy: getEnergyFromSpectrum(6000, 16000), enabled: brillianceEnabledCheckbox.checked() },
-    { name: 'high', energy: getEnergyFromSpectrum(16000, 20000), enabled: highEnabledCheckbox.checked() }
+    { name: 'subBass', energy: getEnergyFromSpectrum(20, 60) },
+    { name: 'low', energy: getEnergyFromSpectrum(60, 250) },
+    { name: 'lowMid', energy: getEnergyFromSpectrum(250, 500) },
+    { name: 'mid', energy: getEnergyFromSpectrum(500, 2000) },
+    { name: 'upperMid', energy: getEnergyFromSpectrum(2000, 4000) },
+    { name: 'presence', energy: getEnergyFromSpectrum(4000, 6000) },
+    { name: 'brilliance', energy: getEnergyFromSpectrum(6000, 16000) },
+    { name: 'high', energy: getEnergyFromSpectrum(16000, 20000) }
   ];
 
   bandsToDraw.forEach(band => {
-    if (band.enabled) {
+    const components = uiComponents[band.name];
+    // ★★★ 修正点2: チェックを1つに統合 ★★★
+    if (components && components.enabledCheckbox.checked()) {
       const ui = {
-        color: eval(`${band.name}ColorPicker.color()`),
-        weight: eval(`${band.name}StrokeSlider.value()`),
-        alpha: eval(`${band.name}AlphaSlider.value()`),
-        gain: eval(`${band.name}GainSlider.value()`),
-        threshold: eval(`${band.name}ThresholdSlider.value()`),
-        intensityGain: eval(`${band.name}IntensityGainSlider.value()`),
-        angleSpeed: eval(`${band.name}AngleSpeedSlider.value()`),
-        drawFunc: eval(`${band.name}DrawSelector.value()`)
+        color: components.colorPicker.color(),
+        weight: components.strokeSlider.value(),
+        alpha: components.alphaSlider.value(),
+        gain: components.gainSlider.value(),
+        threshold: components.thresholdSlider.value(),
+        intensityGain: components.intensityGainSlider.value(),
+        angleSpeed: components.angleSpeedSlider.value(),
+        drawFunc: components.drawSelector.value()
       };
 
       let scaledEnergy = pg.constrain(band.energy * ui.gain, 0, 255);
@@ -372,6 +359,9 @@ function createUI() {
     let title = name.charAt(0).toUpperCase() + name.slice(1).replace(/([A-Z])/g, ' $1');
     const section = createDiv(title).parent(uiPanel).addClass('ui-section-title');
 
+    // ★★★ evalを使わず、オブジェクトにUI要素を格納する ★★★
+    uiComponents[name] = {}; // 各バンドのオブジェクトを初期化
+
     const createSliderWithLabel = (label, min, max, initial, step) => {
       let container = createDiv(label + ': ').parent(section);
       let slider = createSlider(min, max, initial, step).parent(container).addClass('ui-slider');
@@ -380,24 +370,28 @@ function createUI() {
       return slider;
     };
 
-    eval(`${name}EnabledCheckbox = createCheckbox('Enabled', true).parent(section)`);
-    eval(`${name}ColorPicker = createColorPicker(band.color).parent(section)`);
-    eval(`${name}DrawSelector = createSelect().parent(section)`);
-    for (let key in drawFunctionMap) eval(`${name}DrawSelector.option(key)`);
-    eval(`${name}DrawSelector.selected(band.defFunc)`);
+    uiComponents[name].enabledCheckbox = createCheckbox('Enabled', true).parent(section);
+    uiComponents[name].colorPicker = createColorPicker(band.color).parent(section);
+
+    const drawSelector = createSelect().parent(section);
+    for (let key in drawFunctionMap) {
+      drawSelector.option(key);
+    }
+    drawSelector.selected(band.defFunc);
+    uiComponents[name].drawSelector = drawSelector;
 
     const defaultWeight = drawFunctionMap[band.defFunc].defaultWeight;
-    eval(`${name}StrokeSlider = createSliderWithLabel('Stroke', 0.1, 5, defaultWeight, 0.1)`);
-    eval(`${name}AlphaSlider = createSliderWithLabel('Alpha', 0, 255, 20, 1)`);
-    eval(`${name}GainSlider = createSliderWithLabel('Gain', 0.1, 5.0, energySettings[name].gain, 0.01)`);
-    eval(`${name}ThresholdSlider = createSliderWithLabel('Threshold', 0, 255, energySettings[name].threshold, 1)`);
-    eval(`${name}IntensityGainSlider = createSliderWithLabel('IntensityGain', 0.0, 5.0, 1.0, 0.01)`);
-    eval(`${name}AngleSpeedSlider = createSliderWithLabel('AngleSpeed', 0.0, 5.0, 1.0, 0.01)`);
+    uiComponents[name].strokeSlider = createSliderWithLabel('Stroke', 0.1, 5, defaultWeight, 0.1);
+    uiComponents[name].alphaSlider = createSliderWithLabel('Alpha', 0, 255, 20, 1);
+    uiComponents[name].gainSlider = createSliderWithLabel('Gain', 0.1, 5.0, energySettings[name].gain, 0.01);
+    uiComponents[name].thresholdSlider = createSliderWithLabel('Threshold', 0, 255, energySettings[name].threshold, 1);
+    uiComponents[name].intensityGainSlider = createSliderWithLabel('IntensityGain', 0.0, 5.0, 1.0, 0.01);
+    uiComponents[name].angleSpeedSlider = createSliderWithLabel('AngleSpeed', 0.0, 5.0, 1.0, 0.01);
 
-    eval(`${name}DrawSelector`).changed(() => {
-      const selectedKey = eval(`${name}DrawSelector.value()`);
+    drawSelector.changed(() => {
+      const selectedKey = drawSelector.value();
       const newWeight = drawFunctionMap[selectedKey].defaultWeight;
-      eval(`${name}StrokeSlider.value(newWeight)`);
+      uiComponents[name].strokeSlider.value(newWeight);
     });
   });
 }
@@ -419,9 +413,19 @@ function generateDistinctColors(count) {
 function drawSpectrumRingByBands(pg, spectrum, frameCount) {
   pg.noFill();
   let totalBands = spectrum.length;
+
+  // ★★★ uiComponents オブジェクトから色を取得するように変更 ★★★
   const bands = [
-    { name: "subBass", fromHz: 20, toHz: 60, color: subBassColorPicker.color() }, { name: "low", fromHz: 60, toHz: 140, color: lowColorPicker.color() }, { name: "lowMid", fromHz: 140, toHz: 400, color: lowMidColorPicker.color() }, { name: "mid", fromHz: 400, toHz: 1000, color: midColorPicker.color() }, { name: "upperMid", fromHz: 1000, toHz: 3000, color: upperMidColorPicker.color() }, { name: "presence", fromHz: 3000, toHz: 6000, color: presenceColorPicker.color() }, { name: "brilliance", fromHz: 6000, toHz: 16000, color: brillianceColorPicker.color() }, { name: "high", fromHz: 16000, toHz: 22050, color: highColorPicker.color() }
+    { fromHz: 20, toHz: 60, color: uiComponents.subBass.colorPicker.color() },
+    { fromHz: 60, toHz: 140, color: uiComponents.low.colorPicker.color() },
+    { fromHz: 140, toHz: 400, color: uiComponents.lowMid.colorPicker.color() },
+    { fromHz: 400, toHz: 1000, color: uiComponents.mid.colorPicker.color() },
+    { fromHz: 1000, toHz: 3000, color: uiComponents.upperMid.colorPicker.color() },
+    { fromHz: 3000, toHz: 6000, color: uiComponents.presence.colorPicker.color() },
+    { fromHz: 6000, toHz: 16000, color: uiComponents.brilliance.colorPicker.color() },
+    { fromHz: 16000, toHz: 22050, color: uiComponents.high.colorPicker.color() }
   ];
+
   for (let band of bands) {
     let startIndex = floor(pg.map(band.fromHz, 0, 22050, 0, totalBands));
     let endIndex = floor(pg.map(band.toHz, 0, 22050, 0, totalBands));
