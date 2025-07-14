@@ -41,7 +41,7 @@ const drawFunctionMap = {
   drawRadialLines: { func: drawRadialLines, defaultWeight: 1.2 },
   drawExpandingDots: { func: drawExpandingDots, defaultWeight: 0.8 },
   drawRadiantBeams: { func: drawRadiantBeams, defaultWeight: 2.0 },
-  drawSparks: { func: drawSparks, defaultWeight: 1.8 },
+  drawSparks: { func: drawSparks, defaultWeight: 0.1 },
   drawNoisyContours: { func: drawNoisyContours, defaultWeight: 0.6 },
   drawFloatingDots: { func: drawFloatingDots, defaultWeight: 1.0 }
 };
@@ -520,11 +520,12 @@ function drawSparks(energy, frameCount, time, style, params) {
   let sparkCount = pg.floor(pg.map(energy, 0, 255, 3, 20));
   let maxLength = pg.map(energy, 0, 255, 20, 120) * (params.intensityGain || 1.0);
   let detail = pg.floor(pg.map(energy, 0, 255, 1, 4));
-  let minRadius = 20;
+  let minRadius = pg.map(energy, 0, 255, 150, 250) * (params.intensityGain || 1.0);
   for (let d = 0; d < detail; d++) {
     for (let i = 0; i < sparkCount; i++) {
       let angle = (pg.TWO_PI / sparkCount) * i + frameCount * 0.1 + d * 0.13;
-      let x1 = pg.cos(angle) * pg.random(minRadius, minRadius + 30); let y1 = pg.sin(angle) * pg.random(minRadius, minRadius + 30);
+      let x1 = pg.cos(angle) * pg.random(minRadius, minRadius + 20);
+      let y1 = pg.sin(angle) * pg.random(minRadius, minRadius + 20);
       let x2 = x1 + pg.cos(angle) * pg.random(maxLength * 0.5, maxLength); let y2 = y1 + pg.sin(angle) * pg.random(maxLength * 0.5, maxLength);
       pg.line(x1, y1, x2, y2);
     }
