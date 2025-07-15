@@ -49,8 +49,11 @@ function setup() {
 }
 
 function draw() {
-  // ★ Phase 1 変更点: isPlayingがfalseの時は描画を止める
   if (!isPlaying) return;
+
+  // ★★★ UIのタイマー表示を更新 ★★★
+  const elapsedTime = (spectrumHistory.length / frameRateSlider.value()).toFixed(1);
+  select('#time-display').html(`${elapsedTime}s`);
 
   frameRate(frameRateSlider.value());
   drawVisuals(this, frameCount);
@@ -158,7 +161,6 @@ function downloadSVG() {
   console.log("Starting SVG export...");
   noLoop();
 
-  // ★★★ 現在のキャンバスサイズでSVGを作成 ★★★
   const svg = createGraphics(width, height, SVG);
   svg.colorMode(HSB, 360, 100, 100);
   svg.background(0);
@@ -167,16 +169,19 @@ function downloadSVG() {
     drawVisuals(svg, i + 1, true);
   }
 
-  save(svg, 'sound_visualization.svg');
+  // ★★★ 新しい関数でファイル名を生成 ★★★
+  const fileName = generateTimestampedFilename('svg');
+  save(svg, fileName);
+
   console.log("SVG export complete.");
   svg.remove();
   loop();
 }
 
-function toggleUIVisibility() {
-  uiVisible = !uiVisible;
-  uiPanel.style('display', uiVisible ? 'block' : 'none');
-  select('#sound-controls').style('display', uiVisible ? 'flex' : 'none');
+function generateTimestampedFilename(extension) {
+  const totalSeconds = (spectrumHistory.length / frameRateSlider.value()).toFixed(1);
+  const totalFrames = spectrumHistory.length;
+  return `spectrum_chisel-t${totalSeconds}s-f${totalFrames}.${extension}`;
 }
 
 function keyPressed() {
@@ -184,7 +189,9 @@ function keyPressed() {
     downloadSVG();
   }
   if (key === 'p' || key === 'P') {
-    saveCanvas("sound_visualization.png");
+    // ★★★ 新しい関数でファイル名を生成 ★★★
+    const fileName = generateTimestampedFilename('png');
+    saveCanvas(fileName);
   }
   if (key === 'c' || key === 'C') {
     toggleUIVisibility();
@@ -192,6 +199,12 @@ function keyPressed() {
   if (key === 'e' || key === 'E') {
     stopAndReset();
   }
+}
+
+function toggleUIVisibility() {
+  uiVisible = !uiVisible;
+  uiPanel.style('display', uiVisible ? 'block' : 'none');
+  select('#sound-controls').style('display', uiVisible ? 'flex' : 'none');
 }
 
 function windowResized() {
@@ -305,11 +318,9 @@ function togglePlayPause() {
 
 function stopAndReset() {
   if (isPlaying) {
-    // isPlaying = false と playPauseBtn.html('再生') は togglePlayPause 内で処理される
     togglePlayPause();
   }
 
-  // 状態を完全に初期に戻す
   isPlaying = false;
   select('#play-pause-btn').html('再生');
 
@@ -320,10 +331,13 @@ function stopAndReset() {
     mic.stop();
   }
 
-  // キャンバスと履歴をリセット
   background(0);
   spectrumHistory = [];
   prevSpectrum = [];
+
+  // ★★★ タイマー表示をリセット ★★★
+  select('#time-display').html('0.0s');
+
   console.log("Canvas and history cleared.");
 }
 
@@ -368,8 +382,13 @@ function createUI() {
   createDiv('Controls').parent(uiPanel).addClass('ui-section-title');
   const saveButton = createButton('Save SVG (S)').parent(uiPanel);
   saveButton.mousePressed(downloadSVG);
+
   const pngButton = createButton('Save PNG (P)').parent(uiPanel);
-  pngButton.mousePressed(() => saveCanvas("sound_visualization.png"));
+  pngButton.mousePressed(() => {
+    const fileName = generateTimestampedFilename('png');
+    saveCanvas(fileName);
+  });
+
   const clearButton = createButton('Clear Canvas (E)').parent(uiPanel);
   clearButton.mousePressed(stopAndReset);
   const toggleUiButton = createButton('Toggle UI (C)').parent(uiPanel);
@@ -398,7 +417,7 @@ function createUI() {
     colorPicker: spectrumDiffColorPicker
   };
 
-  const energySettings = { low: { gain: 1.0, threshold: 150 }, mid: { gain: 1.0, threshold: 150 }, high: { gain: 1.0, threshold: 150 }, subBass: { gain: 1.0, threshold: 150 }, lowMid: { gain: 1.0, threshold: 150 }, upperMid: { gain: 1.0, threshold: 150 }, presence: { gain: 1.0, threshold: 150 }, brilliance: { gain: 1.0, threshold: 150 } };
+  const energySettings = { low: { gain: 1.0, threshold: 100 }, mid: { gain: 1.0, threshold: 100 }, high: { gain: 1.0, threshold: 100 }, subBass: { gain: 1.0, threshold: 100 }, lowMid: { gain: 1.0, threshold: 100 }, upperMid: { gain: 1.0, threshold: 100 }, presence: { gain: 1.0, threshold: 100 }, brilliance: { gain: 1.0, threshold: 100 } };
   const energyBandUIs = [
     { name: "subBass", defFunc: "drawExpandingDots", color: randomColors[3] }, { name: "low", defFunc: "drawSmoothEllipse", color: randomColors[0] }, { name: "lowMid", defFunc: "drawNoisyContours", color: randomColors[6] }, { name: "mid", defFunc: "drawRotatingWaves", color: randomColors[1] }, { name: "upperMid", defFunc: "drawFloatingDots", color: randomColors[7] }, { name: "presence", defFunc: "drawSparks", color: randomColors[5] }, { name: "brilliance", defFunc: "drawRadiantBeams", color: randomColors[4] }, { name: "high", defFunc: "drawRadialLines", color: randomColors[2] }
   ];
