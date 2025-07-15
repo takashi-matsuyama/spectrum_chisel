@@ -29,6 +29,17 @@ const drawFunctionMap = {
   drawFloatingDots: { func: drawFloatingDots, defaultWeight: 1.0 }
 };
 
+const BAND_CONFIG = [
+  { name: 'subBass', freq: [20, 60], defFunc: "drawExpandingDots" },
+  { name: 'low', freq: [60, 250], defFunc: "drawSmoothEllipse" },
+  { name: 'lowMid', freq: [250, 500], defFunc: "drawNoisyContours" },
+  { name: 'mid', freq: [500, 2000], defFunc: "drawRotatingWaves" },
+  { name: 'upperMid', freq: [2000, 4000], defFunc: "drawFloatingDots" },
+  { name: 'presence', freq: [4000, 6000], defFunc: "drawSparks" },
+  { name: 'brilliance', freq: [6000, 16000], defFunc: "drawRadiantBeams" },
+  { name: 'high', freq: [16000, 20000], defFunc: "drawRadialLines" }
+];
+
 // =============================================================================
 // p5.js Lifecycle Functions
 // =============================================================================
@@ -104,14 +115,8 @@ function drawVisuals(pg, currentFrame, isForSVG = false) {
     return sum / (endIndex - startIndex + 1);
   };
 
-  const bandDefinitions = [
-    { name: 'subBass', freq: [20, 60] }, { name: 'low', freq: [60, 250] },
-    { name: 'lowMid', freq: [250, 500] }, { name: 'mid', freq: [500, 2000] },
-    { name: 'upperMid', freq: [2000, 4000] }, { name: 'presence', freq: [4000, 6000] },
-    { name: 'brilliance', freq: [6000, 16000] }, { name: 'high', freq: [16000, 20000] }
-  ];
-
-  bandDefinitions.forEach(bandInfo => {
+  // ★★★ グローバルなBAND_CONFIGを参照 ★★★
+  BAND_CONFIG.forEach(bandInfo => {
     const components = uiComponents[bandInfo.name];
     if (components && components.enabledCheckbox.checked()) {
       const bandEnergy = getEnergyFromSpectrum(bandInfo.freq[0], bandInfo.freq[1]);
@@ -151,10 +156,42 @@ function drawVisuals(pg, currentFrame, isForSVG = false) {
     const prevSpecForDiff = isForSVG ? (spectrumHistory[currentFrame - 2] || []) : prevSpectrum;
     drawSpectrumDiff(pg, spectrum, prevSpecForDiff, micBoost);
   }
-  // ★★★ ここまで修正 ★★★
 
   pg.pop();
   if (!isForSVG) prevSpectrum = spectrum.slice();
+}
+
+function drawSpectrumRingByBands(pg, spectrum, frameCount, boost) {
+  const ringUI = uiComponents.ring;
+  const gain = ringUI.gainSlider.value();
+  const threshold = ringUI.thresholdSlider.value();
+  const overallEnergy = spectrum.reduce((sum, value) => sum + value, 0) / spectrum.length;
+
+  if (overallEnergy * gain * boost < threshold) {
+    return;
+  }
+
+  pg.noFill();
+  let totalBands = spectrum.length;
+
+  // ★★★ グローバルなBAND_CONFIGを参照 ★★★
+  BAND_CONFIG.forEach(bandInfo => {
+    const color = uiComponents[bandInfo.name].colorPicker.color();
+    let startIndex = floor(pg.map(bandInfo.freq[0], 0, 22050, 0, totalBands));
+    let endIndex = floor(pg.map(bandInfo.freq[1], 0, 22050, 0, totalBands));
+    pg.stroke(color); pg.strokeWeight(1); pg.beginShape();
+    for (let i = startIndex; i < endIndex; i++) {
+      if (spectrum[i] === undefined) continue;
+      let angle = pg.map(i, 0, totalBands, 0, pg.TWO_PI);
+      let baseRadius = pg.map(spectrum[i], 0, 255, 60, 280);
+      let breathing = pg.sin(frameCount * 0.05 + angle) * 8;
+      let jitter = pg.noise(angle + frameCount * 0.01) * 10;
+      let radius = baseRadius + breathing + jitter;
+      let x = pg.cos(angle) * radius; let y = pg.sin(angle) * radius;
+      pg.vertex(x, y);
+    }
+    pg.endShape();
+  });
 }
 
 function downloadSVG() {
@@ -382,13 +419,11 @@ function createUI() {
   createDiv('Controls').parent(uiPanel).addClass('ui-section-title');
   const saveButton = createButton('Save SVG (S)').parent(uiPanel);
   saveButton.mousePressed(downloadSVG);
-
   const pngButton = createButton('Save PNG (P)').parent(uiPanel);
   pngButton.mousePressed(() => {
     const fileName = generateTimestampedFilename('png');
     saveCanvas(fileName);
   });
-
   const clearButton = createButton('Clear Canvas (E)').parent(uiPanel);
   clearButton.mousePressed(stopAndReset);
   const toggleUiButton = createButton('Toggle UI (C)').parent(uiPanel);
@@ -418,19 +453,18 @@ function createUI() {
   };
 
   const energySettings = { low: { gain: 1.0, threshold: 100 }, mid: { gain: 1.0, threshold: 100 }, high: { gain: 1.0, threshold: 100 }, subBass: { gain: 1.0, threshold: 100 }, lowMid: { gain: 1.0, threshold: 100 }, upperMid: { gain: 1.0, threshold: 100 }, presence: { gain: 1.0, threshold: 100 }, brilliance: { gain: 1.0, threshold: 100 } };
-  const energyBandUIs = [
-    { name: "subBass", defFunc: "drawExpandingDots", color: randomColors[3] }, { name: "low", defFunc: "drawSmoothEllipse", color: randomColors[0] }, { name: "lowMid", defFunc: "drawNoisyContours", color: randomColors[6] }, { name: "mid", defFunc: "drawRotatingWaves", color: randomColors[1] }, { name: "upperMid", defFunc: "drawFloatingDots", color: randomColors[7] }, { name: "presence", defFunc: "drawSparks", color: randomColors[5] }, { name: "brilliance", defFunc: "drawRadiantBeams", color: randomColors[4] }, { name: "high", defFunc: "drawRadialLines", color: randomColors[2] }
-  ];
 
-  energyBandUIs.forEach(band => {
+  // ★★★ 新しいBAND_CONFIGを元にUIを作成 ★★★
+  BAND_CONFIG.forEach((band, index) => {
     let name = band.name;
-    let title = name.charAt(0).toUpperCase() + name.slice(1).replace(/([A-Z])/g, ' $1');
+    // ★★★ タイトルに周波数を表示 ★★★
+    let title = `${name.charAt(0).toUpperCase() + name.slice(1).replace(/([A-Z])/g, ' $1')} (${band.freq[0]} - ${band.freq[1]} Hz)`;
     const section = createDiv(title).parent(uiPanel).addClass('ui-section-title');
 
     uiComponents[name] = {};
 
     uiComponents[name].enabledCheckbox = createCheckbox('Enabled', true).parent(section);
-    uiComponents[name].colorPicker = createColorPicker(band.color).parent(section);
+    uiComponents[name].colorPicker = createColorPicker(randomColors[index]).parent(section);
     const drawSelector = createSelect().parent(section);
     for (let key in drawFunctionMap) {
       drawSelector.option(key);
@@ -467,47 +501,6 @@ function generateDistinctColors(count) {
 // Drawing Functions
 // =============================================================================
 
-
-function drawSpectrumRingByBands(pg, spectrum, frameCount, boost) {
-  const ringUI = uiComponents.ring;
-  const gain = ringUI.gainSlider.value();
-  const threshold = ringUI.thresholdSlider.value();
-  const overallEnergy = spectrum.reduce((sum, value) => sum + value, 0) / spectrum.length;
-
-  // ★★★ micBoostを適用 ★★★
-  if (overallEnergy * gain * boost < threshold) {
-    return;
-  }
-
-  pg.noFill();
-  let totalBands = spectrum.length;
-  const bands = [
-    { name: "subBass", fromHz: 20, toHz: 60, color: uiComponents.subBass.colorPicker.color() },
-    { name: "low", fromHz: 60, toHz: 140, color: uiComponents.low.colorPicker.color() },
-    { name: "lowMid", fromHz: 140, toHz: 400, color: uiComponents.lowMid.colorPicker.color() },
-    { name: "mid", fromHz: 400, toHz: 1000, color: uiComponents.mid.colorPicker.color() },
-    { name: "upperMid", fromHz: 1000, toHz: 3000, color: uiComponents.upperMid.colorPicker.color() },
-    { name: "presence", fromHz: 3000, toHz: 6000, color: uiComponents.presence.colorPicker.color() },
-    { name: "brilliance", fromHz: 6000, toHz: 16000, color: uiComponents.brilliance.colorPicker.color() },
-    { name: "high", fromHz: 16000, toHz: 22050, color: uiComponents.high.colorPicker.color() }
-  ];
-  for (let band of bands) {
-    let startIndex = floor(pg.map(band.fromHz, 0, 22050, 0, totalBands));
-    let endIndex = floor(pg.map(band.toHz, 0, 22050, 0, totalBands));
-    pg.stroke(band.color); pg.strokeWeight(1); pg.beginShape();
-    for (let i = startIndex; i < endIndex; i++) {
-      if (spectrum[i] === undefined) continue;
-      let angle = pg.map(i, 0, totalBands, 0, pg.TWO_PI);
-      let baseRadius = pg.map(spectrum[i], 0, 255, 60, 280);
-      let breathing = pg.sin(frameCount * 0.05 + angle) * 8;
-      let jitter = pg.noise(angle + frameCount * 0.01) * 10;
-      let radius = baseRadius + breathing + jitter;
-      let x = pg.cos(angle) * radius; let y = pg.sin(angle) * radius;
-      pg.vertex(x, y);
-    }
-    pg.endShape();
-  }
-}
 
 function drawSpectrumDiff(pg, current, previous, boost) {
   if (!previous || previous.length === 0) return;
