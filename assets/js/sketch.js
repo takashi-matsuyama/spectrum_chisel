@@ -1,4 +1,5 @@
 let fft;
+let sessionId = null;
 
 // ★ Phase 1 変更点: 音源管理用の変数を追加
 let mic, soundFile;
@@ -218,7 +219,12 @@ function downloadSVG() {
 function generateTimestampedFilename(extension) {
   const totalSeconds = (spectrumHistory.length / frameRateSlider.value()).toFixed(1);
   const totalFrames = spectrumHistory.length;
-  return `spectrum_chisel-t${totalSeconds}s-f${totalFrames}.${extension}`;
+
+  // ★★★ 接頭辞とユニークIDを追加 ★★★
+  const prefix = currentInputMode === 'mic' ? 'sc-mic' : 'sc-file';
+  const id = sessionId || Date.now(); // もしIDがなければ現在時刻で代替
+
+  return `${prefix}-${id}-t${totalSeconds}s-f${totalFrames}.${extension}`;
 }
 
 function keyPressed() {
@@ -325,22 +331,25 @@ function handleSoundFile(event, fileVolumeGroup, micBoostGroup) {
 }
 
 function togglePlayPause() {
-  // ★★★ 修正点: 音声エンジンが一時停止していたら再開させる ★★★
   if (getAudioContext().state !== 'running') {
     userStartAudio();
   }
-  // ★★★ ここまで ★★★
 
   isPlaying = !isPlaying;
   const playPauseBtn = select('#play-pause-btn');
 
   if (isPlaying) {
+    // ★★★ 再生開始時に新しいセッションIDを生成 ★★★
+    if (spectrumHistory.length === 0) {
+      sessionId = Date.now();
+    }
+
     if (currentInputMode === 'mic') {
       mic.start();
     } else if (soundFile) {
-      soundFile.loop(); // ファイルの場合はループ再生
+      soundFile.loop();
     }
-    loop(); // p5.jsの描画ループを開始
+    loop();
     playPauseBtn.html('一時停止');
   } else {
     if (currentInputMode === 'mic') {
@@ -348,7 +357,7 @@ function togglePlayPause() {
     } else if (soundFile) {
       soundFile.pause();
     }
-    noLoop(); // p5.jsの描画ループを停止
+    noLoop();
     playPauseBtn.html('再生');
   }
 }
@@ -372,7 +381,8 @@ function stopAndReset() {
   spectrumHistory = [];
   prevSpectrum = [];
 
-  // ★★★ タイマー表示をリセット ★★★
+  // ★★★ セッションIDとタイマーをリセット ★★★
+  sessionId = null;
   select('#time-display').html('0.0s');
 
   console.log("Canvas and history cleared.");
