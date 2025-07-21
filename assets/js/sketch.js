@@ -266,6 +266,105 @@ function downloadSVG() {
   }
 }
 
+// 現在のUI設定をJSONファイルとして保存する関数
+function savePreset() {
+  const preset = {
+    version: "1.0.0",
+    sculptureMode: uiComponents.sculptureModeCheckbox.checked(),
+    frameRate: frameRateSlider.value(),
+    spectrumRing: {
+      enabled: spectrumRingCheckbox.checked(),
+      gain: uiComponents.ring.gainSlider.value(),
+      threshold: uiComponents.ring.thresholdSlider.value()
+    },
+    spectrumDiff: {
+      enabled: spectrumDiffCheckbox.checked(),
+      gain: uiComponents.diff.gainSlider.value(),
+      threshold: uiComponents.diff.thresholdSlider.value(),
+      color: uiComponents.diff.colorPicker.value()
+    },
+    bands: {}
+  };
+
+  BAND_CONFIG.forEach(band => {
+    const name = band.name;
+    preset.bands[name] = {
+      enabled: uiComponents[name].enabledCheckbox.checked(),
+      color: uiComponents[name].colorPicker.value(),
+      drawFunc: uiComponents[name].drawSelector.value(),
+      stroke: uiComponents[name].strokeSlider.value(),
+      alpha: uiComponents[name].alphaSlider.value(),
+      gain: uiComponents[name].gainSlider.value(),
+      threshold: uiComponents[name].thresholdSlider.value(),
+      intensityGain: uiComponents[name].intensityGainSlider.value(),
+      angleSpeed: uiComponents[name].angleSpeedSlider.value()
+    };
+  });
+
+  saveJSON(preset, `sc-preset-${Date.now()}.json`);
+}
+
+// JSONファイルを読み込み、UIに設定を適用する関数
+function loadPreset() {
+  const input = createFileInput(file => {
+    if (file.type === 'application' && file.subtype === 'json') {
+      const preset = file.data;
+
+      // UIに値を適用
+      uiComponents.sculptureModeCheckbox.checked(preset.sculptureMode);
+      frameRateSlider.value(preset.frameRate);
+
+      spectrumRingCheckbox.checked(preset.spectrumRing.enabled);
+      uiComponents.ring.gainSlider.value(preset.spectrumRing.gain);
+      uiComponents.ring.thresholdSlider.value(preset.spectrumRing.threshold);
+
+      spectrumDiffCheckbox.checked(preset.spectrumDiff.enabled);
+      uiComponents.diff.gainSlider.value(preset.spectrumDiff.gain);
+      uiComponents.diff.thresholdSlider.value(preset.spectrumDiff.threshold);
+      uiComponents.diff.colorPicker.value(preset.spectrumDiff.color);
+
+      BAND_CONFIG.forEach(band => {
+        const name = band.name;
+        const bandPreset = preset.bands[name];
+        if (bandPreset) {
+          uiComponents[name].enabledCheckbox.checked(bandPreset.enabled);
+          uiComponents[name].colorPicker.value(bandPreset.color);
+          uiComponents[name].drawSelector.value(bandPreset.drawFunc);
+          uiComponents[name].strokeSlider.value(bandPreset.stroke);
+          uiComponents[name].alphaSlider.value(bandPreset.alpha);
+          uiComponents[name].gainSlider.value(bandPreset.gain);
+          uiComponents[name].thresholdSlider.value(bandPreset.threshold);
+          uiComponents[name].intensityGainSlider.value(bandPreset.intensityGain);
+          uiComponents[name].angleSpeedSlider.value(bandPreset.angleSpeed);
+        }
+      });
+
+      // ★★★ ここからが修正箇所です ★★★
+      // 全てのスライダーの横の数値表示を更新
+      const sliders = selectAll('.ui-slider');
+      sliders.forEach(slider => {
+        const valueSpan = slider.elt.nextElementSibling;
+        if (valueSpan && valueSpan.tagName === 'SPAN') {
+          valueSpan.innerHTML = slider.value();
+        }
+      });
+
+      // Frame Rate スライダーの数値表示も個別に更新する
+      const frameRateValueSpan = frameRateSlider.elt.nextElementSibling;
+      if (frameRateValueSpan && frameRateValueSpan.tagName === 'SPAN') {
+        frameRateValueSpan.innerHTML = frameRateSlider.value();
+      }
+      // ★★★ ここまで修正 ★★★
+
+      console.log("Preset loaded successfully.");
+    } else {
+      alert("エラー: JSONファイルを指定してください。");
+    }
+    input.remove();
+  });
+  input.elt.click();
+}
+
 // generateTimestampedFilename()関数を、このコードでまるごと置き換えてください
 function generateTimestampedFilename(extension) {
   const totalSeconds = (spectrumHistory.length / frameRateSlider.value()).toFixed(1);
@@ -290,7 +389,6 @@ function keyPressed() {
     downloadSVG();
   }
   if (key === 'p' || key === 'P') {
-    // ★★★ 新しい関数でファイル名を生成 ★★★
     const fileName = generateTimestampedFilename('png');
     saveCanvas(fileName);
   }
@@ -299,6 +397,14 @@ function keyPressed() {
   }
   if (key === 'e' || key === 'E') {
     stopAndReset();
+  }
+  if (key === 'r' || key === 'R') {
+    // 現在の入力モードに応じて、対応する録画関数を呼び出す
+    if (currentInputMode === 'mic') {
+      toggleMicRecording();
+    } else if (currentInputMode === 'file') {
+      toggleFileRecording();
+    }
   }
 }
 
@@ -538,6 +644,8 @@ function initMic() {
   });
 }
 
+// createUI()関数を、このコードでまるごと置き換えてください
+
 function createUI() {
   uiPanel = createDiv();
   uiPanel.parent('ui-container');
@@ -574,8 +682,15 @@ function createUI() {
   const toggleUiButton = createButton('Toggle UI (C)').parent(uiPanel);
   toggleUiButton.mousePressed(toggleUIVisibility);
 
+  // ★★★ ここからが修正箇所です ★★★
+  const presetDiv = createDiv().parent(uiPanel);
+  const savePresetButton = createButton('技法を保存').parent(presetDiv);
+  savePresetButton.mousePressed(savePreset);
+  const loadPresetButton = createButton('技法を読込').parent(presetDiv);
+  loadPresetButton.mousePressed(loadPreset);
+  // ★★★ ここまで修正 ★★★
+
   createDiv('Drawing Mode').parent(uiPanel).addClass('ui-section-title');
-  // ★★★ ここを true から false に変更 ★★★
   uiComponents.sculptureModeCheckbox = createCheckbox('彫刻モード（描画を蓄積）', false).parent(uiPanel).style('color', 'white');
 
   createDiv('Frame Rate').parent(uiPanel).addClass('ui-section-title');
