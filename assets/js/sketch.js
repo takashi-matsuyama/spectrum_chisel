@@ -455,13 +455,17 @@ function toggleFileRecording() {
     if (spectrumHistory.length === 0) {
       sessionId = Date.now();
       recordStartTime = millis();
+      // ★★★ 描画開始時間を記録 ★★★
+      trimStart = soundFile.currentTime();
     }
     select('#file-record-btn').html('描画停止');
-    if (!isPlaying) loop(); // もし一時停止中なら描画ループを開始
+    if (!isPlaying) loop();
   } else {
     // 描画停止
+    // ★★★ 描画停止時間を記録 ★★★
+    trimEnd = soundFile.currentTime();
     select('#file-record-btn').html('描画開始');
-    if (!isPlaying) noLoop(); // もし一時停止中なら描画ループを停止
+    if (!isPlaying) noLoop();
   }
 }
 
