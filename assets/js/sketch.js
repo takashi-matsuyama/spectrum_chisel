@@ -7,7 +7,7 @@ let currentInputMode = 'mic';
 let isPlaying = false;    // プレビュー再生中か？
 let isRecording = false;  // 録画（描画）中か？
 
-// Phase 2 追加: 録画・描画管理用の変数
+// Phase 2 追加: 描画管理用の変数
 let trimStart = 0;
 let trimEnd = null;
 let recordStartTime = 0;
@@ -383,7 +383,7 @@ function setupSoundControls() {
   const fileBtn = select('#file-mode-btn');
   const uploadInput = select('#upload-sound');
   const playPauseBtn = select('#play-pause-btn');
-  const stopBtn = select('#stop-btn');
+  const stopBtn = select('#reset-btn');
   const fileVolumeSlider = select('#file-volume-slider');
   const micRecordBtn = select('#mic-record-btn');
   const fileRecordBtn = select('#file-record-btn');
@@ -466,7 +466,7 @@ function toggleFilePreview() {
   if (isPlaying) {
     if (isRecording) stopAndReset(); // もし録画中ならリセット
     soundFile.loop();
-    select('#play-pause-btn').html('一時停止');
+    select('#play-pause-btn').html('描画停止');
     loop(); // 描画ループを開始してプログレスバーを動かす
   } else {
     soundFile.pause();
@@ -489,11 +489,11 @@ function toggleMicRecording() {
     }
     mic.start();
     loop();
-    select('#mic-record-btn').html('一時停止');
+    select('#mic-record-btn').html('描画停止');
   } else {
     mic.stop();
     noLoop();
-    select('#mic-record-btn').html('録画・描画');
+    select('#mic-record-btn').html('描画開始');
   }
 }
 
@@ -522,8 +522,8 @@ function stopAndReset() {
   isRecording = false;
 
   select('#play-pause-btn').html('プレビュー再生');
-  select('#mic-record-btn').html('録画・描画');
-  select('#file-record-btn').html('録画・描画');
+  select('#mic-record-btn').html('描画開始');
+  select('#file-record-btn').html('描画開始');
 
   background(0);
   spectrumHistory = [];
