@@ -1,9 +1,16 @@
 let fft;
+let sessionId = null;
 
 // ★ Phase 1 変更点: 音源管理用の変数を追加
 let mic, soundFile;
-let currentInputMode = 'mic'; // 'mic' or 'file'
-let isPlaying = false; // 再生状態を管理
+let currentInputMode = 'mic';
+let isPlaying = false;    // プレビュー再生中か？
+let isRecording = false;  // 録画（描画）中か？
+
+// Phase 2 追加: 描画管理用の変数
+let trimStart = 0;
+let trimEnd = null;
+let recordStartTime = 0;
 
 // ★ 修正点 1: SVG書き出し用のスペクトル履歴を管理する配列
 let spectrumHistory = [];
@@ -29,6 +36,17 @@ const drawFunctionMap = {
   drawFloatingDots: { func: drawFloatingDots, defaultWeight: 1.0 }
 };
 
+const BAND_CONFIG = [
+  { name: 'subBass', freq: [20, 60], defFunc: "drawExpandingDots" },
+  { name: 'low', freq: [60, 250], defFunc: "drawSmoothEllipse" },
+  { name: 'lowMid', freq: [250, 500], defFunc: "drawNoisyContours" },
+  { name: 'mid', freq: [500, 2000], defFunc: "drawRotatingWaves" },
+  { name: 'upperMid', freq: [2000, 4000], defFunc: "drawFloatingDots" },
+  { name: 'presence', freq: [4000, 6000], defFunc: "drawSparks" },
+  { name: 'brilliance', freq: [6000, 16000], defFunc: "drawRadiantBeams" },
+  { name: 'high', freq: [16000, 20000], defFunc: "drawRadialLines" }
+];
+
 // =============================================================================
 // p5.js Lifecycle Functions
 // =============================================================================
@@ -49,34 +67,62 @@ function setup() {
 }
 
 function draw() {
-  // ★ Phase 1 変更点: isPlayingがfalseの時は描画を止める
-  if (!isPlaying) return;
+  if (!isPlaying && !isRecording) {
+    noLoop();
+    return;
+  }
+
+  // ★★★ ここからが修正箇所です ★★★
+  // 「プレビュー中」を、「ファイル再生中」かつ「非録画中」かつ「描画履歴がまだ無い」場合に限定する
+  const isPreviewing = currentInputMode === 'file' && isPlaying && !isRecording && spectrumHistory.length === 0;
+
+  if (isRecording) {
+    // 「録画・描画中」の場合のロジックは変更なし
+    if (!uiComponents.sculptureModeCheckbox.checked()) {
+      background(0, 20); // 残像モード
+    }
+    // 彫刻モードの場合は背景をクリアしない
+  } else if (isPreviewing) {
+    // 「ファイル再生のプレビュー中」の場合のみ、背景をクリアする
+    background(0);
+  }
+  // ★★★ ここまで修正 ★★★
+
+  // 描画中のタイマー更新
+  if (isRecording) {
+    const elapsedTime = (millis() - recordStartTime) / 1000;
+    select('#time-display').html(`${elapsedTime.toFixed(1)}s`);
+  }
+
+  // ファイル再生中のプログレスバー更新
+  if (currentInputMode === 'file' && soundFile && soundFile.isLoaded() && soundFile.isPlaying()) {
+    updateFileProgressBar();
+  }
 
   frameRate(frameRateSlider.value());
-  drawVisuals(this, frameCount);
+  const micBoost = (currentInputMode === 'mic') ? select('#mic-boost-slider').value() : 1;
+  drawVisuals(this, frameCount, false, micBoost);
 }
 
 // =============================================================================
 // Core Drawing and Event Handling
 // =============================================================================
 
-
-function drawVisuals(pg, currentFrame, isForSVG = false) {
+function drawVisuals(pg, currentFrame, isForSVG = false, boost = 1) {
   let spectrum;
 
   if (isForSVG) {
     spectrum = spectrumHistory[currentFrame - 1];
   } else {
     spectrum = fft.analyze();
-    spectrumHistory.push(spectrum.slice());
+    // ★★★ 録画中のみ履歴を追加 ★★★
+    if (isRecording) spectrumHistory.push(spectrum.slice());
   }
 
   if (!spectrum) return;
 
-  const micBoost = (currentInputMode === 'mic') ? select('#mic-boost-slider').value() : 1;
-
   let totalEnergy = spectrum.reduce((a, b) => a + b, 0);
-  if (totalEnergy * micBoost < 100) {
+  if (totalEnergy * boost < 100 && !isForSVG) {
     if (!isForSVG) prevSpectrum = spectrum.slice();
     return;
   }
@@ -101,33 +147,29 @@ function drawVisuals(pg, currentFrame, isForSVG = false) {
     return sum / (endIndex - startIndex + 1);
   };
 
-  const bandDefinitions = [
-    { name: 'subBass', freq: [20, 60] }, { name: 'low', freq: [60, 250] },
-    { name: 'lowMid', freq: [250, 500] }, { name: 'mid', freq: [500, 2000] },
-    { name: 'upperMid', freq: [2000, 4000] }, { name: 'presence', freq: [4000, 6000] },
-    { name: 'brilliance', freq: [6000, 16000] }, { name: 'high', freq: [16000, 20000] }
-  ];
+  // ★★★ プレビュー中は描画しない ★★★
+  if (!isRecording && !isForSVG) {
+    pg.pop();
+    prevSpectrum = spectrum.slice();
+    return;
+  }
 
-  bandDefinitions.forEach(bandInfo => {
+  BAND_CONFIG.forEach(bandInfo => {
     const components = uiComponents[bandInfo.name];
     if (components && components.enabledCheckbox.checked()) {
       const bandEnergy = getEnergyFromSpectrum(bandInfo.freq[0], bandInfo.freq[1]);
       const ui = {
-        color: components.colorPicker.color(),
-        weight: components.strokeSlider.value(),
-        alpha: components.alphaSlider.value(),
-        gain: components.gainSlider.value(),
-        threshold: components.thresholdSlider.value(),
-        intensityGain: components.intensityGainSlider.value(),
-        angleSpeed: components.angleSpeedSlider.value(),
+        color: components.colorPicker.color(), weight: components.strokeSlider.value(), alpha: components.alphaSlider.value(),
+        gain: components.gainSlider.value(), threshold: components.thresholdSlider.value(),
+        intensityGain: components.intensityGainSlider.value(), angleSpeed: components.angleSpeedSlider.value(),
         drawFunc: components.drawSelector.value()
       };
 
-      let scaledEnergy = pg.constrain(bandEnergy * ui.gain * micBoost, 0, 255);
+      let scaledEnergy = pg.constrain(bandEnergy * ui.gain * boost, 0, 255);
 
       if (scaledEnergy > ui.threshold) {
         pg.push();
-        let intensity = pg.map(bandEnergy * micBoost, 0, 255, 0, 1);
+        let intensity = pg.map(bandEnergy * boost, 0, 255, 0, 1);
         let angle = currentFrame * 0.02;
         let dx = pg.sin(angle + time) * 10 * intensity;
         let dy = pg.cos(angle + time * 1.5) * 10 * intensity;
@@ -142,41 +184,105 @@ function drawVisuals(pg, currentFrame, isForSVG = false) {
   });
 
   if (spectrumRingCheckbox.checked()) {
-    drawSpectrumRingByBands(pg, spectrum, currentFrame, micBoost);
+    drawSpectrumRingByBands(pg, spectrum, currentFrame, boost);
   }
   if (spectrumDiffCheckbox.checked()) {
     const prevSpecForDiff = isForSVG ? (spectrumHistory[currentFrame - 2] || []) : prevSpectrum;
-    drawSpectrumDiff(pg, spectrum, prevSpecForDiff, micBoost);
+    drawSpectrumDiff(pg, spectrum, prevSpecForDiff, boost);
   }
-  // ★★★ ここまで修正 ★★★
 
   pg.pop();
   if (!isForSVG) prevSpectrum = spectrum.slice();
 }
 
+function drawSpectrumRingByBands(pg, spectrum, frameCount, boost) {
+  const ringUI = uiComponents.ring;
+  const gain = ringUI.gainSlider.value();
+  const threshold = ringUI.thresholdSlider.value();
+  const overallEnergy = spectrum.reduce((sum, value) => sum + value, 0) / spectrum.length;
+
+  if (overallEnergy * gain * boost < threshold) {
+    return;
+  }
+
+  pg.noFill();
+  let totalBands = spectrum.length;
+
+  // ★★★ グローバルなBAND_CONFIGを参照 ★★★
+  BAND_CONFIG.forEach(bandInfo => {
+    const color = uiComponents[bandInfo.name].colorPicker.color();
+    let startIndex = floor(pg.map(bandInfo.freq[0], 0, 22050, 0, totalBands));
+    let endIndex = floor(pg.map(bandInfo.freq[1], 0, 22050, 0, totalBands));
+    pg.stroke(color); pg.strokeWeight(1); pg.beginShape();
+    for (let i = startIndex; i < endIndex; i++) {
+      if (spectrum[i] === undefined) continue;
+      let angle = pg.map(i, 0, totalBands, 0, pg.TWO_PI);
+      let baseRadius = pg.map(spectrum[i], 0, 255, 60, 280);
+      let breathing = pg.sin(frameCount * 0.05 + angle) * 8;
+      let jitter = pg.noise(angle + frameCount * 0.01) * 10;
+      let radius = baseRadius + breathing + jitter;
+      let x = pg.cos(angle) * radius; let y = pg.sin(angle) * radius;
+      pg.vertex(x, y);
+    }
+    pg.endShape();
+  });
+}
+
+// 【1】downloadSVG関数を、このコードでまるごと置き換えてください
+
 function downloadSVG() {
   console.log("Starting SVG export...");
   noLoop();
 
-  // ★★★ 現在のキャンバスサイズでSVGを作成 ★★★
   const svg = createGraphics(width, height, SVG);
   svg.colorMode(HSB, 360, 100, 100);
   svg.background(0);
 
-  for (let i = 0; i < spectrumHistory.length; i++) {
-    drawVisuals(svg, i + 1, true);
+  const micBoostForSVG = (currentInputMode === 'mic') ? select('#mic-boost-slider').value() : 1;
+
+  // ★★★ 描画モードに応じて保存内容を切り替え ★★★
+  if (uiComponents.sculptureModeCheckbox.checked()) {
+    // 「彫刻モード」の場合：全履歴を描画
+    console.log("Exporting in Sculpture Mode (full history)...");
+    for (let i = 0; i < spectrumHistory.length; i++) {
+      drawVisuals(svg, i + 1, true, micBoostForSVG);
+    }
+  } else {
+    // 「残像モード」の場合：最新の1フレームだけを描画
+    console.log("Exporting in Live Mode (snapshot)...");
+    if (spectrumHistory.length > 0) {
+      drawVisuals(svg, spectrumHistory.length, true, micBoostForSVG);
+    }
   }
 
-  save(svg, 'sound_visualization.svg');
+  const fileName = generateTimestampedFilename('svg');
+  save(svg, fileName);
+
   console.log("SVG export complete.");
   svg.remove();
-  loop();
+
+  if (isPlaying || isRecording) {
+    loop();
+  }
 }
 
-function toggleUIVisibility() {
-  uiVisible = !uiVisible;
-  uiPanel.style('display', uiVisible ? 'block' : 'none');
-  select('#sound-controls').style('display', uiVisible ? 'flex' : 'none');
+// generateTimestampedFilename()関数を、このコードでまるごと置き換えてください
+function generateTimestampedFilename(extension) {
+  const totalSeconds = (spectrumHistory.length / frameRateSlider.value()).toFixed(1);
+  const totalFrames = spectrumHistory.length;
+  let prefix = currentInputMode === 'mic' ? 'sc-mic' : 'sc-file';
+  const id = sessionId || Date.now();
+
+  // ★★★ trimEndがnullでないことを安全に確認してから、トリミング情報を追加 ★★★
+  if (currentInputMode === 'file' && soundFile && trimEnd !== null) {
+    if (trimStart !== 0 || trimEnd < soundFile.duration() - 0.1) {
+      prefix += `-trim[${trimStart.toFixed(1)}-${trimEnd.toFixed(1)}]s`;
+    }
+  }
+
+  const modeSuffix = uiComponents.sculptureModeCheckbox.checked() ? 'eternity' : 'moment';
+
+  return `${prefix}-${id}-${modeSuffix}-t${totalSeconds}s-f${totalFrames}.${extension}`;
 }
 
 function keyPressed() {
@@ -184,7 +290,9 @@ function keyPressed() {
     downloadSVG();
   }
   if (key === 'p' || key === 'P') {
-    saveCanvas("sound_visualization.png");
+    // ★★★ 新しい関数でファイル名を生成 ★★★
+    const fileName = generateTimestampedFilename('png');
+    saveCanvas(fileName);
   }
   if (key === 'c' || key === 'C') {
     toggleUIVisibility();
@@ -192,6 +300,12 @@ function keyPressed() {
   if (key === 'e' || key === 'E') {
     stopAndReset();
   }
+}
+
+function toggleUIVisibility() {
+  uiVisible = !uiVisible;
+  uiPanel.style('display', uiVisible ? 'block' : 'none');
+  select('#sound-controls').style('display', uiVisible ? 'flex' : 'none');
 }
 
 function windowResized() {
@@ -202,128 +316,210 @@ function windowResized() {
   prevSpectrum = [];
 }
 
+
+function formatTime(seconds) {
+  const minutes = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${minutes}:${secs.toString().padStart(2, '0')}`;
+}
+
+function updateFileProgressBar() {
+  const progressBar = select('#progress-bar');
+  const timeDisplay = select('#file-time-display');
+  if (soundFile && soundFile.isLoaded()) {
+    const currentTime = soundFile.currentTime();
+    const duration = soundFile.duration();
+    progressBar.value((currentTime / duration) * 100); // p5.jsのsliderは0-100の値
+    timeDisplay.html(`${formatTime(currentTime)} / ${formatTime(duration)}`);
+  }
+}
+
+
 // =============================================================================
-// ★ Phase 1 変更点: Sound Control Functions
+// Sound Control Functions
 // =============================================================================
+
+function switchInputMode(mode) {
+  stopAndReset();
+  currentInputMode = mode;
+  const micBtn = select('#mic-mode-btn');
+  const fileBtn = select('#file-mode-btn');
+  const micControls = select('#mic-controls');
+  const fileControls = select('#file-controls');
+
+  if (mode === 'mic') {
+    micBtn.addClass('active');
+    fileBtn.removeClass('active');
+    micControls.style('display', 'flex');
+    fileControls.style('display', 'none');
+    fft.setInput(mic);
+  } else { // 'file'モード
+    fileBtn.addClass('active');
+    micBtn.removeClass('active');
+    micControls.style('display', 'none');
+    fileControls.style('display', 'flex');
+    if (soundFile) fft.setInput(soundFile);
+  }
+}
 
 function setupSoundControls() {
   const micBtn = select('#mic-mode-btn');
   const fileBtn = select('#file-mode-btn');
   const uploadInput = select('#upload-sound');
   const playPauseBtn = select('#play-pause-btn');
-  const stopBtn = select('#stop-btn');
+  // ★★★ IDを 'reset-btn' に合わせ、変数名を 'resetBtn' に統一 ★★★
+  const resetBtn = select('#reset-btn');
   const fileVolumeSlider = select('#file-volume-slider');
-  const fileVolumeGroup = select('#file-volume-group');
-  const micBoostGroup = select('#mic-boost-group');
+  const micRecordBtn = select('#mic-record-btn');
+  const fileRecordBtn = select('#file-record-btn');
+  const progressBar = select('#progress-bar');
 
-  micBtn.mousePressed(() => {
-    switchInputMode('mic');
-    fileVolumeGroup.style('display', 'none');
-    micBoostGroup.style('display', 'flex');
-  });
-
+  micBtn.mousePressed(() => switchInputMode('mic'));
   fileBtn.mousePressed(() => uploadInput.elt.click());
+  uploadInput.changed(handleSoundFile);
 
-  uploadInput.changed(event => handleSoundFile(event, fileVolumeGroup, micBoostGroup));
+  // ★★★ ボタンと、これから作成する正しい関数を紐付け ★★★
+  playPauseBtn.mousePressed(toggleFilePlayback);
+  micRecordBtn.mousePressed(toggleMicRecording);
+  fileRecordBtn.mousePressed(toggleFileRecording);
 
-  playPauseBtn.mousePressed(togglePlayPause);
-  stopBtn.mousePressed(stopAndReset);
+  resetBtn.mousePressed(stopAndReset);
 
   fileVolumeSlider.input(() => {
     if (soundFile) {
       soundFile.setVolume(fileVolumeSlider.value());
     }
   });
+
+  progressBar.elt.addEventListener('input', () => {
+    if (soundFile && soundFile.isLoaded() && !soundFile.isPlaying()) {
+      const duration = soundFile.duration();
+      const jumpTime = (progressBar.value() / 100) * duration;
+      soundFile.jump(jumpTime);
+      updateFileProgressBar();
+    }
+  });
 }
 
-function switchInputMode(mode) {
-  if (isPlaying) stopAndReset(); // モード切替時はリセット
-
-  currentInputMode = mode;
-  const micBtn = select('#mic-mode-btn');
-  const fileBtn = select('#file-mode-btn');
-
-  if (mode === 'mic') {
-    micBtn.addClass('active');
-    fileBtn.removeClass('active');
-    fft.setInput(mic);
-    console.log("Input mode: Mic");
-  } else if (mode === 'file' && soundFile) {
-    micBtn.removeClass('active');
-    fileBtn.addClass('active');
-    fft.setInput(soundFile);
-    console.log("Input mode: File");
-  }
-}
-
-function handleSoundFile(event, fileVolumeGroup, micBoostGroup) {
+// handleSoundFile()関数を、このコードでまるごと置き換えてください
+function handleSoundFile(event) {
   if (event.target.files[0]) {
-    if (soundFile && soundFile.isPlaying()) {
+    if (soundFile) {
       soundFile.stop();
     }
     soundFile = loadSound(event.target.files[0], () => {
       console.log("Sound file loaded.");
-      fileVolumeGroup.style('display', 'flex');
-      micBoostGroup.style('display', 'none');
+
+      // 録画範囲をファイルの最初から最後までとして初期化する
+      trimStart = 0;
+      trimEnd = soundFile.duration();
+
+      switchInputMode('file');
 
       const fileVolumeSlider = select('#file-volume-slider');
       soundFile.setVolume(fileVolumeSlider.value());
-      switchInputMode('file');
-      togglePlayPause();
+
+      select('#play-pause-btn').html('再生');
+      select('#file-record-btn').html('描画開始');
+      isPlaying = false;
+      isRecording = false;
+      noLoop();
     });
   }
 }
 
-function togglePlayPause() {
-  // ★★★ 修正点: 音声エンジンが一時停止していたら再開させる ★★★
-  if (getAudioContext().state !== 'running') {
-    userStartAudio();
-  }
-  // ★★★ ここまで ★★★
+// ファイル再生時の「再生／一時停止」ボタンの機能
+function toggleFilePlayback() {
+  if (!soundFile || !soundFile.isLoaded()) return;
+  if (getAudioContext().state !== 'running') userStartAudio();
 
   isPlaying = !isPlaying;
-  const playPauseBtn = select('#play-pause-btn');
-
   if (isPlaying) {
-    if (currentInputMode === 'mic') {
-      mic.start();
-    } else if (soundFile) {
-      soundFile.loop(); // ファイルの場合はループ再生
-    }
-    loop(); // p5.jsの描画ループを開始
-    playPauseBtn.html('一時停止');
+    soundFile.play();
+    select('#play-pause-btn').html('一時停止');
+    loop();
   } else {
-    if (currentInputMode === 'mic') {
-      mic.stop();
-    } else if (soundFile) {
-      soundFile.pause();
-    }
-    noLoop(); // p5.jsの描画ループを停止
-    playPauseBtn.html('再生');
+    soundFile.pause();
+    select('#play-pause-btn').html('再生');
+    if (!isRecording) noLoop(); // 録画中でなければループを止める
   }
 }
 
-function stopAndReset() {
-  if (isPlaying) {
-    // isPlaying = false と playPauseBtn.html('再生') は togglePlayPause 内で処理される
-    togglePlayPause();
+// ファイル再生時の「描画開始／描画停止」ボタンの機能
+function toggleFileRecording() {
+  if (!soundFile || !soundFile.isLoaded()) return;
+
+  isRecording = !isRecording;
+  if (isRecording) {
+    // 描画開始
+    if (spectrumHistory.length === 0) {
+      sessionId = Date.now();
+      recordStartTime = millis();
+      // ★★★ 描画開始時間を記録 ★★★
+      trimStart = soundFile.currentTime();
+    }
+    select('#file-record-btn').html('描画停止');
+    if (!isPlaying) loop();
+  } else {
+    // 描画停止
+    // ★★★ 描画停止時間を記録 ★★★
+    trimEnd = soundFile.currentTime();
+    select('#file-record-btn').html('描画開始');
+    if (!isPlaying) noLoop();
   }
+}
 
-  // 状態を完全に初期に戻す
-  isPlaying = false;
-  select('#play-pause-btn').html('再生');
+// マイク入力時の「描画開始／一時停止」のシンプルな機能
+function toggleMicRecording() {
+  if (getAudioContext().state !== 'running') userStartAudio();
 
-  if (soundFile) {
+  isRecording = !isRecording;
+  isPlaying = isRecording; // マイクモードでは、再生と録画は常に同じ状態
+
+  if (isRecording) {
+    if (spectrumHistory.length === 0) {
+      sessionId = Date.now();
+      recordStartTime = millis();
+    }
+    mic.start();
+    loop();
+    select('#mic-record-btn').html('一時停止');
+  } else {
+    mic.stop();
+    noLoop();
+    select('#mic-record-btn').html('描画開始');
+  }
+}
+
+
+
+function stopAndReset() {
+  if (soundFile && (soundFile.isPlaying() || soundFile.isPaused())) {
     soundFile.stop();
   }
   if (mic.started) {
     mic.stop();
   }
 
-  // キャンバスと履歴をリセット
+  isPlaying = false;
+  isRecording = false;
+
+  select('#play-pause-btn').html('再生');
+  select('#mic-record-btn').html('描画開始');
+  select('#file-record-btn').html('描画開始');
+
   background(0);
   spectrumHistory = [];
   prevSpectrum = [];
+
+  sessionId = null;
+  select('#time-display').html('0.0s');
+
+  if (currentInputMode === 'file' && soundFile && soundFile.isLoaded()) {
+    updateFileProgressBar();
+  }
+
+  noLoop();
   console.log("Canvas and history cleared.");
 }
 
@@ -351,7 +547,7 @@ function createUI() {
   uiPanel.style('background', 'rgba(0, 0, 0, 0.6)');
   uiPanel.style('padding', '10px');
   uiPanel.style('border-radius', '8px');
-  uiPanel.style('max-width', '90vw');
+  uiPanel.style('max-width', '320px');
   uiPanel.style('overflow-y', 'auto');
   uiPanel.style('max-height', '90vh');
 
@@ -369,11 +565,18 @@ function createUI() {
   const saveButton = createButton('Save SVG (S)').parent(uiPanel);
   saveButton.mousePressed(downloadSVG);
   const pngButton = createButton('Save PNG (P)').parent(uiPanel);
-  pngButton.mousePressed(() => saveCanvas("sound_visualization.png"));
+  pngButton.mousePressed(() => {
+    const fileName = generateTimestampedFilename('png');
+    saveCanvas(fileName);
+  });
   const clearButton = createButton('Clear Canvas (E)').parent(uiPanel);
   clearButton.mousePressed(stopAndReset);
   const toggleUiButton = createButton('Toggle UI (C)').parent(uiPanel);
   toggleUiButton.mousePressed(toggleUIVisibility);
+
+  createDiv('Drawing Mode').parent(uiPanel).addClass('ui-section-title');
+  // ★★★ ここを true から false に変更 ★★★
+  uiComponents.sculptureModeCheckbox = createCheckbox('彫刻モード（描画を蓄積）', false).parent(uiPanel).style('color', 'white');
 
   createDiv('Frame Rate').parent(uiPanel).addClass('ui-section-title');
   frameRateSlider = createSlider(1, 60, 15, 1).parent(uiPanel);
@@ -398,20 +601,17 @@ function createUI() {
     colorPicker: spectrumDiffColorPicker
   };
 
-  const energySettings = { low: { gain: 1.0, threshold: 150 }, mid: { gain: 1.0, threshold: 150 }, high: { gain: 1.0, threshold: 150 }, subBass: { gain: 1.0, threshold: 150 }, lowMid: { gain: 1.0, threshold: 150 }, upperMid: { gain: 1.0, threshold: 150 }, presence: { gain: 1.0, threshold: 150 }, brilliance: { gain: 1.0, threshold: 150 } };
-  const energyBandUIs = [
-    { name: "subBass", defFunc: "drawExpandingDots", color: randomColors[3] }, { name: "low", defFunc: "drawSmoothEllipse", color: randomColors[0] }, { name: "lowMid", defFunc: "drawNoisyContours", color: randomColors[6] }, { name: "mid", defFunc: "drawRotatingWaves", color: randomColors[1] }, { name: "upperMid", defFunc: "drawFloatingDots", color: randomColors[7] }, { name: "presence", defFunc: "drawSparks", color: randomColors[5] }, { name: "brilliance", defFunc: "drawRadiantBeams", color: randomColors[4] }, { name: "high", defFunc: "drawRadialLines", color: randomColors[2] }
-  ];
+  const energySettings = { low: { gain: 1.0, threshold: 100 }, mid: { gain: 1.0, threshold: 100 }, high: { gain: 1.0, threshold: 100 }, subBass: { gain: 1.0, threshold: 100 }, lowMid: { gain: 1.0, threshold: 100 }, upperMid: { gain: 1.0, threshold: 100 }, presence: { gain: 1.0, threshold: 100 }, brilliance: { gain: 1.0, threshold: 100 } };
 
-  energyBandUIs.forEach(band => {
+  BAND_CONFIG.forEach((band, index) => {
     let name = band.name;
-    let title = name.charAt(0).toUpperCase() + name.slice(1).replace(/([A-Z])/g, ' $1');
+    let title = `${name.charAt(0).toUpperCase() + name.slice(1).replace(/([A-Z])/g, ' $1')} (${band.freq[0]} - ${band.freq[1]} Hz)`;
     const section = createDiv(title).parent(uiPanel).addClass('ui-section-title');
 
     uiComponents[name] = {};
 
     uiComponents[name].enabledCheckbox = createCheckbox('Enabled', true).parent(section);
-    uiComponents[name].colorPicker = createColorPicker(band.color).parent(section);
+    uiComponents[name].colorPicker = createColorPicker(randomColors[index]).parent(section);
     const drawSelector = createSelect().parent(section);
     for (let key in drawFunctionMap) {
       drawSelector.option(key);
@@ -448,47 +648,6 @@ function generateDistinctColors(count) {
 // Drawing Functions
 // =============================================================================
 
-
-function drawSpectrumRingByBands(pg, spectrum, frameCount, boost) {
-  const ringUI = uiComponents.ring;
-  const gain = ringUI.gainSlider.value();
-  const threshold = ringUI.thresholdSlider.value();
-  const overallEnergy = spectrum.reduce((sum, value) => sum + value, 0) / spectrum.length;
-
-  // ★★★ micBoostを適用 ★★★
-  if (overallEnergy * gain * boost < threshold) {
-    return;
-  }
-
-  pg.noFill();
-  let totalBands = spectrum.length;
-  const bands = [
-    { name: "subBass", fromHz: 20, toHz: 60, color: uiComponents.subBass.colorPicker.color() },
-    { name: "low", fromHz: 60, toHz: 140, color: uiComponents.low.colorPicker.color() },
-    { name: "lowMid", fromHz: 140, toHz: 400, color: uiComponents.lowMid.colorPicker.color() },
-    { name: "mid", fromHz: 400, toHz: 1000, color: uiComponents.mid.colorPicker.color() },
-    { name: "upperMid", fromHz: 1000, toHz: 3000, color: uiComponents.upperMid.colorPicker.color() },
-    { name: "presence", fromHz: 3000, toHz: 6000, color: uiComponents.presence.colorPicker.color() },
-    { name: "brilliance", fromHz: 6000, toHz: 16000, color: uiComponents.brilliance.colorPicker.color() },
-    { name: "high", fromHz: 16000, toHz: 22050, color: uiComponents.high.colorPicker.color() }
-  ];
-  for (let band of bands) {
-    let startIndex = floor(pg.map(band.fromHz, 0, 22050, 0, totalBands));
-    let endIndex = floor(pg.map(band.toHz, 0, 22050, 0, totalBands));
-    pg.stroke(band.color); pg.strokeWeight(1); pg.beginShape();
-    for (let i = startIndex; i < endIndex; i++) {
-      if (spectrum[i] === undefined) continue;
-      let angle = pg.map(i, 0, totalBands, 0, pg.TWO_PI);
-      let baseRadius = pg.map(spectrum[i], 0, 255, 60, 280);
-      let breathing = pg.sin(frameCount * 0.05 + angle) * 8;
-      let jitter = pg.noise(angle + frameCount * 0.01) * 10;
-      let radius = baseRadius + breathing + jitter;
-      let x = pg.cos(angle) * radius; let y = pg.sin(angle) * radius;
-      pg.vertex(x, y);
-    }
-    pg.endShape();
-  }
-}
 
 function drawSpectrumDiff(pg, current, previous, boost) {
   if (!previous || previous.length === 0) return;

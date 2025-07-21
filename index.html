@@ -3,7 +3,7 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>Sound to SVG - Fallback to Mic</title>
+  <title>Spectrum Chisel</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/addons/p5.sound.min.js"></script>
   <script src="https://unpkg.com/p5.js-svg@1.6.0"></script>
@@ -18,18 +18,32 @@
       <button id="file-mode-btn">ファイル再生</button>
       <input type="file" id="upload-sound" accept="audio/*" style="display: none;">
     </div>
-    <div class="control-group" id="mic-boost-group">
+
+    <div class="control-group" id="mic-controls">
       <label>Mic Boost:</label>
       <input type="range" id="mic-boost-slider" min="0.01" max="10" value="2" step="0.01">
+      <button id="mic-record-btn">描画開始</button>
     </div>
-    <div class="control-group" id="file-volume-group" style="display: none;">
-      <label>File Volume:</label>
-      <input type="range" id="file-volume-slider" min="0.01" max="10" value="0.5" step="0.01">
+
+    <div class="control-group file-control" id="file-controls" style="display: none;">
+      <div class="file-playback-controls">
+        <button id="play-pause-btn">再生</button>
+        <div id="progress-bar-container">
+          <input type="range" id="progress-bar" value="0" step="0.01">
+        </div>
+        <span id="file-time-display">0:00 / 0:00</span>
+      </div>
+      <div class="file-record-controls">
+        <label>File Volume:</label>
+        <input type="range" id="file-volume-slider" min="0.01" max="10" value="0.5" step="0.01">
+        <button id="file-record-btn">描画開始</button>
+      </div>
     </div>
+
     <div class="control-group">
-      <label>操作:</label>
-      <button id="play-pause-btn">再生</button>
-      <button id="stop-btn">停止・リセット</button>
+      <button id="reset-btn">リセット</button>
+      <label>Time:</label>
+      <span id="time-display">0.0s</span>
     </div>
   </div>
   <div id="canvas-container" class="canvas-wrapper"></div>
