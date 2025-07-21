@@ -75,18 +75,20 @@ function draw() {
   }
 
   // ★★★ ここからが修正箇所です ★★★
-  // 描画モードに応じて背景の処理を切り替える
+  // 「プレビュー中」を、「ファイル再生中」かつ「非録画中」かつ「描画履歴が空」の場合に限定する
+  const isPreviewing = currentInputMode === 'file' && isPlaying && !isRecording && spectrumHistory.length === 0;
+
   if (isRecording) {
+    // 「描画中」の場合のロジックは変更なし
     if (!uiComponents.sculptureModeCheckbox.checked()) {
-      // 「彫刻モード」がオフの場合、残像効果（ライブモード）
-      background(0, 20);
+      background(0, 20); // 残像モード
     }
-    // 「彫刻モード」がオンの場合は、背景をクリアしない（描画を蓄積）
-  } else {
-    // プレビュー中は常に背景をクリア
+    // 彫刻モードの場合は背景をクリアしない
+  } else if (isPreviewing) {
+    // 「ファイル再生のプレビュー中」の場合のみ、背景をクリアする
     background(0);
   }
-  // ★★★ ここまで修正 ★-★★
+  // ★★★ ここまで修正 ★★★
 
   // 描画中のタイマー更新
   if (isRecording) {
@@ -97,9 +99,6 @@ function draw() {
   // ファイル再生中のプログレスバー更新
   if (currentInputMode === 'file' && soundFile && soundFile.isLoaded() && soundFile.isPlaying()) {
     updateFileProgressBar();
-    if (isRecording && soundFile.currentTime() >= trimEnd) {
-      stopAndReset();
-    }
   }
 
   frameRate(frameRateSlider.value());
@@ -281,10 +280,7 @@ function generateTimestampedFilename(extension) {
     }
   }
 
-  // ★★★ ファイル名に詩的な描画モードを追加 ★★★
-  const modeSuffix = uiComponents.sculptureModeCheckbox.checked() ? 'eternity' : 'moment';
-
-  return `${prefix}-${id}-${modeSuffix}-t${totalSeconds}s-f${totalFrames}.${extension}`;
+  return `${prefix}-${id}-t${totalSeconds}s-f${totalFrames}.${extension}`;
 }
 
 function keyPressed() {
@@ -318,8 +314,6 @@ function windowResized() {
   prevSpectrum = [];
 }
 
-
-// ★★★ この3つの関数を setupSoundControls() の上に追加 ★★★
 
 function formatTime(seconds) {
   const minutes = Math.floor(seconds / 60);
@@ -383,27 +377,23 @@ function setupSoundControls() {
   const fileBtn = select('#file-mode-btn');
   const uploadInput = select('#upload-sound');
   const playPauseBtn = select('#play-pause-btn');
-  const stopBtn = select('#reset-btn');
+  // ★★★ IDを 'reset-btn' に合わせ、変数名を 'resetBtn' に統一 ★★★
+  const resetBtn = select('#reset-btn');
   const fileVolumeSlider = select('#file-volume-slider');
   const micRecordBtn = select('#mic-record-btn');
   const fileRecordBtn = select('#file-record-btn');
-  const setStartBtn = select('#set-start-btn');
-  const setEndBtn = select('#set-end-btn');
   const progressBar = select('#progress-bar');
 
-  // ★★★ 新しいグローバル関数を呼び出すように変更 ★★★
   micBtn.mousePressed(() => switchInputMode('mic'));
-  fileBtn.mousePressed(() => {
-    uploadInput.elt.click();
-  });
-
+  fileBtn.mousePressed(() => uploadInput.elt.click());
   uploadInput.changed(handleSoundFile);
 
-  playPauseBtn.mousePressed(toggleFilePreview);
+  // ★★★ ボタンと、これから作成する正しい関数を紐付け ★★★
+  playPauseBtn.mousePressed(toggleFilePlayback);
   micRecordBtn.mousePressed(toggleMicRecording);
-  fileRecordBtn.mousePressed(startFileRecording);
+  fileRecordBtn.mousePressed(toggleFileRecording);
 
-  stopBtn.mousePressed(stopAndReset);
+  resetBtn.mousePressed(stopAndReset);
 
   fileVolumeSlider.input(() => {
     if (soundFile) {
@@ -419,77 +409,83 @@ function setupSoundControls() {
       updateFileProgressBar();
     }
   });
-
-  setStartBtn.mousePressed(() => {
-    if (soundFile) {
-      trimStart = soundFile.currentTime();
-      if (trimEnd !== null && trimStart >= trimEnd) trimEnd = soundFile.duration();
-      updateTrimInfo();
-    }
-  });
-
-  setEndBtn.mousePressed(() => {
-    if (soundFile) {
-      trimEnd = soundFile.currentTime();
-      if (trimStart > trimEnd) trimStart = 0;
-      updateTrimInfo();
-    }
-  });
 }
 
 function handleSoundFile(event) {
   if (event.target.files[0]) {
-    if (soundFile && (soundFile.isPlaying() || soundFile.isPaused())) {
+    // ★★★ 既存のサウンドファイルを確実に停止 ★★★
+    if (soundFile) {
       soundFile.stop();
     }
     soundFile = loadSound(event.target.files[0], () => {
       console.log("Sound file loaded.");
-      // ★★★ 録画範囲を初期化 ★★★
-      trimStart = 0;
-      trimEnd = soundFile.duration();
-      updateTrimInfo();
-      updateFileProgressBar();
+      switchInputMode('file');
 
       const fileVolumeSlider = select('#file-volume-slider');
       soundFile.setVolume(fileVolumeSlider.value());
-      switchInputMode('file');
-      toggleFilePreview(); // ロードされたら自動でプレビュー再生を開始
+
+      // UIを初期状態にリセット
+      select('#play-pause-btn').html('再生');
+      select('#file-record-btn').html('描画開始');
+      isPlaying = false;
+      isRecording = false;
+      noLoop();
     });
   }
 }
 
-function toggleFilePreview() {
+// ファイル再生時の「再生／一時停止」ボタンの機能
+function toggleFilePlayback() {
   if (!soundFile || !soundFile.isLoaded()) return;
   if (getAudioContext().state !== 'running') userStartAudio();
 
   isPlaying = !isPlaying;
   if (isPlaying) {
-    if (isRecording) stopAndReset(); // もし録画中ならリセット
-    soundFile.loop();
-    select('#play-pause-btn').html('描画停止');
-    loop(); // 描画ループを開始してプログレスバーを動かす
+    soundFile.play();
+    select('#play-pause-btn').html('一時停止');
+    loop();
   } else {
     soundFile.pause();
-    select('#play-pause-btn').html('プレビュー再生');
-    noLoop();
+    select('#play-pause-btn').html('再生');
+    if (!isRecording) noLoop(); // 録画中でなければループを止める
   }
 }
 
+// ファイル再生時の「描画開始／描画停止」ボタンの機能
+function toggleFileRecording() {
+  if (!soundFile || !soundFile.isLoaded()) return;
+
+  isRecording = !isRecording;
+  if (isRecording) {
+    // 描画開始
+    if (spectrumHistory.length === 0) {
+      sessionId = Date.now();
+      recordStartTime = millis();
+    }
+    select('#file-record-btn').html('描画停止');
+    if (!isPlaying) loop(); // もし一時停止中なら描画ループを開始
+  } else {
+    // 描画停止
+    select('#file-record-btn').html('描画開始');
+    if (!isPlaying) noLoop(); // もし一時停止中なら描画ループを停止
+  }
+}
+
+// マイク入力時の「描画開始／一時停止」のシンプルな機能
 function toggleMicRecording() {
   if (getAudioContext().state !== 'running') userStartAudio();
 
-  // isPlaying をマイクの録画状態として使う
-  isPlaying = !isPlaying;
-  isRecording = isPlaying; // マイクモードでは再生と録画は同義
+  isRecording = !isRecording;
+  isPlaying = isRecording; // マイクモードでは、再生と録画は常に同じ状態
 
-  if (isPlaying) {
+  if (isRecording) {
     if (spectrumHistory.length === 0) {
       sessionId = Date.now();
       recordStartTime = millis();
     }
     mic.start();
     loop();
-    select('#mic-record-btn').html('描画停止');
+    select('#mic-record-btn').html('一時停止');
   } else {
     mic.stop();
     noLoop();
@@ -497,31 +493,20 @@ function toggleMicRecording() {
   }
 }
 
-function startFileRecording() {
-  if (soundFile && soundFile.isLoaded() && !isRecording) {
-    stopAndReset();
-    isRecording = true;
-    sessionId = Date.now();
-    recordStartTime = millis();
 
-    soundFile.play(); // loop()ではなくplay()で一度だけ再生
-    soundFile.jump(trimStart); // 開始点から再生
-    loop();
-    select('#file-record-btn').html('描画中...');
-  }
-}
 
-// stopAndReset()関数を、このコードでまるごと置き換えてください
 function stopAndReset() {
-  if (isPlaying || isRecording) {
-    if (soundFile && soundFile.isPlaying()) soundFile.stop();
-    if (mic.started) mic.stop();
+  if (soundFile && (soundFile.isPlaying() || soundFile.isPaused())) {
+    soundFile.stop();
+  }
+  if (mic.started) {
+    mic.stop();
   }
 
   isPlaying = false;
   isRecording = false;
 
-  select('#play-pause-btn').html('プレビュー再生');
+  select('#play-pause-btn').html('再生');
   select('#mic-record-btn').html('描画開始');
   select('#file-record-btn').html('描画開始');
 
@@ -533,10 +518,7 @@ function stopAndReset() {
   select('#time-display').html('0.0s');
 
   if (currentInputMode === 'file' && soundFile && soundFile.isLoaded()) {
-    trimStart = 0;
-    trimEnd = soundFile.duration();
     updateFileProgressBar();
-    updateTrimInfo();
   }
 
   noLoop();
