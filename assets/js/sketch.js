@@ -389,7 +389,6 @@ function keyPressed() {
     downloadSVG();
   }
   if (key === 'p' || key === 'P') {
-    // ★★★ 新しい関数でファイル名を生成 ★★★
     const fileName = generateTimestampedFilename('png');
     saveCanvas(fileName);
   }
@@ -398,6 +397,14 @@ function keyPressed() {
   }
   if (key === 'e' || key === 'E') {
     stopAndReset();
+  }
+  if (key === 'r' || key === 'R') {
+    // 現在の入力モードに応じて、対応する録画関数を呼び出す
+    if (currentInputMode === 'mic') {
+      toggleMicRecording();
+    } else if (currentInputMode === 'file') {
+      toggleFileRecording();
+    }
   }
 }
 
