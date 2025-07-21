@@ -558,8 +558,6 @@ function initMic() {
   });
 }
 
-// createUI()関数を、このコードでまるごと置き換えてください
-
 function createUI() {
   uiPanel = createDiv();
   uiPanel.parent('ui-container');
@@ -596,10 +594,9 @@ function createUI() {
   const toggleUiButton = createButton('Toggle UI (C)').parent(uiPanel);
   toggleUiButton.mousePressed(toggleUIVisibility);
 
-  // ★★★ ここからが修正箇所です ★★★
   createDiv('Drawing Mode').parent(uiPanel).addClass('ui-section-title');
-  uiComponents.sculptureModeCheckbox = createCheckbox('彫刻モード（描画を蓄積）', true).parent(uiPanel).style('color', 'white');
-  // ★★★ ここまで修正 ★★★
+  // ★★★ ここを true から false に変更 ★★★
+  uiComponents.sculptureModeCheckbox = createCheckbox('彫刻モード（描画を蓄積）', false).parent(uiPanel).style('color', 'white');
 
   createDiv('Frame Rate').parent(uiPanel).addClass('ui-section-title');
   frameRateSlider = createSlider(1, 60, 15, 1).parent(uiPanel);
