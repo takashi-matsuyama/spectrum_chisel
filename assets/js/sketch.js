@@ -66,8 +66,6 @@ function setup() {
   createUI(); // 既存のUIセットアップ
 }
 
-// draw()関数を、このコードでまるごと置き換えてください
-
 function draw() {
   if (!isPlaying && !isRecording) {
     noLoop();
@@ -75,11 +73,11 @@ function draw() {
   }
 
   // ★★★ ここからが修正箇所です ★★★
-  // 「プレビュー中」を、「ファイル再生中」かつ「非録画中」かつ「描画履歴が空」の場合に限定する
+  // 「プレビュー中」を、「ファイル再生中」かつ「非録画中」かつ「描画履歴がまだ無い」場合に限定する
   const isPreviewing = currentInputMode === 'file' && isPlaying && !isRecording && spectrumHistory.length === 0;
 
   if (isRecording) {
-    // 「描画中」の場合のロジックは変更なし
+    // 「録画・描画中」の場合のロジックは変更なし
     if (!uiComponents.sculptureModeCheckbox.checked()) {
       background(0, 20); // 残像モード
     }
@@ -268,19 +266,23 @@ function downloadSVG() {
   }
 }
 
+// generateTimestampedFilename()関数を、このコードでまるごと置き換えてください
 function generateTimestampedFilename(extension) {
   const totalSeconds = (spectrumHistory.length / frameRateSlider.value()).toFixed(1);
   const totalFrames = spectrumHistory.length;
   let prefix = currentInputMode === 'mic' ? 'sc-mic' : 'sc-file';
   const id = sessionId || Date.now();
 
+  // ★★★ trimEndがnullでないことを安全に確認してから、トリミング情報を追加 ★★★
   if (currentInputMode === 'file' && soundFile && trimEnd !== null) {
     if (trimStart !== 0 || trimEnd < soundFile.duration() - 0.1) {
       prefix += `-trim[${trimStart.toFixed(1)}-${trimEnd.toFixed(1)}]s`;
     }
   }
 
-  return `${prefix}-${id}-t${totalSeconds}s-f${totalFrames}.${extension}`;
+  const modeSuffix = uiComponents.sculptureModeCheckbox.checked() ? 'eternity' : 'moment';
+
+  return `${prefix}-${id}-${modeSuffix}-t${totalSeconds}s-f${totalFrames}.${extension}`;
 }
 
 function keyPressed() {
@@ -332,18 +334,6 @@ function updateFileProgressBar() {
   }
 }
 
-function updateTrimInfo() {
-  const trimInfo = select('#trim-info');
-  if (soundFile && trimEnd !== null) {
-    if (trimStart === 0 && trimEnd >= soundFile.duration()) {
-      trimInfo.html('Trim: Full');
-    } else {
-      trimInfo.html(`Trim: ${trimStart.toFixed(1)}s - ${trimEnd.toFixed(1)}s`);
-    }
-  } else {
-    trimInfo.html('Trim: Full');
-  }
-}
 
 // =============================================================================
 // Sound Control Functions
@@ -411,20 +401,24 @@ function setupSoundControls() {
   });
 }
 
+// handleSoundFile()関数を、このコードでまるごと置き換えてください
 function handleSoundFile(event) {
   if (event.target.files[0]) {
-    // ★★★ 既存のサウンドファイルを確実に停止 ★★★
     if (soundFile) {
       soundFile.stop();
     }
     soundFile = loadSound(event.target.files[0], () => {
       console.log("Sound file loaded.");
+
+      // 録画範囲をファイルの最初から最後までとして初期化する
+      trimStart = 0;
+      trimEnd = soundFile.duration();
+
       switchInputMode('file');
 
       const fileVolumeSlider = select('#file-volume-slider');
       soundFile.setVolume(fileVolumeSlider.value());
 
-      // UIを初期状態にリセット
       select('#play-pause-btn').html('再生');
       select('#file-record-btn').html('描画開始');
       isPlaying = false;
