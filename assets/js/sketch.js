@@ -431,10 +431,7 @@ function toggleVideoRecording() {
 // 動画録画の開始関数
 function startVideoRecording() {
   if (isVideoRecording) return;
-  if (getAudioContext().state !== 'running') {
-    userStartAudio();
-  }
-
+  if (getAudioContext().state !== 'running') userStartAudio();
   if (!isRecording && !isPlaying) {
     alert("描画または再生が開始されていません。録画を開始できません。");
     return;
@@ -445,14 +442,26 @@ function startVideoRecording() {
     try {
       const canvas = document.querySelector('canvas');
       const videoStream = canvas.captureStream(frameRateSlider.value());
-
-      // ★★★ ここが修正の核心部分です ★★★
-      // p5.soundのマスター出力ノードから直接ストリームを作成します
-      const masterNode = p5.soundOut.input;
       const audioContext = getAudioContext();
+
+      // ★★★ ここからが修正の核心部分です ★★★
       const mediaStreamDestination = audioContext.createMediaStreamDestination();
-      masterNode.connect(mediaStreamDestination);
+
+      if (currentInputMode === 'mic') {
+        // マイク入力の場合：マイクを録画用の出口にだけ接続する
+        mic.connect(mediaStreamDestination);
+      } else if (soundFile) {
+        // ファイル再生の場合：全体の音声を録画用の出口に接続する
+        soundFile.connect(mediaStreamDestination);
+      }
+
       const audioStream = mediaStreamDestination.stream;
+      // ★★★ ここまで修正 ★★★
+
+      if (audioStream.getAudioTracks().length === 0) {
+        alert("エラー: 音声トラックをキャプチャできませんでした。");
+        return;
+      }
 
       const combinedStream = new MediaStream([
         videoStream.getVideoTracks()[0],
@@ -468,6 +477,9 @@ function startVideoRecording() {
       };
 
       mediaRecorder.onstop = () => {
+        if (currentInputMode === 'mic') {
+          mic.disconnect(); // 録画終了時にマイクの接続を解除
+        }
         const blob = new Blob(recordedChunks, { type: 'video/webm' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -674,11 +686,13 @@ function toggleFileRecording() {
 }
 
 // マイク入力時の「描画開始／一時停止」のシンプルな機能
+// 既存の toggleMicRecording 関数を、以下の内容で完全に置き換えてください
+
 function toggleMicRecording() {
   if (getAudioContext().state !== 'running') userStartAudio();
 
   isRecording = !isRecording;
-  isPlaying = isRecording; // マイクモードでは、再生と録画は常に同じ状態
+  isPlaying = isRecording;
 
   if (isRecording) {
     if (spectrumHistory.length === 0) {
