@@ -21,6 +21,11 @@ let spectrumRingCheckbox, spectrumDiffCheckbox, spectrumDiffColorPicker;
 let prevSpectrum = [];
 let uiVisible = true;
 
+// ★ 動画録画機能: 関連変数を追加
+let mediaRecorder;
+let recordedChunks = [];
+let isVideoRecording = false;
+
 // ★★★ UIコンポーネントを格納するオブジェクトを準備 ★★★
 const uiComponents = {};
 
@@ -406,6 +411,97 @@ function keyPressed() {
       toggleFileRecording();
     }
   }
+  // ★ 動画録画機能: 'V'キーで録画開始/停止をトグル
+  if (key === 'v' || key === 'V') {
+    toggleVideoRecording();
+  }
+}
+// =============================================================================
+// ★ 動画録画機能: 以下の関数をまるごとファイル末尾に追加
+// =============================================================================
+
+function toggleVideoRecording() {
+  if (isVideoRecording) {
+    stopVideoRecording();
+  } else {
+    startVideoRecording();
+  }
+}
+
+// 動画録画の開始関数
+function startVideoRecording() {
+  if (isVideoRecording) return;
+  if (getAudioContext().state !== 'running') {
+    userStartAudio();
+  }
+
+  if (!isRecording && !isPlaying) {
+    alert("描画または再生が開始されていません。録画を開始できません。");
+    return;
+  }
+
+  if (!mediaRecorder) {
+    console.log("Initializing MediaRecorder for the first time...");
+    try {
+      const canvas = document.querySelector('canvas');
+      const videoStream = canvas.captureStream(frameRateSlider.value());
+
+      // ★★★ ここが修正の核心部分です ★★★
+      // p5.soundのマスター出力ノードから直接ストリームを作成します
+      const masterNode = p5.soundOut.input;
+      const audioContext = getAudioContext();
+      const mediaStreamDestination = audioContext.createMediaStreamDestination();
+      masterNode.connect(mediaStreamDestination);
+      const audioStream = mediaStreamDestination.stream;
+
+      const combinedStream = new MediaStream([
+        videoStream.getVideoTracks()[0],
+        audioStream.getAudioTracks()[0]
+      ]);
+
+      mediaRecorder = new MediaRecorder(combinedStream, {
+        mimeType: 'video/webm; codecs=vp9,opus'
+      });
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) recordedChunks.push(event.data);
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunks, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style = 'display: none';
+        a.href = url;
+        a.download = generateTimestampedFilename('webm');
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        a.remove();
+        recordedChunks = [];
+        console.log("動画ファイルの保存が完了しました。");
+      };
+    } catch (err) {
+      console.error("MediaRecorderの初期化に失敗しました:", err);
+      alert("動画の録画機能の初期化に失敗しました。お使いのブラウザが対応していない可能性があります。");
+      return;
+    }
+  }
+
+  recordedChunks = [];
+  mediaRecorder.start();
+  isVideoRecording = true;
+  select('#video-record-btn').html('録画停止 (V)').addClass('active');
+  console.log("動画の録画を開始しました。");
+}
+// 動画録画の停止関数
+function stopVideoRecording() {
+  if (isVideoRecording) {
+    mediaRecorder.stop();
+    isVideoRecording = false;
+    select('#video-record-btn').html('録画開始 (V)').removeClass('active');
+    console.log("動画の録画を停止しました。");
+  }
 }
 
 function toggleUIVisibility() {
@@ -479,6 +575,7 @@ function setupSoundControls() {
   const micRecordBtn = select('#mic-record-btn');
   const fileRecordBtn = select('#file-record-btn');
   const progressBar = select('#progress-bar');
+  const videoRecordBtn = select('#video-record-btn');
 
   micBtn.mousePressed(() => switchInputMode('mic'));
   fileBtn.mousePressed(() => uploadInput.elt.click());
@@ -488,6 +585,7 @@ function setupSoundControls() {
   playPauseBtn.mousePressed(toggleFilePlayback);
   micRecordBtn.mousePressed(toggleMicRecording);
   fileRecordBtn.mousePressed(toggleFileRecording);
+  videoRecordBtn.mousePressed(toggleVideoRecording);
 
   resetBtn.mousePressed(stopAndReset);
 
