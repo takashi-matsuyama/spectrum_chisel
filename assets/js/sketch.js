@@ -1,4 +1,4 @@
-let fft;
+let fftMic, fftFile;
 let sessionId = null;
 
 // ★ 1. モード管理と新しい描画モード用の変数を追加
@@ -68,7 +68,8 @@ function setup() {
   colorMode(HSB, 360, 100, 100);
   background(0);
 
-  fft = new p5.FFT(0.9, 512);
+  fftMic = new p5.FFT(0.9, 512);
+  fftFile = new p5.FFT(0.9, 512);
 
   // ★ Phase 1 変更点: UI初期化と音源初期化
   initMic();
@@ -97,11 +98,13 @@ function draw() {
 function drawVisuals(pg, currentFrame, isForSVG = false, boost = 1) {
   let spectrum;
 
+  // ★★★ モードに応じて使用するFFTを切り替える ★★★
+  const activeFFT = (currentInputMode === 'mic') ? fftMic : fftFile;
+
   if (isForSVG) {
     spectrum = spectrumHistory[currentFrame - 1];
   } else {
-    spectrum = fft.analyze();
-    // ★★★ 録画中のみ履歴を追加 ★★★
+    spectrum = activeFFT.analyze();
     if (isRecording) spectrumHistory.push(spectrum.slice());
   }
 
@@ -719,9 +722,6 @@ function startVideoRecording() {
       };
 
       mediaRecorder.onstop = () => {
-        if (currentInputMode === 'mic') {
-          mic.disconnect(); // 録画終了時にマイクの接続を解除
-        }
         const blob = new Blob(recordedChunks, { type: 'video/webm' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -748,6 +748,7 @@ function startVideoRecording() {
   select('#video-record-btn').html('録画停止 (V)').addClass('active');
   console.log("動画の録画を開始しました。");
 }
+
 // 動画録画の停止関数
 function stopVideoRecording() {
   if (isVideoRecording) {
@@ -790,13 +791,14 @@ function updateFileProgressBar() {
   }
 }
 
-
 // =============================================================================
 // Sound Control Functions
 // =============================================================================
 
 function switchInputMode(mode) {
-  stopAndReset();
+  if (isRecording || isPlaying) {
+    stopAndReset();
+  }
   currentInputMode = mode;
   const micBtn = select('#mic-mode-btn');
   const fileBtn = select('#file-mode-btn');
@@ -808,17 +810,13 @@ function switchInputMode(mode) {
     fileBtn.removeClass('active');
     micControls.style('display', 'flex');
     fileControls.style('display', 'none');
-    fft.setInput(mic);
-  } else { // 'file'モード
+  } else {
     fileBtn.addClass('active');
     micBtn.removeClass('active');
     micControls.style('display', 'none');
     fileControls.style('display', 'flex');
-    if (soundFile) fft.setInput(soundFile);
   }
 }
-
-// 既存の setupSoundControls 関数を、以下の内容で完全に置き換えてください
 
 function setupSoundControls() {
   const micBtn = select('#mic-mode-btn');
@@ -874,7 +872,6 @@ function setupSoundControls() {
   });
 }
 
-// handleSoundFile()関数を、このコードでまるごと置き換えてください
 function handleSoundFile(event) {
   if (event.target.files[0]) {
     if (soundFile) {
@@ -882,16 +879,14 @@ function handleSoundFile(event) {
     }
     soundFile = loadSound(event.target.files[0], () => {
       console.log("Sound file loaded.");
-
-      // 録画範囲をファイルの最初から最後までとして初期化する
       trimStart = 0;
       trimEnd = soundFile.duration();
 
-      switchInputMode('file');
+      fftFile.setInput(soundFile); // ★ 音声ファイルをfftFileに接続
 
+      switchInputMode('file');
       const fileVolumeSlider = select('#file-volume-slider');
       soundFile.setVolume(fileVolumeSlider.value());
-
       select('#play-pause-btn').html('再生');
       select('#file-record-btn').html('描画開始');
       isPlaying = false;
@@ -1005,8 +1000,8 @@ function initMic() {
   mic = new p5.AudioIn();
   mic.start(() => {
     console.log("Mic ready.");
-    fft.setInput(mic);
-    mic.stop(); // 初期状態は停止させておく
+    fftMic.setInput(mic); // ★ マイクをfftMicに接続
+    mic.stop();
   }, (err) => {
     console.error("Mic error:", err);
     alert("マイクの初期化に失敗しました。ブラウザの設定を確認してください。");
