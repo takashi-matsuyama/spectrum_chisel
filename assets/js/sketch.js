@@ -1,6 +1,11 @@
 let fft;
 let sessionId = null;
 
+// ★ 1. モード管理と新しい描画モード用の変数を追加
+let currentDrawingMode = 'abstract'; // 現在の描画モードを管理
+let particleSystem; // パーティクルシステムを管理するオブジェクト
+let referenceImage; // Figurativeモードで使う参照画像
+let particleUiPanel; // Figurativeモード専用のUIパネル
 // ★ Phase 1 変更点: 音源管理用の変数を追加
 let mic, soundFile;
 let currentInputMode = 'mic';
@@ -71,42 +76,18 @@ function setup() {
   createUI(); // 既存のUIセットアップ
 }
 
+// ★ 2. draw()関数を、モードを振り分けるだけの司令塔に修正
 function draw() {
   if (!isPlaying && !isRecording) {
     noLoop();
     return;
   }
 
-  // ★★★ ここからが修正箇所です ★★★
-  // 「プレビュー中」を、「ファイル再生中」かつ「非録画中」かつ「描画履歴がまだ無い」場合に限定する
-  const isPreviewing = currentInputMode === 'file' && isPlaying && !isRecording && spectrumHistory.length === 0;
-
-  if (isRecording) {
-    // 「録画・描画中」の場合のロジックは変更なし
-    if (!uiComponents.sculptureModeCheckbox.checked()) {
-      background(0, 20); // 残像モード
-    }
-    // 彫刻モードの場合は背景をクリアしない
-  } else if (isPreviewing) {
-    // 「ファイル再生のプレビュー中」の場合のみ、背景をクリアする
-    background(0);
+  if (currentDrawingMode === 'abstract') {
+    drawAbstractMode();
+  } else if (currentDrawingMode === 'figurative' && particleSystem) {
+    drawParticleMode();
   }
-  // ★★★ ここまで修正 ★★★
-
-  // 描画中のタイマー更新
-  if (isRecording) {
-    const elapsedTime = (millis() - recordStartTime) / 1000;
-    select('#time-display').html(`${elapsedTime.toFixed(1)}s`);
-  }
-
-  // ファイル再生中のプログレスバー更新
-  if (currentInputMode === 'file' && soundFile && soundFile.isLoaded() && soundFile.isPlaying()) {
-    updateFileProgressBar();
-  }
-
-  frameRate(frameRateSlider.value());
-  const micBoost = (currentInputMode === 'mic') ? select('#mic-boost-slider').value() : 1;
-  drawVisuals(this, frameCount, false, micBoost);
 }
 
 // =============================================================================
@@ -233,7 +214,7 @@ function drawSpectrumRingByBands(pg, spectrum, frameCount, boost) {
   });
 }
 
-// 【1】downloadSVG関数を、このコードでまるごと置き換えてください
+// 既存の downloadSVG 関数を、以下の内容で完全に置き換えてください
 
 function downloadSVG() {
   console.log("Starting SVG export...");
@@ -241,23 +222,32 @@ function downloadSVG() {
 
   const svg = createGraphics(width, height, SVG);
   svg.colorMode(HSB, 360, 100, 100);
-  svg.background(0);
 
   const micBoostForSVG = (currentInputMode === 'mic') ? select('#mic-boost-slider').value() : 1;
 
-  // ★★★ 描画モードに応じて保存内容を切り替え ★★★
-  if (uiComponents.sculptureModeCheckbox.checked()) {
-    // 「彫刻モード」の場合：全履歴を描画
-    console.log("Exporting in Sculpture Mode (full history)...");
-    for (let i = 0; i < spectrumHistory.length; i++) {
-      drawVisuals(svg, i + 1, true, micBoostForSVG);
+  if (currentDrawingMode === 'abstract') {
+    console.log("Exporting Abstract mode...");
+
+    // ★★★ ここからが修正の核心部分です ★★★
+    if (uiComponents.sculptureModeCheckbox.checked()) {
+      // 「彫刻モード」の場合：背景を一度だけ塗り、全履歴を重ね描き
+      svg.background(0);
+      for (let i = 0; i < spectrumHistory.length; i++) {
+        drawVisuals(svg, i + 1, true, micBoostForSVG);
+      }
+    } else {
+      // 「残像モード」の場合：毎フレーム半透明の黒を重ねながら描画
+      for (let i = 0; i < spectrumHistory.length; i++) {
+        svg.background(0, 0, 0, 20 / 255 * 100); // HSBモードでの半透明の黒
+        drawVisuals(svg, i + 1, true, micBoostForSVG);
+      }
     }
-  } else {
-    // 「残像モード」の場合：最新の1フレームだけを描画
-    console.log("Exporting in Live Mode (snapshot)...");
-    if (spectrumHistory.length > 0) {
-      drawVisuals(svg, spectrumHistory.length, true, micBoostForSVG);
-    }
+    // ★★★ ここまで修正 ★★★
+
+  } else if (currentDrawingMode === 'figurative') {
+    console.log("Exporting Figurative mode...");
+    svg.background(0); // Figurativeモードは常に背景を黒にする
+    particleSystem.drawParticles(svg);
   }
 
   const fileName = generateTimestampedFilename('svg');
@@ -270,6 +260,7 @@ function downloadSVG() {
     loop();
   }
 }
+
 
 // 現在のUI設定をJSONファイルとして保存する関数
 function savePreset() {
@@ -416,6 +407,257 @@ function keyPressed() {
     toggleVideoRecording();
   }
 }
+
+// =============================================================================
+// ★ 3. モード切替と新しい描画ループのための関数群 (ここから下を全て追加)
+// =============================================================================
+
+/** Abstractモードの描画ループ（あなたの元のdraw関数のロジックをここに移動） */
+function drawAbstractMode() {
+  const isPreviewing = currentInputMode === 'file' && isPlaying && !isRecording && spectrumHistory.length === 0;
+
+  if (isRecording) {
+    if (!uiComponents.sculptureModeCheckbox.checked()) {
+      background(0, 20); // 残像モード
+    }
+  } else if (isPreviewing) {
+    background(0);
+  }
+
+  if (isRecording) {
+    const elapsedTime = (millis() - recordStartTime) / 1000;
+    select('#time-display').html(`${elapsedTime.toFixed(1)}s`);
+  }
+
+  if (currentInputMode === 'file' && soundFile && soundFile.isLoaded() && soundFile.isPlaying()) {
+    updateFileProgressBar();
+  }
+
+  frameRate(frameRateSlider.value());
+  const micBoost = (currentInputMode === 'mic') ? select('#mic-boost-slider').value() : 1;
+  drawVisuals(this, frameCount, false, micBoost);
+}
+
+/** Figurativeモードの描画ループ */
+function drawParticleMode() {
+  background(0, 50); // 残像効果
+  if (!fft) return;
+
+  let lowEnergy = fft.getEnergy("bass");
+  let highEnergy = fft.getEnergy("treble");
+
+  // 物理演算（状態更新）
+  particleSystem.updatePhysics();
+
+  // 描画（メインのCanvasに対して）
+  particleSystem.drawParticles(this);
+}
+
+/** 描画モードを切り替える関数 */
+function switchDrawingMode(mode) {
+  if (currentDrawingMode === mode) return;
+  currentDrawingMode = mode;
+  console.log(`Switched to ${mode} mode.`);
+
+  const abstractModeBtn = select('#abstract-mode-btn');
+  const figurativeModeBtn = select('#figurative-mode-btn');
+
+  if (mode === 'abstract') {
+    abstractModeBtn.addClass('active');
+    figurativeModeBtn.removeClass('active');
+    uiPanel.style('display', 'block');
+    if (particleUiPanel) particleUiPanel.style('display', 'none');
+  } else { // 'figurative'モード
+    figurativeModeBtn.addClass('active');
+    abstractModeBtn.removeClass('active');
+    uiPanel.style('display', 'none');
+    if (particleUiPanel) particleUiPanel.style('display', 'block');
+  }
+
+  stopAndReset(); // モードを切り替えたら描画をリセット
+}
+
+/** 画像ファイルが選択されたときの処理 */
+function handleImageFile(event) {
+  if (event.target.files && event.target.files[0]) {
+    const file = event.target.files[0];
+    referenceImage = loadImage(URL.createObjectURL(file), img => {
+      console.log("Image loaded for Figurative mode.");
+      if (!particleSystem) {
+        particleSystem = new ParticleSystem(referenceImage);
+      } else {
+        particleSystem.setImage(referenceImage);
+      }
+      switchDrawingMode('figurative');
+    });
+  }
+}
+
+// =============================================================================
+// Particle System Class (Processingコードをp5.jsに移植)
+// =============================================================================
+class Particle {
+  constructor(x, y) { this.x = x; this.y = y; this.vx = 0; this.vy = 0; this.rad = 1; this.vrad = 1; this.fx = 0; this.fy = 0; this.wt = 0; }
+}
+
+class ParticleSystem {
+  constructor(img) {
+    this.setImage(img);
+    this.particles = []; this.pixelCount = 0; this.nbrParticles = 18500; this.particlesPerFrame = 10;
+    this.damping = 0.4; this.kSpeed = 3.0; this.minDistFactor = 2.5;
+    this.createParticleUI();
+  }
+
+  setImage(img) { this.reference = img; this.reference.resize(width, height); }
+
+  createParticleUI() {
+    particleUiPanel = createDiv();
+    particleUiPanel.parent('ui-container');
+    particleUiPanel.addClass('ui-panel').position(10, 10).hide();
+    createDiv('Figurative Controls').parent(particleUiPanel).addClass('ui-section-title');
+    const createSliderWithLabel = (label, min, max, initial, step) => {
+      let container = createDiv(label + ': ').parent(particleUiPanel);
+      let slider = createSlider(min, max, initial, step).parent(container).addClass('ui-slider');
+      let valueSpan = createSpan(initial).parent(container);
+      slider.input(() => { valueSpan.html(slider.value()); this[label] = slider.value(); });
+      return slider;
+    };
+    this.dampingSlider = createSliderWithLabel('damping', 0.1, 0.9, this.damping, 0.01);
+    this.kSpeedSlider = createSliderWithLabel('kSpeed', 1.0, 10.0, this.kSpeed, 0.1);
+  }
+
+  updateSoundParameters(low, high) {
+    this.damping = map(low, 0, 255, 0.5, 0.2);
+    this.kSpeed = map(high, 0, 255, 2.0, 8.0);
+    // UIスライダーが存在すれば値を更新
+    if (this.dampingSlider) this.dampingSlider.value(this.damping);
+    if (this.kSpeedSlider) this.kSpeedSlider.value(this.kSpeed);
+  }
+
+  // ★★★ update() を updatePhysics() にリネーム ★★★
+  updatePhysics() {
+    if (this.pixelCount < this.nbrParticles) {
+      for (let i = 0; i < this.particlesPerFrame; i++) {
+        if (this.pixelCount < this.nbrParticles) {
+          this.particles[this.pixelCount++] = new Particle(random(width), random(height));
+        }
+      }
+    }
+    this.doPhysics();
+  }
+
+  // ★★★ 描画専用の関数 drawParticles() を新しく作成 ★★★
+  drawParticles(pg) {
+    pg.push();
+    pg.stroke(255);
+    for (let i = 0; i < this.pixelCount; ++i) {
+      let p = this.particles[i];
+      pg.strokeWeight(p.vrad);
+      pg.point(p.x, p.y);
+    }
+    pg.pop();
+  }
+
+  doPhysics() {
+    this.reference.loadPixels();
+    for (let i = 0; i < this.pixelCount; ++i) {
+      let p = this.particles[i];
+      let px = floor(p.x); let py = floor(p.y);
+      if (px >= 0 && px < this.reference.width && py >= 0 && py < this.reference.height) {
+        let v = red(this.reference.get(px, py));
+        p.rad = map(v, 0, 255, 1, 15); p.vrad = map(v, 0, 255, 0.5, 3);
+      }
+    }
+    for (let i = 0; i < this.pixelCount; ++i) {
+      let p = this.particles[i];
+      p.fx = p.fy = p.wt = 0; p.vx *= this.damping; p.vy *= this.damping;
+    }
+    for (let i = 0; i < this.pixelCount; i++) {
+      let p1 = this.particles[i];
+      for (let j = i + 1; j < this.pixelCount; j++) {
+        let p2 = this.particles[j];
+        let dx = p1.x - p2.x; let dy = p1.y - p2.y;
+        let distSq = dx * dx + dy * dy;
+        let maxDist = p1.rad + p2.rad;
+        if (distSq < (maxDist * this.minDistFactor) * (maxDist * this.minDistFactor) && distSq > 0) {
+          let distance = sqrt(distSq); let diff = maxDist - distance;
+          if (diff > 0) {
+            let scle = diff / maxDist; scle = scle * scle;
+            p1.wt += scle; p2.wt += scle;
+            scle = scle * this.kSpeed / (distance + 0.0001); // ゼロ除算を避ける
+            let forceX = dx * scle; let forceY = dy * scle;
+            p1.fx += forceX; p1.fy += forceY;
+            p2.fx -= forceX; p2.fy -= forceY;
+          }
+        }
+      }
+    }
+    for (let i = 0; i < this.pixelCount; i++) {
+      let p = this.particles[i];
+      if (p.wt > 0) { p.vx += p.fx / p.wt; p.vy += p.fy / p.wt; }
+      p.x += p.vx; p.y += p.vy;
+      if (p.x < 0) { p.x = 0; p.vx *= -1; }
+      if (p.x > width) { p.x = width; p.vx *= -1; }
+      if (p.y < 0) { p.y = 0; p.vy *= -1; }
+      if (p.y > height) { p.y = height; p.vy *= -1; }
+    }
+  }
+}
+
+function setupSoundControls() {
+  const micBtn = select('#mic-mode-btn');
+  const fileBtn = select('#file-mode-btn');
+  const uploadInput = select('#upload-sound');
+  const abstractModeBtn = select('#abstract-mode-btn');
+  const figurativeModeBtn = select('#figurative-mode-btn');
+  const uploadImageInput = select('#upload-image');
+  const playPauseBtn = select('#play-pause-btn');
+  const fileVolumeSlider = select('#file-volume-slider');
+  const micRecordBtn = select('#mic-record-btn');
+  const fileRecordBtn = select('#file-record-btn');
+  const progressBar = select('#progress-bar');
+  const videoRecordBtn = select('#video-record-btn');
+
+  const resetBtn = select('#reset-btn');
+
+  micBtn.mousePressed(() => switchInputMode('mic'));
+  fileBtn.mousePressed(() => uploadInput.elt.click());
+  uploadInput.changed(handleImageFile); // ★ 変更: handleSoundFile ではなく handleImageFile
+
+  abstractModeBtn.mousePressed(() => switchDrawingMode('abstract'));
+  figurativeModeBtn.mousePressed(() => {
+    if (!referenceImage) {
+      alert('Figurativeモードで使用する参照画像をアップロードしてください。');
+      uploadImageInput.elt.click();
+    } else {
+      switchDrawingMode('figurative');
+    }
+  });
+  uploadImageInput.changed(handleImageFile);
+
+  playPauseBtn.mousePressed(toggleFilePlayback);
+  micRecordBtn.mousePressed(toggleMicRecording);
+  fileRecordBtn.mousePressed(toggleFileRecording);
+  videoRecordBtn.mousePressed(toggleVideoRecording);
+
+  resetBtn.mousePressed(stopAndReset);
+
+  fileVolumeSlider.input(() => {
+    if (soundFile) {
+      soundFile.setVolume(fileVolumeSlider.value());
+    }
+  });
+
+  progressBar.elt.addEventListener('input', () => {
+    if (soundFile && soundFile.isLoaded() && !soundFile.isPlaying()) {
+      const duration = soundFile.duration();
+      const jumpTime = (progressBar.value() / 100) * duration;
+      soundFile.jump(jumpTime);
+      updateFileProgressBar();
+    }
+  });
+}
+
 // =============================================================================
 // ★ 動画録画機能: 以下の関数をまるごとファイル末尾に追加
 // =============================================================================
@@ -576,29 +818,44 @@ function switchInputMode(mode) {
   }
 }
 
+// 既存の setupSoundControls 関数を、以下の内容で完全に置き換えてください
+
 function setupSoundControls() {
   const micBtn = select('#mic-mode-btn');
   const fileBtn = select('#file-mode-btn');
   const uploadInput = select('#upload-sound');
+  const abstractModeBtn = select('#abstract-mode-btn');
+  const figurativeModeBtn = select('#figurative-mode-btn');
+  const uploadImageInput = select('#upload-image');
   const playPauseBtn = select('#play-pause-btn');
-  // ★★★ IDを 'reset-btn' に合わせ、変数名を 'resetBtn' に統一 ★★★
-  const resetBtn = select('#reset-btn');
   const fileVolumeSlider = select('#file-volume-slider');
   const micRecordBtn = select('#mic-record-btn');
   const fileRecordBtn = select('#file-record-btn');
   const progressBar = select('#progress-bar');
   const videoRecordBtn = select('#video-record-btn');
+  const resetBtn = select('#reset-btn');
 
   micBtn.mousePressed(() => switchInputMode('mic'));
   fileBtn.mousePressed(() => uploadInput.elt.click());
+
+  // ★★★ ここを handleSoundFile に修正 ★★★
   uploadInput.changed(handleSoundFile);
 
-  // ★★★ ボタンと、これから作成する正しい関数を紐付け ★★★
+  abstractModeBtn.mousePressed(() => switchDrawingMode('abstract'));
+  figurativeModeBtn.mousePressed(() => {
+    if (!referenceImage) {
+      alert('Figurativeモードで使用する参照画像をアップロードしてください。');
+      uploadImageInput.elt.click();
+    } else {
+      switchDrawingMode('figurative');
+    }
+  });
+  uploadImageInput.changed(handleImageFile);
+
   playPauseBtn.mousePressed(toggleFilePlayback);
   micRecordBtn.mousePressed(toggleMicRecording);
   fileRecordBtn.mousePressed(toggleFileRecording);
   videoRecordBtn.mousePressed(toggleVideoRecording);
-
   resetBtn.mousePressed(stopAndReset);
 
   fileVolumeSlider.input(() => {
