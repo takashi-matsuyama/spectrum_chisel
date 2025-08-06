@@ -97,61 +97,47 @@ function draw() {
 
 function drawVisuals(pg, currentFrame, isForSVG = false, boost = 1) {
   let spectrum;
-
-  // ★★★ 修正点: 現在のモードに応じた正しいFFTオブジェクトを選択 ★★★
   const activeFFT = (currentInputMode === 'mic') ? fftMic : fftFile;
 
   if (isForSVG) {
     spectrum = spectrumHistory[currentFrame - 1];
   } else {
     spectrum = activeFFT.analyze();
-    if (isRecording) spectrumHistory.push(spectrum.slice());
+    // ★★★ 修正点: SVG用の履歴は「描画開始(isRecording)」が押されている時だけ記録する ★★★
+    if (isRecording) {
+      spectrumHistory.push(spectrum.slice());
+    }
   }
 
   if (!spectrum) return;
 
-  // ... (以降、この関数内の他の部分はあなたのコードのままで変更ありません)
+  // ... (以降、この関数内の他の部分はあなたのコードのままで変更ありません) ...
   let totalEnergy = spectrum.reduce((a, b) => a + b, 0);
   if (totalEnergy * boost < 100 && !isForSVG) {
     if (!isForSVG) prevSpectrum = spectrum.slice();
     return;
   }
-
   pg.push();
   pg.translate(pg.width / 2, pg.height / 2);
   const scaleFactor = min(pg.width, pg.height) / 800;
   pg.scale(scaleFactor);
-
   const time = currentFrame * 0.005;
-
   const getEnergyFromSpectrum = (freq1, freq2) => {
     const nyquist = 22050;
     const startIndex = Math.floor(map(freq1, 0, nyquist, 0, spectrum.length));
     const endIndex = Math.ceil(map(freq2, 0, nyquist, 0, spectrum.length));
     let sum = 0;
     for (let i = startIndex; i <= endIndex; i++) {
-      if (spectrum[i] !== undefined) {
-        sum += spectrum[i];
-      }
+      if (spectrum[i] !== undefined) { sum += spectrum[i]; }
     }
     return sum / (endIndex - startIndex + 1);
   };
-
-  // プレビュー中でも描画されるように、このブロックは削除済みで正しいです
-
   BAND_CONFIG.forEach(bandInfo => {
     const components = uiComponents[bandInfo.name];
     if (components && components.enabledCheckbox.checked()) {
       const bandEnergy = getEnergyFromSpectrum(bandInfo.freq[0], bandInfo.freq[1]);
-      const ui = {
-        color: components.colorPicker.color(), weight: components.strokeSlider.value(), alpha: components.alphaSlider.value(),
-        gain: components.gainSlider.value(), threshold: components.thresholdSlider.value(),
-        intensityGain: components.intensityGainSlider.value(), angleSpeed: components.angleSpeedSlider.value(),
-        drawFunc: components.drawSelector.value()
-      };
-
+      const ui = { color: components.colorPicker.color(), weight: components.strokeSlider.value(), alpha: components.alphaSlider.value(), gain: components.gainSlider.value(), threshold: components.thresholdSlider.value(), intensityGain: components.intensityGainSlider.value(), angleSpeed: components.angleSpeedSlider.value(), drawFunc: components.drawSelector.value() };
       let scaledEnergy = pg.constrain(bandEnergy * ui.gain * boost, 0, 255);
-
       if (scaledEnergy > ui.threshold) {
         pg.push();
         let intensity = pg.map(bandEnergy * boost, 0, 255, 0, 1);
@@ -167,15 +153,8 @@ function drawVisuals(pg, currentFrame, isForSVG = false, boost = 1) {
       }
     }
   });
-
-  if (spectrumRingCheckbox.checked()) {
-    drawSpectrumRingByBands(pg, spectrum, currentFrame, boost);
-  }
-  if (spectrumDiffCheckbox.checked()) {
-    const prevSpecForDiff = isForSVG ? (spectrumHistory[currentFrame - 2] || []) : prevSpectrum;
-    drawSpectrumDiff(pg, spectrum, prevSpecForDiff, boost);
-  }
-
+  if (spectrumRingCheckbox.checked()) { drawSpectrumRingByBands(pg, spectrum, currentFrame, boost); }
+  if (spectrumDiffCheckbox.checked()) { const prevSpecForDiff = isForSVG ? (spectrumHistory[currentFrame - 2] || []) : prevSpectrum; drawSpectrumDiff(pg, spectrum, prevSpecForDiff, boost); }
   pg.pop();
   if (!isForSVG) prevSpectrum = spectrum.slice();
 }
@@ -413,28 +392,37 @@ function keyPressed() {
 
 /** Abstractモードの描画ループ（あなたの元のdraw関数のロジックをここに移動） */
 function drawAbstractMode() {
-  const isPreviewing = currentInputMode === 'file' && isPlaying && !isRecording && spectrumHistory.length === 0;
+  const isSculptureMode = uiComponents.sculptureModeCheckbox.checked();
+  const isFilePreview = currentInputMode === 'file' && isPlaying && !isRecording;
 
+  // あなたの元のコードにあった、シンプルで正しい背景描画ロジックに戻します
   if (isRecording) {
-    if (!uiComponents.sculptureModeCheckbox.checked()) {
+    // 「描画開始」が押されている状態
+    if (!isSculptureMode) {
       background(0, 20); // 残像モード
     }
-  } else if (isPreviewing) {
-    background(0);
+    // 彫刻モードの場合は、背景をクリアしない（＝蓄積される）
+  } else if (isFilePreview) {
+    // ファイルの「再生」だけが押されているプレビュー状態
+    background(0); // 常に背景をクリアする
   }
 
+  // --- UI更新処理（変更なし） ---
   if (isRecording) {
     const elapsedTime = (millis() - recordStartTime) / 1000;
     select('#time-display').html(`${elapsedTime.toFixed(1)}s`);
   }
-
   if (currentInputMode === 'file' && soundFile && soundFile.isLoaded() && soundFile.isPlaying()) {
     updateFileProgressBar();
   }
 
-  frameRate(frameRateSlider.value());
-  const micBoost = (currentInputMode === 'mic') ? select('#mic-boost-slider').value() : 1;
-  drawVisuals(this, frameCount, false, micBoost);
+  // --- 描画実行 ---
+  // 描画中、またはファイルプレビュー中のみ描画関数を呼び出す
+  if (isRecording || isFilePreview) {
+    frameRate(frameRateSlider.value());
+    const micBoost = (currentInputMode === 'mic') ? select('#mic-boost-slider').value() : 1;
+    drawVisuals(this, frameCount, false, micBoost);
+  }
 }
 
 /** Figurativeモードの描画ループ */
