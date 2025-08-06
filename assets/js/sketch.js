@@ -21,6 +21,11 @@ let spectrumRingCheckbox, spectrumDiffCheckbox, spectrumDiffColorPicker;
 let prevSpectrum = [];
 let uiVisible = true;
 
+// ★ 動画録画機能: 関連変数を追加
+let mediaRecorder;
+let recordedChunks = [];
+let isVideoRecording = false;
+
 // ★★★ UIコンポーネントを格納するオブジェクトを準備 ★★★
 const uiComponents = {};
 
@@ -406,6 +411,109 @@ function keyPressed() {
       toggleFileRecording();
     }
   }
+  // ★ 動画録画機能: 'V'キーで録画開始/停止をトグル
+  if (key === 'v' || key === 'V') {
+    toggleVideoRecording();
+  }
+}
+// =============================================================================
+// ★ 動画録画機能: 以下の関数をまるごとファイル末尾に追加
+// =============================================================================
+
+function toggleVideoRecording() {
+  if (isVideoRecording) {
+    stopVideoRecording();
+  } else {
+    startVideoRecording();
+  }
+}
+
+// 動画録画の開始関数
+function startVideoRecording() {
+  if (isVideoRecording) return;
+  if (getAudioContext().state !== 'running') userStartAudio();
+  if (!isRecording && !isPlaying) {
+    alert("描画または再生が開始されていません。録画を開始できません。");
+    return;
+  }
+
+  if (!mediaRecorder) {
+    console.log("Initializing MediaRecorder for the first time...");
+    try {
+      const canvas = document.querySelector('canvas');
+      const videoStream = canvas.captureStream(frameRateSlider.value());
+      const audioContext = getAudioContext();
+
+      // ★★★ ここからが修正の核心部分です ★★★
+      const mediaStreamDestination = audioContext.createMediaStreamDestination();
+
+      if (currentInputMode === 'mic') {
+        // マイク入力の場合：マイクを録画用の出口にだけ接続する
+        mic.connect(mediaStreamDestination);
+      } else if (soundFile) {
+        // ファイル再生の場合：全体の音声を録画用の出口に接続する
+        soundFile.connect(mediaStreamDestination);
+      }
+
+      const audioStream = mediaStreamDestination.stream;
+      // ★★★ ここまで修正 ★★★
+
+      if (audioStream.getAudioTracks().length === 0) {
+        alert("エラー: 音声トラックをキャプチャできませんでした。");
+        return;
+      }
+
+      const combinedStream = new MediaStream([
+        videoStream.getVideoTracks()[0],
+        audioStream.getAudioTracks()[0]
+      ]);
+
+      mediaRecorder = new MediaRecorder(combinedStream, {
+        mimeType: 'video/webm; codecs=vp9,opus'
+      });
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) recordedChunks.push(event.data);
+      };
+
+      mediaRecorder.onstop = () => {
+        if (currentInputMode === 'mic') {
+          mic.disconnect(); // 録画終了時にマイクの接続を解除
+        }
+        const blob = new Blob(recordedChunks, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style = 'display: none';
+        a.href = url;
+        a.download = generateTimestampedFilename('webm');
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        a.remove();
+        recordedChunks = [];
+        console.log("動画ファイルの保存が完了しました。");
+      };
+    } catch (err) {
+      console.error("MediaRecorderの初期化に失敗しました:", err);
+      alert("動画の録画機能の初期化に失敗しました。お使いのブラウザが対応していない可能性があります。");
+      return;
+    }
+  }
+
+  recordedChunks = [];
+  mediaRecorder.start();
+  isVideoRecording = true;
+  select('#video-record-btn').html('録画停止 (V)').addClass('active');
+  console.log("動画の録画を開始しました。");
+}
+// 動画録画の停止関数
+function stopVideoRecording() {
+  if (isVideoRecording) {
+    mediaRecorder.stop();
+    isVideoRecording = false;
+    select('#video-record-btn').html('録画開始 (V)').removeClass('active');
+    console.log("動画の録画を停止しました。");
+  }
 }
 
 function toggleUIVisibility() {
@@ -479,6 +587,7 @@ function setupSoundControls() {
   const micRecordBtn = select('#mic-record-btn');
   const fileRecordBtn = select('#file-record-btn');
   const progressBar = select('#progress-bar');
+  const videoRecordBtn = select('#video-record-btn');
 
   micBtn.mousePressed(() => switchInputMode('mic'));
   fileBtn.mousePressed(() => uploadInput.elt.click());
@@ -488,6 +597,7 @@ function setupSoundControls() {
   playPauseBtn.mousePressed(toggleFilePlayback);
   micRecordBtn.mousePressed(toggleMicRecording);
   fileRecordBtn.mousePressed(toggleFileRecording);
+  videoRecordBtn.mousePressed(toggleVideoRecording);
 
   resetBtn.mousePressed(stopAndReset);
 
@@ -576,11 +686,13 @@ function toggleFileRecording() {
 }
 
 // マイク入力時の「描画開始／一時停止」のシンプルな機能
+// 既存の toggleMicRecording 関数を、以下の内容で完全に置き換えてください
+
 function toggleMicRecording() {
   if (getAudioContext().state !== 'running') userStartAudio();
 
   isRecording = !isRecording;
-  isPlaying = isRecording; // マイクモードでは、再生と録画は常に同じ状態
+  isPlaying = isRecording;
 
   if (isRecording) {
     if (spectrumHistory.length === 0) {
