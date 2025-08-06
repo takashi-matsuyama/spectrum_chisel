@@ -98,7 +98,7 @@ function draw() {
 function drawVisuals(pg, currentFrame, isForSVG = false, boost = 1) {
   let spectrum;
 
-  // ★★★ モードに応じて使用するFFTを切り替える ★★★
+  // ★★★ 修正点: 現在のモードに応じた正しいFFTオブジェクトを選択 ★★★
   const activeFFT = (currentInputMode === 'mic') ? fftMic : fftFile;
 
   if (isForSVG) {
@@ -110,6 +110,7 @@ function drawVisuals(pg, currentFrame, isForSVG = false, boost = 1) {
 
   if (!spectrum) return;
 
+  // ... (以降、この関数内の他の部分はあなたのコードのままで変更ありません)
   let totalEnergy = spectrum.reduce((a, b) => a + b, 0);
   if (totalEnergy * boost < 100 && !isForSVG) {
     if (!isForSVG) prevSpectrum = spectrum.slice();
@@ -136,12 +137,7 @@ function drawVisuals(pg, currentFrame, isForSVG = false, boost = 1) {
     return sum / (endIndex - startIndex + 1);
   };
 
-  // ★★★ プレビュー中は描画しない ★★★
-  if (!isRecording && !isForSVG) {
-    pg.pop();
-    prevSpectrum = spectrum.slice();
-    return;
-  }
+  // プレビュー中でも描画されるように、このブロックは削除済みで正しいです
 
   BAND_CONFIG.forEach(bandInfo => {
     const components = uiComponents[bandInfo.name];
@@ -444,16 +440,17 @@ function drawAbstractMode() {
 /** Figurativeモードの描画ループ */
 function drawParticleMode() {
   background(0, 50); // 残像効果
-  if (!fft) return;
 
-  let lowEnergy = fft.getEnergy("bass");
-  let highEnergy = fft.getEnergy("treble");
+  // ★★★ 修正点: 現在のモードに応じた正しいFFTオブジェクトを選択 ★★★
+  const activeFFT = (currentInputMode === 'mic') ? fftMic : fftFile;
+  if (!activeFFT) return;
 
-  // 物理演算（状態更新）
-  particleSystem.updatePhysics();
+  // 正しいFFTからエネルギーを取得
+  let lowEnergy = activeFFT.getEnergy("bass");
+  let highEnergy = activeFFT.getEnergy("treble");
 
-  // 描画（メインのCanvasに対して）
-  particleSystem.drawParticles(this);
+  particleSystem.updateSoundParameters(lowEnergy, highEnergy);
+  particleSystem.update(); // 物理演算と描画
 }
 
 /** 描画モードを切り替える関数 */
@@ -810,11 +807,13 @@ function switchInputMode(mode) {
     fileBtn.removeClass('active');
     micControls.style('display', 'flex');
     fileControls.style('display', 'none');
-  } else {
+    console.log("Input mode switched to MIC.");
+  } else { // 'file'モード
     fileBtn.addClass('active');
     micBtn.removeClass('active');
     micControls.style('display', 'none');
     fileControls.style('display', 'flex');
+    console.log("Input mode switched to SOUND FILE.");
   }
 }
 
