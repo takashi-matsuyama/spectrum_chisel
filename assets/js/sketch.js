@@ -441,16 +441,16 @@ function drawAbstractMode() {
 function drawParticleMode() {
   background(0, 50); // 残像効果
 
-  // ★★★ 修正点: 現在のモードに応じた正しいFFTオブジェクトを選択 ★★★
+  if (!fftMic && !fftFile) return;
   const activeFFT = (currentInputMode === 'mic') ? fftMic : fftFile;
-  if (!activeFFT) return;
 
-  // 正しいFFTからエネルギーを取得
   let lowEnergy = activeFFT.getEnergy("bass");
   let highEnergy = activeFFT.getEnergy("treble");
 
+  // 物理演算（状態更新）と描画を、分離された正しい関数で呼び出す
   particleSystem.updateSoundParameters(lowEnergy, highEnergy);
-  particleSystem.update(); // 物理演算と描画
+  particleSystem.updatePhysics();
+  particleSystem.drawParticles(this); // メインのCanvas(this)に描画
 }
 
 /** 描画モードを切り替える関数 */
