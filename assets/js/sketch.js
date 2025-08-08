@@ -1,5 +1,7 @@
 let fftMic, fftFile;
 let sessionId = null;
+let imageTracePoints = []; // ★ この行を追加
+let traceIndex = 0; // ★ この行を追加
 
 // ★ 1. モード管理と新しい描画モード用の変数を追加
 let currentDrawingMode = 'abstract'; // 現在の描画モードを管理
@@ -103,7 +105,6 @@ function drawVisuals(pg, currentFrame, isForSVG = false, boost = 1) {
     spectrum = spectrumHistory[currentFrame - 1];
   } else {
     spectrum = activeFFT.analyze();
-    // ★★★ 修正点: SVG用の履歴は「描画開始(isRecording)」が押されている時だけ記録する ★★★
     if (isRecording) {
       spectrumHistory.push(spectrum.slice());
     }
@@ -111,16 +112,33 @@ function drawVisuals(pg, currentFrame, isForSVG = false, boost = 1) {
 
   if (!spectrum) return;
 
-  // ... (以降、この関数内の他の部分はあなたのコードのままで変更ありません) ...
   let totalEnergy = spectrum.reduce((a, b) => a + b, 0);
   if (totalEnergy * boost < 100 && !isForSVG) {
     if (!isForSVG) prevSpectrum = spectrum.slice();
     return;
   }
-  pg.push();
-  pg.translate(pg.width / 2, pg.height / 2);
+
+  pg.push(); // 描画状態を保存
+
+  // ★★★ ここが修正の核心部分です ★★★
+  if (referenceImage && imageTracePoints.length > 0) {
+    // 画像が読み込まれている場合：
+    // 1. トレース地点のリストから、現在のインデックスの座標を取得
+    const tracePoint = imageTracePoints[traceIndex];
+    // 2. その座標を描画の原点に設定
+    pg.translate(tracePoint.x, tracePoint.y);
+    // 3. 次の描画のために、インデックスを一つ進める（リストの末尾に来たら先頭に戻る）
+    traceIndex = (traceIndex + 1) % imageTracePoints.length;
+  } else {
+    // 画像が読み込まれていない場合（これまで通り）：中央を原点に設定
+    pg.translate(pg.width / 2, pg.height / 2);
+  }
+
+  // エラーの原因だったscaleFactorを、translateの後に正しく定義・適用
   const scaleFactor = min(pg.width, pg.height) / 800;
   pg.scale(scaleFactor);
+  // ★★★ 修正ここまで ★★★
+
   const time = currentFrame * 0.005;
   const getEnergyFromSpectrum = (freq1, freq2) => {
     const nyquist = 22050;
@@ -132,6 +150,7 @@ function drawVisuals(pg, currentFrame, isForSVG = false, boost = 1) {
     }
     return sum / (endIndex - startIndex + 1);
   };
+
   BAND_CONFIG.forEach(bandInfo => {
     const components = uiComponents[bandInfo.name];
     if (components && components.enabledCheckbox.checked()) {
@@ -153,9 +172,11 @@ function drawVisuals(pg, currentFrame, isForSVG = false, boost = 1) {
       }
     }
   });
+
   if (spectrumRingCheckbox.checked()) { drawSpectrumRingByBands(pg, spectrum, currentFrame, boost); }
   if (spectrumDiffCheckbox.checked()) { const prevSpecForDiff = isForSVG ? (spectrumHistory[currentFrame - 2] || []) : prevSpectrum; drawSpectrumDiff(pg, spectrum, prevSpecForDiff, boost); }
-  pg.pop();
+
+  pg.pop(); // 保存した描画状態に戻す
   if (!isForSVG) prevSpectrum = spectrum.slice();
 }
 
@@ -466,17 +487,41 @@ function switchDrawingMode(mode) {
 }
 
 /** 画像ファイルが選択されたときの処理 */
+// 【変更後】のコード
 function handleImageFile(event) {
   if (event.target.files && event.target.files[0]) {
     const file = event.target.files[0];
     referenceImage = loadImage(URL.createObjectURL(file), img => {
-      console.log("Image loaded for Figurative mode.");
-      if (!particleSystem) {
-        particleSystem = new ParticleSystem(referenceImage);
-      } else {
-        particleSystem.setImage(referenceImage);
+      // ↓↓↓↓↓↓ ここからが、新しく入れ替える「画像を解析する」ロジックです ↓↓↓↓↓↓
+      console.log("Image loaded for tracing in Abstract mode.");
+
+      imageTracePoints = []; // 配列を一旦空にする
+      img.loadPixels();      // 画像の全ピクセル情報をメモリに読み込む
+
+      // 処理を軽くするため、10ピクセルおきにチェックする
+      const stepSize = 10;
+      for (let y = 0; y < img.height; y += stepSize) {
+        for (let x = 0; x < img.width; x += stepSize) {
+          // ピクセルの色情報を取得
+          const index = (y * img.width + x) * 4;
+          const r = img.pixels[index];
+          const g = img.pixels[index + 1];
+          const b = img.pixels[index + 2];
+
+          // 明るさを計算
+          const brightness = (r + g + b) / 3;
+
+          // もしピクセルが十分に明るければ、その座標をリストに追加する
+          if (brightness > 50) { // 「50」という数値は調整可能です
+            imageTracePoints.push(createVector(x, y));
+          }
+        }
       }
-      switchDrawingMode('figurative');
+
+      console.log(`Found ${imageTracePoints.length} points to trace.`);
+      // ↑↑↑↑↑↑ ここまでが新しいロジックです ↑↑↑↑↑↑
+
+      // Figurativeモードへの切り替えは行わない！
     });
   }
 }
@@ -968,7 +1013,7 @@ function stopAndReset() {
   background(0);
   spectrumHistory = [];
   prevSpectrum = [];
-
+  traceIndex = 0; // ★ この行を追加
   sessionId = null;
   select('#time-display').html('0.0s');
 
