@@ -477,9 +477,6 @@ function startVideoRecording() {
       };
 
       mediaRecorder.onstop = () => {
-        if (currentInputMode === 'mic') {
-          mic.disconnect(); // 録画終了時にマイクの接続を解除
-        }
         const blob = new Blob(recordedChunks, { type: 'video/webm' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -562,17 +559,30 @@ function switchInputMode(mode) {
   const fileControls = select('#file-controls');
 
   if (mode === 'mic') {
+    // === マイクモードに切り替える際の処理 ===
     micBtn.addClass('active');
     fileBtn.removeClass('active');
     micControls.style('display', 'flex');
     fileControls.style('display', 'none');
+    // FFT（アナライザー）との接続を再確立する
     fft.setInput(mic);
-  } else { // 'file'モード
+  } else {
+    // === ファイルモードに切り替える際の処理 ===
     fileBtn.addClass('active');
     micBtn.removeClass('active');
     micControls.style('display', 'none');
     fileControls.style('display', 'flex');
-    if (soundFile) fft.setInput(soundFile);
+
+    // ★★★ ここが重要 ★★★
+    // マイクの接続を完全にリセットし、音声入力を確実にオフにする
+    if (mic.started) {
+      mic.stop();
+    }
+    mic.disconnect();
+
+    if (soundFile) {
+      fft.setInput(soundFile);
+    }
   }
 }
 
@@ -729,6 +739,13 @@ function stopAndReset() {
   background(0);
   spectrumHistory = [];
   prevSpectrum = [];
+
+  // 動画録画機能も完全にリセットする
+  if (isVideoRecording) {
+    stopVideoRecording();
+  }
+  mediaRecorder = null;
+  recordedChunks = [];
 
   sessionId = null;
   select('#time-display').html('0.0s');
