@@ -426,6 +426,7 @@ function drawAbstractMode() {
 }
 
 /** Figurativeモードの描画ループ */
+/** Figurativeモードの描画ループ */
 function drawParticleMode() {
   background(0, 50); // 残像効果
 
