@@ -60,7 +60,7 @@ export function startVideoRecording() {
         const blob = new Blob(state.recordedChunks, { type: 'video/webm' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.style = 'display: none';
+        a.className = 'hidden';
         a.href = url;
         a.download = generateTimestampedFilename('webm');
         document.body.appendChild(a);

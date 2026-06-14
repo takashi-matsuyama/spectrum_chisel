@@ -8,29 +8,29 @@ import { stopAndReset } from './audio.js';
 
 export function toggleUIVisibility() {
   state.uiVisible = !state.uiVisible;
-  state.uiPanel.style('display', state.uiVisible ? 'block' : 'none');
-  select('#sound-controls').style('display', state.uiVisible ? 'flex' : 'none');
+  const soundControls = select('#sound-controls');
+  if (state.uiVisible) {
+    state.uiPanel.removeClass('hidden');
+    soundControls.removeClass('hidden');
+  } else {
+    state.uiPanel.addClass('hidden');
+    soundControls.addClass('hidden');
+  }
 }
 
 export function createUI() {
+  // Appearance lives in .ui-panel (assets/css/style.css); only structure and
+  // behavior are set here.
   state.uiPanel = createDiv();
   state.uiPanel.parent('ui-container');
   state.uiPanel.addClass('ui-panel');
-  state.uiPanel.position(10, 10);
-  state.uiPanel.style('color', 'white');
-  state.uiPanel.style('background', 'rgba(0, 0, 0, 0.6)');
-  state.uiPanel.style('padding', '10px');
-  state.uiPanel.style('border-radius', '8px');
-  state.uiPanel.style('max-width', '320px');
-  state.uiPanel.style('overflow-y', 'auto');
-  state.uiPanel.style('max-height', '90vh');
 
   let randomColors = generateDistinctColors(8);
 
   const createSliderWithLabel = (label, min, max, initial, step, parentEl) => {
     let container = createDiv(label + ': ').parent(parentEl);
     let slider = createSlider(min, max, initial, step).parent(container).addClass('ui-slider');
-    let valueSpan = createSpan(initial).parent(container).style('margin-left', '5px');
+    let valueSpan = createSpan(initial).parent(container).addClass('ui-value');
     slider.input(() => valueSpan.html(slider.value()));
     return slider;
   };
@@ -55,32 +55,26 @@ export function createUI() {
   loadPresetButton.mousePressed(loadPreset);
 
   createDiv('Drawing Mode').parent(state.uiPanel).addClass('ui-section-title');
-  uiComponents.sculptureModeCheckbox = createCheckbox('彫刻モード（描画を蓄積）', false)
-    .parent(state.uiPanel)
-    .style('color', 'white');
+  uiComponents.sculptureModeCheckbox = createCheckbox('彫刻モード（描画を蓄積）', false).parent(state.uiPanel);
 
   createDiv('Frame Rate').parent(state.uiPanel).addClass('ui-section-title');
   state.frameRateSlider = createSlider(1, 60, 15, 1).parent(state.uiPanel);
   const frameRateValueSpan = createSpan(state.frameRateSlider.value())
     .parent(state.frameRateSlider.parent())
-    .style('color', 'white');
+    .addClass('ui-value');
   state.frameRateSlider.input(() => frameRateValueSpan.html(state.frameRateSlider.value()));
 
   const spectrumDiv = createDiv('Spectrum Layers').parent(state.uiPanel).addClass('ui-section-title');
 
-  state.spectrumRingCheckbox = createCheckbox('Draw Spectrum Ring', true)
-    .parent(spectrumDiv)
-    .style('color', 'white');
-  const ringControls = createDiv().parent(spectrumDiv).style('padding-left', '20px');
+  state.spectrumRingCheckbox = createCheckbox('Draw Spectrum Ring', true).parent(spectrumDiv);
+  const ringControls = createDiv().parent(spectrumDiv).addClass('ui-subcontrols');
   uiComponents.ring = {
     gainSlider: createSliderWithLabel('Gain', 0.1, 10.0, 1.0, 0.1, ringControls),
     thresholdSlider: createSliderWithLabel('Threshold', 0, 255, 30, 1, ringControls),
   };
 
-  state.spectrumDiffCheckbox = createCheckbox('Draw Spectrum Diff', true)
-    .parent(spectrumDiv)
-    .style('color', 'white');
-  const diffControls = createDiv().parent(spectrumDiv).style('padding-left', '20px');
+  state.spectrumDiffCheckbox = createCheckbox('Draw Spectrum Diff', true).parent(spectrumDiv);
+  const diffControls = createDiv().parent(spectrumDiv).addClass('ui-subcontrols');
   state.spectrumDiffColorPicker = createColorPicker('#ffffff').parent(diffControls);
   uiComponents.diff = {
     gainSlider: createSliderWithLabel('Gain', 0.1, 10.0, 1.0, 0.1, diffControls),

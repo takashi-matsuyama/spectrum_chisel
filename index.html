@@ -13,7 +13,7 @@
       <label>音源:</label>
       <button id="mic-mode-btn" class="active">マイク入力</button>
       <button id="file-mode-btn">ファイル再生</button>
-      <input type="file" id="upload-sound" accept="audio/*" style="display: none;">
+      <input type="file" id="upload-sound" accept="audio/*" class="hidden">
     </div>
 
     <div class="control-group" id="mic-controls">
@@ -22,7 +22,7 @@
       <button id="mic-record-btn">描画開始</button>
     </div>
 
-    <div class="control-group file-control" id="file-controls" style="display: none;">
+    <div class="control-group file-control hidden" id="file-controls">
       <div class="file-playback-controls">
         <button id="play-pause-btn">再生</button>
         <div id="progress-bar-container">

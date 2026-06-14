@@ -30,14 +30,14 @@ export function switchInputMode(mode) {
   if (mode === 'mic') {
     micBtn.addClass('active');
     fileBtn.removeClass('active');
-    micControls.style('display', 'flex');
-    fileControls.style('display', 'none');
+    micControls.removeClass('hidden');
+    fileControls.addClass('hidden');
     state.fft.setInput(state.mic);
   } else {
     fileBtn.addClass('active');
     micBtn.removeClass('active');
-    micControls.style('display', 'none');
-    fileControls.style('display', 'flex');
+    micControls.addClass('hidden');
+    fileControls.removeClass('hidden');
 
     // Fully reset the mic connection so audio input is reliably off.
     if (state.mic.started) {

@@ -124,3 +124,17 @@ canvas {
   min-width: 120px;
   text-align: center;
 }
+
+/* Utility and dynamically toggled classes (toggled from JS via class names,
+   so no inline style strings live in the scripts). */
+.hidden {
+  display: none !important;
+}
+
+.ui-value {
+  margin-left: 5px;
+}
+
+.ui-subcontrols {
+  padding-left: 20px;
+}
