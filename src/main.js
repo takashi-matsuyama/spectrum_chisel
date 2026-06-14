@@ -5,6 +5,10 @@ import p5 from 'p5';
 import 'p5/lib/addons/p5.sound.js';
 import 'p5.js-svg';
 
+import { BAND_CONFIG } from './core/bands.js';
+import { bandEnergy, freqToBin } from './core/energy.js';
+import { buildTimestampedFilename } from './core/filename.js';
+
 let fft;
 let sessionId = null;
 
@@ -48,16 +52,7 @@ const drawFunctionMap = {
   drawFloatingDots: { func: drawFloatingDots, defaultWeight: 1.0 }
 };
 
-const BAND_CONFIG = [
-  { name: 'subBass', freq: [20, 60], defFunc: "drawExpandingDots" },
-  { name: 'low', freq: [60, 250], defFunc: "drawSmoothEllipse" },
-  { name: 'lowMid', freq: [250, 500], defFunc: "drawNoisyContours" },
-  { name: 'mid', freq: [500, 2000], defFunc: "drawRotatingWaves" },
-  { name: 'upperMid', freq: [2000, 4000], defFunc: "drawFloatingDots" },
-  { name: 'presence', freq: [4000, 6000], defFunc: "drawSparks" },
-  { name: 'brilliance', freq: [6000, 16000], defFunc: "drawRadiantBeams" },
-  { name: 'high', freq: [16000, 20000], defFunc: "drawRadialLines" }
-];
+// BAND_CONFIG is imported from ./core/bands.js.
 
 // =============================================================================
 // p5.js Lifecycle Functions
@@ -146,19 +141,6 @@ function drawVisuals(pg, currentFrame, isForSVG = false, boost = 1) {
 
   const time = currentFrame * 0.005;
 
-  const getEnergyFromSpectrum = (freq1, freq2) => {
-    const nyquist = 22050;
-    const startIndex = Math.floor(map(freq1, 0, nyquist, 0, spectrum.length));
-    const endIndex = Math.ceil(map(freq2, 0, nyquist, 0, spectrum.length));
-    let sum = 0;
-    for (let i = startIndex; i <= endIndex; i++) {
-      if (spectrum[i] !== undefined) {
-        sum += spectrum[i];
-      }
-    }
-    return sum / (endIndex - startIndex + 1);
-  };
-
   // ★★★ プレビュー中は描画しない ★★★
   if (!isRecording && !isForSVG) {
     pg.pop();
@@ -169,7 +151,7 @@ function drawVisuals(pg, currentFrame, isForSVG = false, boost = 1) {
   BAND_CONFIG.forEach(bandInfo => {
     const components = uiComponents[bandInfo.name];
     if (components && components.enabledCheckbox.checked()) {
-      const bandEnergy = getEnergyFromSpectrum(bandInfo.freq[0], bandInfo.freq[1]);
+      const energy = bandEnergy(spectrum, bandInfo.freq[0], bandInfo.freq[1]);
       const ui = {
         color: components.colorPicker.color(), weight: components.strokeSlider.value(), alpha: components.alphaSlider.value(),
         gain: components.gainSlider.value(), threshold: components.thresholdSlider.value(),
@@ -177,11 +159,11 @@ function drawVisuals(pg, currentFrame, isForSVG = false, boost = 1) {
         drawFunc: components.drawSelector.value()
       };
 
-      let scaledEnergy = pg.constrain(bandEnergy * ui.gain * boost, 0, 255);
+      let scaledEnergy = pg.constrain(energy * ui.gain * boost, 0, 255);
 
       if (scaledEnergy > ui.threshold) {
         pg.push();
-        let intensity = pg.map(bandEnergy * boost, 0, 255, 0, 1);
+        let intensity = pg.map(energy * boost, 0, 255, 0, 1);
         let angle = currentFrame * 0.02;
         let dx = pg.sin(angle + time) * 10 * intensity;
         let dy = pg.cos(angle + time * 1.5) * 10 * intensity;
@@ -220,11 +202,10 @@ function drawSpectrumRingByBands(pg, spectrum, frameCount, boost) {
   pg.noFill();
   let totalBands = spectrum.length;
 
-  // ★★★ グローバルなBAND_CONFIGを参照 ★★★
   BAND_CONFIG.forEach(bandInfo => {
     const color = uiComponents[bandInfo.name].colorPicker.color();
-    let startIndex = floor(pg.map(bandInfo.freq[0], 0, 22050, 0, totalBands));
-    let endIndex = floor(pg.map(bandInfo.freq[1], 0, 22050, 0, totalBands));
+    let startIndex = Math.floor(freqToBin(bandInfo.freq[0], totalBands));
+    let endIndex = Math.floor(freqToBin(bandInfo.freq[1], totalBands));
     pg.stroke(color); pg.strokeWeight(1); pg.beginShape();
     for (let i = startIndex; i < endIndex; i++) {
       if (spectrum[i] === undefined) continue;
@@ -377,23 +358,26 @@ function loadPreset() {
   input.elt.click();
 }
 
-// generateTimestampedFilename()関数を、このコードでまるごと置き換えてください
+/**
+ * Collect the current p5/DOM state and build the output filename via the pure
+ * helper in ./core/filename.js.
+ * @param {string} extension
+ * @returns {string}
+ */
 function generateTimestampedFilename(extension) {
-  const totalSeconds = (spectrumHistory.length / frameRateSlider.value()).toFixed(1);
-  const totalFrames = spectrumHistory.length;
-  let prefix = currentInputMode === 'mic' ? 'sc-mic' : 'sc-file';
-  const id = sessionId || Date.now();
-
-  // ★★★ trimEndがnullでないことを安全に確認してから、トリミング情報を追加 ★★★
-  if (currentInputMode === 'file' && soundFile && trimEnd !== null) {
-    if (trimStart !== 0 || trimEnd < soundFile.duration() - 0.1) {
-      prefix += `-trim[${trimStart.toFixed(1)}-${trimEnd.toFixed(1)}]s`;
-    }
-  }
-
-  const modeSuffix = uiComponents.sculptureModeCheckbox.checked() ? 'eternity' : 'moment';
-
-  return `${prefix}-${id}-${modeSuffix}-t${totalSeconds}s-f${totalFrames}.${extension}`;
+  const trim =
+    currentInputMode === 'file' && soundFile && trimEnd !== null
+      ? { start: trimStart, end: trimEnd, duration: soundFile.duration() }
+      : null;
+  return buildTimestampedFilename({
+    extension,
+    totalFrames: spectrumHistory.length,
+    frameRate: frameRateSlider.value(),
+    inputMode: currentInputMode,
+    id: sessionId || Date.now(),
+    sculptureMode: uiComponents.sculptureModeCheckbox.checked(),
+    trim,
+  });
 }
 
 function keyPressed() {
