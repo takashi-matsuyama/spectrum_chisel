@@ -27,5 +27,6 @@
   "alertNotStarted": "描画または再生が開始されていません。録画を開始できません。",
   "alertNoAudioTrack": "エラー: 音声トラックをキャプチャできませんでした。",
   "alertVideoInit": "動画の録画機能の初期化に失敗しました。お使いのブラウザが対応していない可能性があります。",
-  "alertSelectJson": "エラー: JSONファイルを指定してください。"
+  "alertSelectJson": "エラー: JSONファイルを指定してください。",
+  "alertPresetIncompatible": "このプリセットは古い帯域構成（虹以前）のため、一部の帯域設定は適用されませんでした。"
 }

@@ -27,5 +27,6 @@
   "alertNotStarted": "Drawing or playback has not started, so recording cannot begin.",
   "alertNoAudioTrack": "Error: could not capture an audio track.",
   "alertVideoInit": "Failed to initialize video recording. Your browser may not support it.",
-  "alertSelectJson": "Error: please choose a JSON file."
+  "alertSelectJson": "Error: please choose a JSON file.",
+  "alertPresetIncompatible": "This preset uses an older band layout (pre-rainbow); some band settings were not applied."
 }

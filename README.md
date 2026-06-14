@@ -4,7 +4,7 @@
 
 This project generates abstract visualizations that accumulate over time from audio captured in real time. Its central aim is to capture "sound" — a fleeting phenomenon — in a visual, organic form, and to preserve it as a permanent record: an artwork.
 
--   🎧 **Visualizing the structure of sound**: Sound is decomposed into eight frequency bands (SubBass–High), and each band is assigned a distinct geometric, abstract drawing style, translating the hierarchical structure of sound into visual expression.
+-   🎧 **Visualizing the structure of sound**: Sound is decomposed into seven frequency bands — an audible "rainbow" from low frequency (red) to high frequency (violet) — and each band is assigned a distinct geometric, abstract drawing style, translating the hierarchical structure of sound into visual expression.
 -   🌱 **Organic motion and accumulation**: Animations such as noise, fluctuation, and rotation respond to the intensity and change of the sound, accumulating on the screen as time passes.
 -   🖼️ **Toward static works**: Drawings can be saved as SVG, with a design that anticipates applications such as printing and printmaking.
 
@@ -43,8 +43,8 @@ Use the UI panel at the top left to fine-tune the appearance of the drawing.
 -   **Global layers (Spectrum Layers)**
     -   **Spectrum Ring**: Toggles the layer that draws the energy of all frequency bands as a ring. `Gain` and `Threshold` adjust its sensitivity independently.
     -   **Spectrum Diff**: A layer that expresses the volume difference from the previous frame as stippling. It captures attacks and passages with sharp change. Its sensitivity is adjustable as well.
--   **Per-band layers (SubBass, Low, Mid ...)**
-    -   For each of the eight frequency bands, you can finely configure drawing on/off, color, drawing style (8 types), line width, opacity, and more.
+-   **Per-band layers (Red, Orange, Yellow, Green, Blue, Indigo, Violet)**
+    -   For each of the seven frequency bands, you can finely configure drawing on/off, color, drawing style (8 types), line width, opacity, and more. Each band defaults to its rainbow color (low frequency = red ... high frequency = violet), and the color picker remains fully editable.
     -   **`Gain` / `Threshold`**: The most important parameters for adjusting the sensitivity of each band. Raising Threshold (or lowering Gain) makes the band respond only to louder sounds.
     -   **`IntensityGain` / `AngleSpeed`**: Adjust the magnitude and speed of motion of the selected drawing style.
 
@@ -56,6 +56,12 @@ Use the UI panel at the top left to fine-tune the appearance of the drawing.
 -   **P key**: Saves the current canvas as a PNG image.
 -   **C key**: Toggles the visibility of all UI.
 -   **E key**: Resets the drawing.
+
+---
+
+### 🎨 Presets
+
+You can save the current settings as a JSON "technique" and load it back later. Presets created before the seven-color rainbow redesign used an older eight-band layout; loading one still applies the global settings, but its per-band settings are skipped because the band names no longer match. The app detects this and warns you when it happens.
 
 ---
 

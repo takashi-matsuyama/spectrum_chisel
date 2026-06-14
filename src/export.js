@@ -2,8 +2,9 @@
 // preset save/load.
 
 import { state, uiComponents } from './state.js';
-import { BAND_CONFIG } from './core/bands.js';
+import { BAND_CONFIG, bandNames } from './core/bands.js';
 import { buildTimestampedFilename } from './core/filename.js';
+import { detectBandIncompatibility, PRESET_VERSION } from './core/preset.js';
 import { drawVisuals } from './drawing/render.js';
 import { t } from './i18n/index.js';
 
@@ -45,7 +46,7 @@ export function downloadSVG() {
 // Save the current UI settings as a JSON preset.
 export function savePreset() {
   const preset = {
-    version: '1.0.0',
+    version: PRESET_VERSION,
     sculptureMode: uiComponents.sculptureModeCheckbox.checked(),
     frameRate: state.frameRateSlider.value(),
     spectrumRing: {
@@ -85,6 +86,14 @@ export function loadPreset() {
   const input = createFileInput((file) => {
     if (file.type === 'application' && file.subtype === 'json') {
       const preset = file.data;
+
+      // Presets saved before the rainbow redesign use the old band names; warn
+      // that those band settings will not apply (global settings still do).
+      const compat = detectBandIncompatibility(preset, bandNames());
+      if (!compat.compatible) {
+        console.warn('Preset band layout differs from the current bands.', compat);
+        alert(t('alertPresetIncompatible'));
+      }
 
       uiComponents.sculptureModeCheckbox.checked(preset.sculptureMode);
       state.frameRateSlider.value(preset.frameRate);
