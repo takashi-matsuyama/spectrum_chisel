@@ -1,7 +1,8 @@
-// p5 is used in global mode. Importing the p5 UMD build sets window.p5 and
-// registers the global init that attaches the p5 API to window before
-// setup()/draw() run; the sound and SVG add-ons augment that same global p5.
-import p5 from 'p5';
+// p5 is used in global mode. ./p5-global.js sets window.p5 first; the p5 UMD
+// build also registers the global init that attaches the p5 API to window
+// before setup()/draw() run. The sound and SVG add-ons then augment that same
+// global p5 (they must load after window.p5 is set).
+import p5 from './p5-global.js';
 import 'p5/lib/addons/p5.sound.js';
 import 'p5.js-svg';
 
