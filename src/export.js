@@ -6,6 +6,7 @@ import { BAND_CONFIG, bandNames } from './core/bands.js';
 import { buildTimestampedFilename } from './core/filename.js';
 import { detectBandIncompatibility, PRESET_VERSION } from './core/preset.js';
 import { drawVisuals } from './drawing/render.js';
+import { collectRenderParams } from './params.js';
 import { t } from './i18n/index.js';
 
 export function downloadSVG() {
@@ -49,41 +50,10 @@ export function downloadSVG() {
   }
 }
 
-// Save the current UI settings as a JSON preset.
+// Save the current UI settings as a JSON preset. The preset body is the live
+// render-params snapshot (same shape), tagged with the schema version.
 export function savePreset() {
-  const preset = {
-    version: PRESET_VERSION,
-    sculptureMode: uiComponents.sculptureModeCheckbox.checked(),
-    frameRate: state.frameRateSlider.value(),
-    spectrumRing: {
-      enabled: state.spectrumRingCheckbox.checked(),
-      gain: uiComponents.ring.gainSlider.value(),
-      threshold: uiComponents.ring.thresholdSlider.value(),
-    },
-    spectrumDiff: {
-      enabled: state.spectrumDiffCheckbox.checked(),
-      gain: uiComponents.diff.gainSlider.value(),
-      threshold: uiComponents.diff.thresholdSlider.value(),
-      color: uiComponents.diff.colorPicker.value(),
-    },
-    bands: {},
-  };
-
-  BAND_CONFIG.forEach((band) => {
-    const name = band.name;
-    preset.bands[name] = {
-      enabled: uiComponents[name].enabledCheckbox.checked(),
-      color: uiComponents[name].colorPicker.value(),
-      drawFunc: uiComponents[name].drawSelector.value(),
-      stroke: uiComponents[name].strokeSlider.value(),
-      alpha: uiComponents[name].alphaSlider.value(),
-      gain: uiComponents[name].gainSlider.value(),
-      threshold: uiComponents[name].thresholdSlider.value(),
-      intensityGain: uiComponents[name].intensityGainSlider.value(),
-      angleSpeed: uiComponents[name].angleSpeedSlider.value(),
-    };
-  });
-
+  const preset = { version: PRESET_VERSION, ...collectRenderParams() };
   saveJSON(preset, `sc-preset-${Date.now()}.json`);
 }
 

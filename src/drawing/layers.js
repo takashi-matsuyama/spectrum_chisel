@@ -1,14 +1,21 @@
 // Global spectrum layers drawn on top of the per-band styles: a ring of all
 // band energies and a stippled diff of the change since the previous frame.
+// Both take explicit params (and pre-resolved colors) so they never read the
+// DOM; the renderer passes them in.
 
-import { uiComponents } from '../state.js';
 import { BAND_CONFIG } from '../core/bands.js';
 import { freqToBin } from '../core/energy.js';
 
-export function drawSpectrumRingByBands(pg, spectrum, frameCount, boost) {
-  const ringUI = uiComponents.ring;
-  const gain = ringUI.gainSlider.value();
-  const threshold = ringUI.thresholdSlider.value();
+/**
+ * @param {any} pg
+ * @param {number[]} spectrum
+ * @param {number} frameCount
+ * @param {number} boost
+ * @param {{ gain: number, threshold: number }} ringParams
+ * @param {Record<string, any>} bandColors  Resolved p5.Color per band name.
+ */
+export function drawSpectrumRingByBands(pg, spectrum, frameCount, boost, ringParams, bandColors) {
+  const { gain, threshold } = ringParams;
   const overallEnergy = spectrum.reduce((sum, value) => sum + value, 0) / spectrum.length;
 
   if (overallEnergy * gain * boost < threshold) {
@@ -19,7 +26,7 @@ export function drawSpectrumRingByBands(pg, spectrum, frameCount, boost) {
   let totalBands = spectrum.length;
 
   BAND_CONFIG.forEach((bandInfo) => {
-    const color = uiComponents[bandInfo.name].colorPicker.color();
+    const color = bandColors[bandInfo.name];
     let startIndex = Math.floor(freqToBin(bandInfo.freq[0], totalBands));
     let endIndex = Math.floor(freqToBin(bandInfo.freq[1], totalBands));
     pg.stroke(color); pg.strokeWeight(1); pg.beginShape();
@@ -37,18 +44,23 @@ export function drawSpectrumRingByBands(pg, spectrum, frameCount, boost) {
   });
 }
 
-export function drawSpectrumDiff(pg, current, previous, boost) {
+/**
+ * @param {any} pg
+ * @param {number[]} current
+ * @param {number[]} previous
+ * @param {number} boost
+ * @param {{ gain: number, threshold: number }} diffParams
+ * @param {any} diffColor  Resolved p5.Color (RGB mode, alpha max 255).
+ */
+export function drawSpectrumDiff(pg, current, previous, boost, diffParams, diffColor) {
   if (!previous || previous.length === 0) return;
 
-  const diffUI = uiComponents.diff;
-  let diffColor = diffUI.colorPicker.color();
-  const gain = diffUI.gainSlider.value();
-  const threshold = diffUI.thresholdSlider.value();
+  const { gain, threshold } = diffParams;
 
   diffColor.setAlpha(180); pg.noFill();
   for (let i = 0; i < current.length; i++) {
     let diff = Math.abs(current[i] - (previous[i] || 0));
-    // ★★★ micBoostを適用 ★★★
+    // Apply the input gain/boost before thresholding, matching the live path.
     if (diff * gain * boost > threshold) {
       let angle = pg.map(i, 0, current.length, 0, pg.TWO_PI);
       let radius = pg.map(diff, 10, 255, 120, 370);
