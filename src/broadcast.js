@@ -64,11 +64,13 @@ export function broadcastFrame(frameIndex, spectrum, params, boost) {
 /**
  * Reply to a late-joining viewer with the full current state. Carries the
  * accumulated history only in sculpture mode, so the viewer can replay it and
- * match the atelier. Resets the dedup baseline since this send is authoritative.
+ * match the atelier. This reply is addressed to one viewer, so it must NOT touch
+ * the frame dedup baseline (lastSentParams), which gates the params field for
+ * every viewer's frames: resetting it here would let the next frame omit params
+ * that other, already-open viewers have not received yet.
  * @param {{viewerId: string, params: object, boost: number, history: number[][]|null}} payload
  */
 export function broadcastSync({ viewerId, params, boost, history }) {
-  lastSentParams = JSON.stringify(params);
   /** @type {Record<string, any>} */
   const message = { type: 'sync', viewerId, params, boost };
   if (history) message.history = history;
