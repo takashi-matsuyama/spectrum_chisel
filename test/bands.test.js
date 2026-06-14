@@ -24,4 +24,8 @@ describe('BAND_CONFIG', () => {
     const names = bandNames();
     expect(new Set(names).size).toBe(names.length);
   });
+
+  it('is the seven-color rainbow from low (red) to high (violet)', () => {
+    expect(bandNames()).toEqual(['red', 'orange', 'yellow', 'green', 'blue', 'indigo', 'violet']);
+  });
 });

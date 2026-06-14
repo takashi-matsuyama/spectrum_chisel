@@ -2,6 +2,7 @@
 
 import { state, uiComponents } from './state.js';
 import { BAND_CONFIG } from './core/bands.js';
+import { defaultBandColor } from './core/colors.js';
 import { drawFunctionMap } from './drawing/styles.js';
 import { downloadSVG, savePreset, loadPreset, generateTimestampedFilename } from './export.js';
 import { stopAndReset } from './audio.js';
@@ -25,8 +26,6 @@ export function createUI() {
   state.uiPanel = createDiv();
   state.uiPanel.parent('ui-container');
   state.uiPanel.addClass('ui-panel');
-
-  let randomColors = generateDistinctColors(8);
 
   const createSliderWithLabel = (label, min, max, initial, step, parentEl) => {
     let container = createDiv(label + ': ').parent(parentEl);
@@ -83,26 +82,19 @@ export function createUI() {
     colorPicker: state.spectrumDiffColorPicker,
   };
 
-  const energySettings = {
-    low: { gain: 1.0, threshold: 100 },
-    mid: { gain: 1.0, threshold: 100 },
-    high: { gain: 1.0, threshold: 100 },
-    subBass: { gain: 1.0, threshold: 100 },
-    lowMid: { gain: 1.0, threshold: 100 },
-    upperMid: { gain: 1.0, threshold: 100 },
-    presence: { gain: 1.0, threshold: 100 },
-    brilliance: { gain: 1.0, threshold: 100 },
-  };
+  // Default per-band energy mapping (identical across bands; kept as a single
+  // constant so it does not need to track the band list).
+  const DEFAULT_BAND_ENERGY = { gain: 1.0, threshold: 100 };
 
-  BAND_CONFIG.forEach((band, index) => {
+  BAND_CONFIG.forEach((band) => {
     let name = band.name;
-    let title = `${name.charAt(0).toUpperCase() + name.slice(1).replace(/([A-Z])/g, ' $1')} (${band.freq[0]} - ${band.freq[1]} Hz)`;
+    let title = `${name.charAt(0).toUpperCase() + name.slice(1)} (${band.freq[0]} - ${band.freq[1]} Hz)`;
     const section = createDiv(title).parent(state.uiPanel).addClass('ui-section-title');
 
     uiComponents[name] = {};
 
     uiComponents[name].enabledCheckbox = createCheckbox(t('enabled'), true).parent(section);
-    uiComponents[name].colorPicker = createColorPicker(randomColors[index]).parent(section);
+    uiComponents[name].colorPicker = createColorPicker(defaultBandColor(name)).parent(section);
     const drawSelector = createSelect().parent(section);
     for (let key in drawFunctionMap) {
       drawSelector.option(key);
@@ -112,8 +104,8 @@ export function createUI() {
     const defaultWeight = drawFunctionMap[band.defFunc].defaultWeight;
     uiComponents[name].strokeSlider = createSliderWithLabel('Stroke', 0.1, 5, defaultWeight, 0.1, section);
     uiComponents[name].alphaSlider = createSliderWithLabel('Alpha', 0, 255, 20, 1, section);
-    uiComponents[name].gainSlider = createSliderWithLabel('Gain', 0.1, 5.0, energySettings[name].gain, 0.01, section);
-    uiComponents[name].thresholdSlider = createSliderWithLabel('Threshold', 0, 255, energySettings[name].threshold, 1, section);
+    uiComponents[name].gainSlider = createSliderWithLabel('Gain', 0.1, 5.0, DEFAULT_BAND_ENERGY.gain, 0.01, section);
+    uiComponents[name].thresholdSlider = createSliderWithLabel('Threshold', 0, 255, DEFAULT_BAND_ENERGY.threshold, 1, section);
     uiComponents[name].intensityGainSlider = createSliderWithLabel('IntensityGain', 0.0, 5.0, 1.0, 0.01, section);
     uiComponents[name].angleSpeedSlider = createSliderWithLabel('AngleSpeed', 0.0, 5.0, 1.0, 0.01, section);
 
@@ -123,14 +115,4 @@ export function createUI() {
       uiComponents[name].strokeSlider.value(newWeight);
     });
   });
-}
-
-function generateDistinctColors(count) {
-  const colors = [];
-  let baseHue = random(360);
-  for (let i = 0; i < count; i++) {
-    let hue = (baseHue + i * (360 / count) + random(-20, 20)) % 360;
-    colors.push(color(hue, random(60, 100), random(70, 100)));
-  }
-  return colors;
 }
