@@ -41,3 +41,6 @@ secrets/
 # macOS-specific files
 .DS_Store
 Thumbs.db
+
+# Vite dev cache
+.vite/

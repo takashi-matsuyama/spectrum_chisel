@@ -42,10 +42,15 @@ export function t(key) {
 }
 
 /**
- * Apply translations to static elements carrying a `data-i18n` attribute.
+ * Apply translations to static elements carrying a `data-i18n` attribute, and
+ * sync the document language so assistive tech and translation tools see the
+ * active locale.
  * @param {ParentNode} [root]
  */
 export function applyStaticTranslations(root = document) {
+  if (typeof document !== 'undefined' && document.documentElement) {
+    document.documentElement.lang = current;
+  }
   root.querySelectorAll('[data-i18n]').forEach((el) => {
     el.textContent = t(el.getAttribute('data-i18n'));
   });
