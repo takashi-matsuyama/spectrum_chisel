@@ -1,66 +1,67 @@
-# Spectrum Chisel - 音と時間の彫刻
+# Spectrum Chisel — Sculpting Sound and Time
 
-## ✨ コンセプト：音の可視化と抽象表現
+## ✨ Concept: Visualizing and Abstracting Sound
 
-このプロジェクトは、リアルタイムに取得した音声データをもとに、時間的に蓄積される抽象的なビジュアライゼーションを生成します。主な目的は、「音」という一瞬の現象を、視覚的かつ有機的な形で捉え、永続的な記録＝作品として残すことにあります。
+This project generates abstract visualizations that accumulate over time from audio captured in real time. Its central aim is to capture "sound" — a fleeting phenomenon — in a visual, organic form, and to preserve it as a permanent record: an artwork.
 
--   🎧 **音の構造を可視化**: 音を8つの周波数帯（SubBass〜High）に分解し、それぞれに異なる幾何学的・抽象的な描画スタイルを割り当てることで、音の階層的構造を視覚表現へと変換します。
--   🌱 **有機的な動きと蓄積**: ノイズや揺らぎ、回転などのアニメーションは、音の強度と変化に応じて変化し、時間の経過とともに画面上に蓄積されていきます。
--   🖼️ **静的作品への展開**: 描画結果はSVGとして保存可能であり、印刷や版画作品などへの応用も視野に入れた設計です。
+-   🎧 **Visualizing the structure of sound**: Sound is decomposed into eight frequency bands (SubBass–High), and each band is assigned a distinct geometric, abstract drawing style, translating the hierarchical structure of sound into visual expression.
+-   🌱 **Organic motion and accumulation**: Animations such as noise, fluctuation, and rotation respond to the intensity and change of the sound, accumulating on the screen as time passes.
+-   🖼️ **Toward static works**: Drawings can be saved as SVG, with a design that anticipates applications such as printing and printmaking.
 
-このアプローチにより、本プロジェクトは「音を聴く」のではなく「音を観る」という体験を提示し、アーティストや研究者による創造的・分析的活用を可能にします。
+Through this approach, the project offers the experience of "seeing sound" rather than "hearing sound," enabling creative and analytical use by artists and researchers.
+
 ---
 
-## 📘 Spectrum Chisel — 説明書
+## 📘 Spectrum Chisel — Manual
 
-### 🎯 プロジェクト概要
+### 🎯 Project Overview
 
-このプロジェクトは、`p5.js`ライブラリ群を駆使し、音のスペクトル情報から抽象的なビジュアルアートを生成するクリエイティブコーディングツールです。 **「Phase 1: 素材と『鑿』の準備」** が完了し、音を入力し、多彩なパラメータを調整して「音と時間の彫刻」を創作するための基本的な基盤が整いました。
+This project is a creative-coding tool that generates abstract visual art from the spectral information of sound, built on the `p5.js` family of libraries. With **"Phase 1: Preparing the material and the 'chisel'"** complete, the basic foundation is now in place for inputting sound and adjusting a rich set of parameters to create "sculptures of sound and time."
 
-### 🎹 操作方法
+### 🎹 Controls
 
-#### 1. 音源コントロール
+#### 1. Sound Source Control
 
-画面右上に表示されるコントローラーで、音源と再生を管理します。
+Use the controller at the top right of the screen to manage the sound source and playback.
 
-| UI要素             | 機能                                                                                                                              |
+| UI element | Function |
 | ------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
-| **マイク入力ボタン** | PCに接続されたマイクからの音声をリアルタイムで入力します。                                                             |
-| **ファイル再生ボタン** | クリックするとファイル選択ダイアログが開き、任意の音声ファイル（mp3, wav等）を読み込んで再生できます。                    |
-| **Mic Boost** | マイク入力時専用の感度増幅スライダーです。マイクの入力レベルが小さい場合に、この値を上げることで描画の感度を高めます。 |
-| **File Volume** | 音声ファイル再生時専用のボリュームスライダーです。音源の入力レベルを調整し、描画の感度をコントロールします。   |
-| **再生／一時停止** | 視覚化の開始と一時停止を切り替えます。                                                                      |
-| **停止・リセット** | 再生を停止し、キャンバス上の描画をすべてクリアします。                                                            |
+| **Mic input button** | Inputs audio from a microphone connected to your PC in real time. |
+| **File playback button** | Opens a file-selection dialog so you can load and play any audio file (mp3, wav, etc.). |
+| **Mic Boost** | A sensitivity-amplification slider dedicated to mic input. When the mic input level is low, raise this value to increase drawing sensitivity. |
+| **File Volume** | A volume slider dedicated to audio-file playback. Adjusts the input level of the source to control drawing sensitivity. |
+| **Play / Pause** | Toggles the start and pause of the visualization. |
+| **Stop / Reset** | Stops playback and clears all drawing on the canvas. |
 
-#### 2. 描画コントロールパネル
+#### 2. Drawing Control Panel
 
-画面左上のUIパネルで、描画の見た目を細かく調整できます。
+Use the UI panel at the top left to fine-tune the appearance of the drawing.
 
--   **一般設定 (Controls, Frame Rate)**
-    -   SVGやPNG形式での保存、UIの表示／非表示、キャンバスのリセットが可能です。
-    -   `Frame Rate`スライダーで、1秒間に描画する回数を調整できます。値が小さいほど、時間の経過がゆっくりとした作品になります。
--   **全体レイヤー (Spectrum Layers)**
-    -   **Spectrum Ring**: 全周波数帯のエネルギーをリング状に描画するレイヤーの表示／非表示を切り替えます。`Gain`と`Threshold`で感度を独立して調整できます。
-    -   **Spectrum Diff**: 前のフレームとの音量の差分を点描で表現するレイヤーです。音の立ち上がりや変化が激しい部分を捉えることができます。こちらも感度の調整が可能です。
--   **各周波数帯レイヤー (SubBass, Low, Mid ...)**
-    -   8つの周波数帯それぞれに対して、描画のON/OFF、色、描画スタイル（8種類）、線の太さ、透明度などを細かく設定できます。
-    -   **`Gain` / `Threshold`**: 各音域の感度を調整する最も重要なパラメータです。Thresholdを上げる（またはGainを下げる）ことで、より大きな音にだけ反応するようになります。
-    -   **`IntensityGain` / `AngleSpeed`**: 選択した描画スタイルの動きの大きさや速さを調整します。
-
----
-
-### ⌨️ ショートカットキー
-
--   **Sキー**: 現在のキャンバスをSVGファイルとして保存します。
--   **Pキー**: 現在のキャンバスをPNG画像として保存します。
--   **Cキー**: 全てのUIの表示／非表示を切り替えます。
--   **Eキー**: 描画をリセットします。
+-   **General settings (Controls, Frame Rate)**
+    -   Save as SVG or PNG, show/hide the UI, and reset the canvas.
+    -   The `Frame Rate` slider adjusts how many times per second the drawing is rendered. Lower values produce works in which time passes more slowly.
+-   **Global layers (Spectrum Layers)**
+    -   **Spectrum Ring**: Toggles the layer that draws the energy of all frequency bands as a ring. `Gain` and `Threshold` adjust its sensitivity independently.
+    -   **Spectrum Diff**: A layer that expresses the volume difference from the previous frame as stippling. It captures attacks and passages with sharp change. Its sensitivity is adjustable as well.
+-   **Per-band layers (SubBass, Low, Mid ...)**
+    -   For each of the eight frequency bands, you can finely configure drawing on/off, color, drawing style (8 types), line width, opacity, and more.
+    -   **`Gain` / `Threshold`**: The most important parameters for adjusting the sensitivity of each band. Raising Threshold (or lowering Gain) makes the band respond only to louder sounds.
+    -   **`IntensityGain` / `AngleSpeed`**: Adjust the magnitude and speed of motion of the selected drawing style.
 
 ---
 
-### 展望
+### ⌨️ Keyboard Shortcuts
 
-今後は**「Phase 2: 『鑿』の技法を探求する」**に移行し、以下の機能の実装を目指します。
+-   **S key**: Saves the current canvas as an SVG file.
+-   **P key**: Saves the current canvas as a PNG image.
+-   **C key**: Toggles the visibility of all UI.
+-   **E key**: Resets the drawing.
 
--   アーティストが見つけ出した独自のUIパラメータ設定を、「技法」としてJSONファイルに保存・読み込みする機能。
--   作品をSVGで保存する際に、制作時間やフレーム数といった情報をファイル名に自動で刻印する機能。
+---
+
+### Roadmap
+
+Next, the project will move to **"Phase 2: Exploring the techniques of the 'chisel'"**, aiming to implement the following features:
+
+-   Saving and loading an artist's own discovered UI parameter settings as a "technique" in a JSON file.
+-   Automatically inscribing information such as creation time and frame count into the filename when saving a work as SVG.
