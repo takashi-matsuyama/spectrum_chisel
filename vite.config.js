@@ -12,6 +12,14 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     target: 'es2022',
+    rollupOptions: {
+      // Multi-page: the atelier (index.html) and the UI-less viewer (view.html).
+      // Paths are relative to the Vite root (this directory).
+      input: {
+        main: 'index.html',
+        view: 'view.html',
+      },
+    },
   },
   test: {
     // The pure core (src/core) is environment-agnostic; canvas drawing is not

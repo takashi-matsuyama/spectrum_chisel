@@ -14,6 +14,7 @@
   "savePng": "Save PNG (P)",
   "clearCanvas": "Clear Canvas (E)",
   "toggleUi": "Toggle UI (C)",
+  "openViewer": "Open Viewer (W)",
   "savePreset": "Save Preset",
   "loadPreset": "Load Preset",
   "controls": "Controls",

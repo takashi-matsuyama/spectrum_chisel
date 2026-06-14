@@ -19,6 +19,7 @@ import {
 import { createUI, toggleUIVisibility } from './ui.js';
 import { downloadSVG, generateTimestampedFilename } from './export.js';
 import { toggleVideoRecording } from './recording.js';
+import { broadcastFrame, openViewer } from './broadcast.js';
 import { applyStaticTranslations } from './i18n/index.js';
 
 function setup() {
@@ -75,7 +76,9 @@ function draw() {
 
   frameRate(state.frameRateSlider.value());
   const micBoost = state.currentInputMode === 'mic' ? select('#mic-boost-slider').value() : 1;
-  drawVisuals(this, frameCount, false, micBoost);
+  const rendered = drawVisuals(this, frameCount, false, micBoost);
+  // Mirror each drawn frame to any open viewing window.
+  if (rendered) broadcastFrame(frameCount, rendered, micBoost);
 }
 
 function windowResized() {
@@ -119,6 +122,9 @@ function keyPressed() {
   }
   if (key === 'v' || key === 'V') {
     toggleVideoRecording();
+  }
+  if (key === 'w' || key === 'W') {
+    openViewer();
   }
 }
 

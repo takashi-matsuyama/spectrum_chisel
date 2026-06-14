@@ -8,7 +8,7 @@ import prettier from 'eslint-config-prettier';
 // @types/p5's global declarations (tsconfig "types": ["p5/global"]); ESLint
 // here focuses on style and quality, so no-undef is relaxed for shell files.
 export default [
-  { ignores: ['dist/**', 'node_modules/**', 'assets/**'] },
+  { ignores: ['dist/**', 'node_modules/**', 'assets/**', '.vite/**'] },
   js.configs.recommended,
   {
     files: ['**/*.js'],
@@ -23,7 +23,7 @@ export default [
   },
   {
     // p5 global-mode shell: relies on globals provided by p5 at runtime.
-    files: ['src/main.js', 'src/audio.js', 'src/ui.js', 'src/export.js', 'src/recording.js', 'src/drawing/**/*.js'],
+    files: ['src/main.js', 'src/audio.js', 'src/ui.js', 'src/export.js', 'src/recording.js', 'src/view.js', 'src/drawing/**/*.js'],
     languageOptions: {
       globals: {
         p5: 'readonly',

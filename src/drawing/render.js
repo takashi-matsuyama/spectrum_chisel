@@ -99,6 +99,8 @@ export function renderFrame(pg, currentFrame, spectrum, prevSpectrum, params, bo
  * @param {number} currentFrame Frame index (1-based when replaying history).
  * @param {boolean} [isForSVG]  Whether this is an offline SVG render.
  * @param {number} [boost]      Input gain multiplier.
+ * @returns {number[]|null} The spectrum that was drawn, or null if the frame
+ *   was skipped (no data, near-silent, or previewing). Callers may broadcast it.
  */
 export function drawVisuals(pg, currentFrame, isForSVG = false, boost = 1) {
   let spectrum;
@@ -111,19 +113,19 @@ export function drawVisuals(pg, currentFrame, isForSVG = false, boost = 1) {
     if (state.isRecording) state.spectrumHistory.push(spectrum.slice());
   }
 
-  if (!spectrum) return;
+  if (!spectrum) return null;
 
   // Skip near-silent live frames (the diff layer still needs prevSpectrum).
   let totalEnergy = spectrum.reduce((a, b) => a + b, 0);
   if (totalEnergy * boost < 100 && !isForSVG) {
     state.prevSpectrum = spectrum.slice();
-    return;
+    return null;
   }
 
   // Previewing (file playing, not recording): keep prevSpectrum fresh, draw nothing.
   if (!state.isRecording && !isForSVG) {
     state.prevSpectrum = spectrum.slice();
-    return;
+    return null;
   }
 
   const params = collectRenderParams();
@@ -132,4 +134,5 @@ export function drawVisuals(pg, currentFrame, isForSVG = false, boost = 1) {
   renderFrame(pg, currentFrame, spectrum, prevSpectrum, params, boost);
 
   if (!isForSVG) state.prevSpectrum = spectrum.slice();
+  return spectrum;
 }
