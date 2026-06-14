@@ -1,0 +1,176 @@
+// Export and preset I/O: SVG/PNG output, filename construction, and JSON
+// preset save/load.
+
+import { state, uiComponents } from './state.js';
+import { BAND_CONFIG, bandNames } from './core/bands.js';
+import { buildTimestampedFilename } from './core/filename.js';
+import { detectBandIncompatibility, PRESET_VERSION } from './core/preset.js';
+import { drawVisuals } from './drawing/render.js';
+import { t } from './i18n/index.js';
+
+export function downloadSVG() {
+  console.log('Starting SVG export...');
+  noLoop();
+
+  const svg = createGraphics(width, height, SVG);
+  svg.colorMode(HSB, 360, 100, 100);
+  svg.background(0);
+
+  const micBoostForSVG = state.currentInputMode === 'mic' ? select('#mic-boost-slider').value() : 1;
+
+  if (uiComponents.sculptureModeCheckbox.checked()) {
+    // Sculpture mode: render the full history.
+    console.log('Exporting in Sculpture Mode (full history)...');
+    for (let i = 0; i < state.spectrumHistory.length; i++) {
+      drawVisuals(svg, i + 1, true, micBoostForSVG);
+    }
+  } else {
+    // Afterimage mode: render only the latest frame.
+    console.log('Exporting in Live Mode (snapshot)...');
+    if (state.spectrumHistory.length > 0) {
+      drawVisuals(svg, state.spectrumHistory.length, true, micBoostForSVG);
+    }
+  }
+
+  const fileName = generateTimestampedFilename('svg');
+  save(svg, fileName);
+
+  console.log('SVG export complete.');
+  // The file is already saved here. p5.js-svg graphics can throw inside p5's
+  // Element.remove() during cleanup, so guard it to avoid an uncaught error.
+  try {
+    svg.remove();
+  } catch (err) {
+    console.warn('SVG graphics cleanup failed (non-fatal):', err);
+  }
+
+  if (state.isPlaying || state.isRecording) {
+    loop();
+  }
+}
+
+// Save the current UI settings as a JSON preset.
+export function savePreset() {
+  const preset = {
+    version: PRESET_VERSION,
+    sculptureMode: uiComponents.sculptureModeCheckbox.checked(),
+    frameRate: state.frameRateSlider.value(),
+    spectrumRing: {
+      enabled: state.spectrumRingCheckbox.checked(),
+      gain: uiComponents.ring.gainSlider.value(),
+      threshold: uiComponents.ring.thresholdSlider.value(),
+    },
+    spectrumDiff: {
+      enabled: state.spectrumDiffCheckbox.checked(),
+      gain: uiComponents.diff.gainSlider.value(),
+      threshold: uiComponents.diff.thresholdSlider.value(),
+      color: uiComponents.diff.colorPicker.value(),
+    },
+    bands: {},
+  };
+
+  BAND_CONFIG.forEach((band) => {
+    const name = band.name;
+    preset.bands[name] = {
+      enabled: uiComponents[name].enabledCheckbox.checked(),
+      color: uiComponents[name].colorPicker.value(),
+      drawFunc: uiComponents[name].drawSelector.value(),
+      stroke: uiComponents[name].strokeSlider.value(),
+      alpha: uiComponents[name].alphaSlider.value(),
+      gain: uiComponents[name].gainSlider.value(),
+      threshold: uiComponents[name].thresholdSlider.value(),
+      intensityGain: uiComponents[name].intensityGainSlider.value(),
+      angleSpeed: uiComponents[name].angleSpeedSlider.value(),
+    };
+  });
+
+  saveJSON(preset, `sc-preset-${Date.now()}.json`);
+}
+
+// Load a JSON preset and apply it to the UI.
+export function loadPreset() {
+  const input = createFileInput((file) => {
+    if (file.type === 'application' && file.subtype === 'json') {
+      const preset = file.data;
+
+      // Presets saved before the rainbow redesign use the old band names; warn
+      // that those band settings will not apply (global settings still do).
+      const compat = detectBandIncompatibility(preset, bandNames());
+      if (!compat.compatible) {
+        console.warn('Preset band layout differs from the current bands.', compat);
+        alert(t('alertPresetIncompatible'));
+      }
+
+      uiComponents.sculptureModeCheckbox.checked(preset.sculptureMode);
+      state.frameRateSlider.value(preset.frameRate);
+
+      state.spectrumRingCheckbox.checked(preset.spectrumRing.enabled);
+      uiComponents.ring.gainSlider.value(preset.spectrumRing.gain);
+      uiComponents.ring.thresholdSlider.value(preset.spectrumRing.threshold);
+
+      state.spectrumDiffCheckbox.checked(preset.spectrumDiff.enabled);
+      uiComponents.diff.gainSlider.value(preset.spectrumDiff.gain);
+      uiComponents.diff.thresholdSlider.value(preset.spectrumDiff.threshold);
+      uiComponents.diff.colorPicker.value(preset.spectrumDiff.color);
+
+      BAND_CONFIG.forEach((band) => {
+        const name = band.name;
+        const bandPreset = preset.bands[name];
+        if (bandPreset) {
+          uiComponents[name].enabledCheckbox.checked(bandPreset.enabled);
+          uiComponents[name].colorPicker.value(bandPreset.color);
+          uiComponents[name].drawSelector.value(bandPreset.drawFunc);
+          uiComponents[name].strokeSlider.value(bandPreset.stroke);
+          uiComponents[name].alphaSlider.value(bandPreset.alpha);
+          uiComponents[name].gainSlider.value(bandPreset.gain);
+          uiComponents[name].thresholdSlider.value(bandPreset.threshold);
+          uiComponents[name].intensityGainSlider.value(bandPreset.intensityGain);
+          uiComponents[name].angleSpeedSlider.value(bandPreset.angleSpeed);
+        }
+      });
+
+      // Refresh the value label next to every slider.
+      const sliders = selectAll('.ui-slider');
+      sliders.forEach((slider) => {
+        const valueSpan = slider.elt.nextElementSibling;
+        if (valueSpan && valueSpan.tagName === 'SPAN') {
+          valueSpan.innerHTML = slider.value();
+        }
+      });
+
+      // The Frame Rate slider has its own value label too.
+      const frameRateValueSpan = state.frameRateSlider.elt.nextElementSibling;
+      if (frameRateValueSpan && frameRateValueSpan.tagName === 'SPAN') {
+        frameRateValueSpan.innerHTML = state.frameRateSlider.value();
+      }
+
+      console.log('Preset loaded successfully.');
+    } else {
+      alert(t('alertSelectJson'));
+    }
+    input.remove();
+  });
+  input.elt.click();
+}
+
+/**
+ * Collect the current p5/DOM state and build the output filename via the pure
+ * helper in ./core/filename.js.
+ * @param {string} extension
+ * @returns {string}
+ */
+export function generateTimestampedFilename(extension) {
+  const trim =
+    state.currentInputMode === 'file' && state.soundFile && state.trimEnd !== null
+      ? { start: state.trimStart, end: state.trimEnd, duration: state.soundFile.duration() }
+      : null;
+  return buildTimestampedFilename({
+    extension,
+    totalFrames: state.spectrumHistory.length,
+    frameRate: state.frameRateSlider.value(),
+    inputMode: state.currentInputMode,
+    id: state.sessionId || Date.now(),
+    sculptureMode: uiComponents.sculptureModeCheckbox.checked(),
+    trim,
+  });
+}

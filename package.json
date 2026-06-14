@@ -1,0 +1,41 @@
+{
+  "name": "spectrum-chisel",
+  "version": "0.6.1",
+  "private": true,
+  "type": "module",
+  "description": "A creative-coding artwork that sculpts the spectrum of sound into abstract visuals with p5.js.",
+  "license": "Apache-2.0",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "p5": "^1.9.0",
+    "p5.js-svg": "^1.6.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "@types/p5": "^1.7.0",
+    "eslint": "^9.0.0",
+    "eslint-config-prettier": "^9.1.0",
+    "globals": "^15.0.0",
+    "prettier": "^3.0.0",
+    "typescript": "^5.5.0",
+    "vite": "^5.4.0",
+    "vitest": "^2.0.0"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild"]
+  }
+}

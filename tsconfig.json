@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "strict": false,
+    "noImplicitAny": false,
+    "types": ["p5/global", "vite/client"]
+  },
+  "//": "Type checking targets the pure, p5-independent core (src/core) and the tests, where JSDoc types add real value. The p5/DOM shell runs p5 in global mode against incomplete @types/p5 declarations, so it is validated by ESLint + the Vite build + runtime instead of checkJs.",
+  "include": ["src/core", "src/i18n", "test", "vite.config.js"]
+}
