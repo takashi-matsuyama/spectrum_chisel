@@ -10,21 +10,21 @@
 <body>
   <div id="sound-controls">
     <div class="control-group">
-      <label>音源:</label>
-      <button id="mic-mode-btn" class="active">マイク入力</button>
-      <button id="file-mode-btn">ファイル再生</button>
+      <label data-i18n="soundSource">音源:</label>
+      <button id="mic-mode-btn" class="active" data-i18n="micInput">マイク入力</button>
+      <button id="file-mode-btn" data-i18n="filePlayback">ファイル再生</button>
       <input type="file" id="upload-sound" accept="audio/*" class="hidden">
     </div>
 
     <div class="control-group" id="mic-controls">
       <label>Mic Boost:</label>
       <input type="range" id="mic-boost-slider" min="0.01" max="10" value="2" step="0.01">
-      <button id="mic-record-btn">描画開始</button>
+      <button id="mic-record-btn" data-i18n="startDrawing">描画開始</button>
     </div>
 
     <div class="control-group file-control hidden" id="file-controls">
       <div class="file-playback-controls">
-        <button id="play-pause-btn">再生</button>
+        <button id="play-pause-btn" data-i18n="play">再生</button>
         <div id="progress-bar-container">
           <input type="range" id="progress-bar" value="0" step="0.01">
         </div>
@@ -33,15 +33,15 @@
       <div class="file-record-controls">
         <label>File Volume:</label>
         <input type="range" id="file-volume-slider" min="0.01" max="10" value="0.5" step="0.01">
-        <button id="file-record-btn">描画開始</button>
+        <button id="file-record-btn" data-i18n="startDrawing">描画開始</button>
       </div>
     </div>
     <div class="control-group" id="video-controls">
-      <label>動画:</label>
-      <button id="video-record-btn">録画開始 (V)</button>
+      <label data-i18n="video">動画:</label>
+      <button id="video-record-btn" data-i18n="startVideoRec">録画開始 (V)</button>
     </div>
     <div class="control-group">
-      <button id="reset-btn">リセット</button>
+      <button id="reset-btn" data-i18n="reset">リセット</button>
       <label>Time:</label>
       <span id="time-display">0.0s</span>
     </div>

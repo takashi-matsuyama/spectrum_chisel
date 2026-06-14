@@ -5,6 +5,7 @@ import { state, uiComponents } from './state.js';
 import { BAND_CONFIG } from './core/bands.js';
 import { buildTimestampedFilename } from './core/filename.js';
 import { drawVisuals } from './drawing/render.js';
+import { t } from './i18n/index.js';
 
 export function downloadSVG() {
   console.log('Starting SVG export...');
@@ -130,7 +131,7 @@ export function loadPreset() {
 
       console.log('Preset loaded successfully.');
     } else {
-      alert('エラー: JSONファイルを指定してください。');
+      alert(t('alertSelectJson'));
     }
     input.remove();
   });

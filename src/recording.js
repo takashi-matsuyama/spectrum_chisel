@@ -3,6 +3,7 @@
 
 import { state } from './state.js';
 import { generateTimestampedFilename } from './export.js';
+import { t } from './i18n/index.js';
 
 export function toggleVideoRecording() {
   if (state.isVideoRecording) {
@@ -16,7 +17,7 @@ export function startVideoRecording() {
   if (state.isVideoRecording) return;
   if (getAudioContext().state !== 'running') userStartAudio();
   if (!state.isRecording && !state.isPlaying) {
-    alert('描画または再生が開始されていません。録画を開始できません。');
+    alert(t('alertNotStarted'));
     return;
   }
 
@@ -39,7 +40,7 @@ export function startVideoRecording() {
       const audioStream = mediaStreamDestination.stream;
 
       if (audioStream.getAudioTracks().length === 0) {
-        alert('エラー: 音声トラックをキャプチャできませんでした。');
+        alert(t('alertNoAudioTrack'));
         return;
       }
 
@@ -72,7 +73,7 @@ export function startVideoRecording() {
       };
     } catch (err) {
       console.error('Failed to initialize MediaRecorder:', err);
-      alert('動画の録画機能の初期化に失敗しました。お使いのブラウザが対応していない可能性があります。');
+      alert(t('alertVideoInit'));
       return;
     }
   }
@@ -80,7 +81,7 @@ export function startVideoRecording() {
   state.recordedChunks = [];
   state.mediaRecorder.start();
   state.isVideoRecording = true;
-  select('#video-record-btn').html('録画停止 (V)').addClass('active');
+  select('#video-record-btn').html(t('stopVideoRec')).addClass('active');
   console.log('Video recording started.');
 }
 
@@ -88,7 +89,7 @@ export function stopVideoRecording() {
   if (state.isVideoRecording) {
     state.mediaRecorder.stop();
     state.isVideoRecording = false;
-    select('#video-record-btn').html('録画開始 (V)').removeClass('active');
+    select('#video-record-btn').html(t('startVideoRec')).removeClass('active');
     console.log('Video recording stopped.');
   }
 }

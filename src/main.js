@@ -19,8 +19,11 @@ import {
 import { createUI, toggleUIVisibility } from './ui.js';
 import { downloadSVG, generateTimestampedFilename } from './export.js';
 import { toggleVideoRecording } from './recording.js';
+import { applyStaticTranslations } from './i18n/index.js';
 
 function setup() {
+  applyStaticTranslations(); // Localize the static markup in index.html.
+
   let myCanvas = createCanvas(windowWidth, windowHeight);
   myCanvas.parent('canvas-container');
   colorMode(HSB, 360, 100, 100);

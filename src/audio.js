@@ -3,6 +3,7 @@
 
 import { state } from './state.js';
 import { toggleVideoRecording, stopVideoRecording } from './recording.js';
+import { t } from './i18n/index.js';
 
 export function initMic() {
   state.mic = new p5.AudioIn();
@@ -14,7 +15,7 @@ export function initMic() {
     },
     (err) => {
       console.error('Mic error:', err);
-      alert('マイクの初期化に失敗しました。ブラウザの設定を確認してください。');
+      alert(t('alertMicInit'));
     }
   );
 }
@@ -107,8 +108,8 @@ export function handleSoundFile(event) {
       const fileVolumeSlider = select('#file-volume-slider');
       state.soundFile.setVolume(fileVolumeSlider.value());
 
-      select('#play-pause-btn').html('再生');
-      select('#file-record-btn').html('描画開始');
+      select('#play-pause-btn').html(t('play'));
+      select('#file-record-btn').html(t('startDrawing'));
       state.isPlaying = false;
       state.isRecording = false;
       noLoop();
@@ -123,11 +124,11 @@ export function toggleFilePlayback() {
   state.isPlaying = !state.isPlaying;
   if (state.isPlaying) {
     state.soundFile.play();
-    select('#play-pause-btn').html('一時停止');
+    select('#play-pause-btn').html(t('pause'));
     loop();
   } else {
     state.soundFile.pause();
-    select('#play-pause-btn').html('再生');
+    select('#play-pause-btn').html(t('play'));
     if (!state.isRecording) noLoop(); // Keep looping while recording.
   }
 }
@@ -142,11 +143,11 @@ export function toggleFileRecording() {
       state.recordStartTime = millis();
       state.trimStart = state.soundFile.currentTime();
     }
-    select('#file-record-btn').html('描画停止');
+    select('#file-record-btn').html(t('stopDrawing'));
     if (!state.isPlaying) loop();
   } else {
     state.trimEnd = state.soundFile.currentTime();
-    select('#file-record-btn').html('描画開始');
+    select('#file-record-btn').html(t('startDrawing'));
     if (!state.isPlaying) noLoop();
   }
 }
@@ -164,11 +165,11 @@ export function toggleMicRecording() {
     }
     state.mic.start();
     loop();
-    select('#mic-record-btn').html('一時停止');
+    select('#mic-record-btn').html(t('pause'));
   } else {
     state.mic.stop();
     noLoop();
-    select('#mic-record-btn').html('描画開始');
+    select('#mic-record-btn').html(t('startDrawing'));
   }
 }
 
@@ -183,9 +184,9 @@ export function stopAndReset() {
   state.isPlaying = false;
   state.isRecording = false;
 
-  select('#play-pause-btn').html('再生');
-  select('#mic-record-btn').html('描画開始');
-  select('#file-record-btn').html('描画開始');
+  select('#play-pause-btn').html(t('play'));
+  select('#mic-record-btn').html(t('startDrawing'));
+  select('#file-record-btn').html(t('startDrawing'));
 
   background(0);
   state.spectrumHistory = [];
