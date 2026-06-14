@@ -1,3 +1,10 @@
+// p5 is used in global mode. Importing the p5 UMD build sets window.p5 and
+// registers the global init that attaches the p5 API to window before
+// setup()/draw() run; the sound and SVG add-ons augment that same global p5.
+import p5 from 'p5';
+import 'p5/lib/addons/p5.sound.js';
+import 'p5.js-svg';
+
 let fft;
 let sessionId = null;
 
@@ -1048,3 +1055,14 @@ function drawFloatingDots(pg, energy, frameCount, time, style, params) {
     }
   }
 }
+
+// =============================================================================
+// p5 global-mode bootstrap
+// =============================================================================
+// In a classic <script>, top-level function declarations become window
+// properties automatically; inside an ES module they are module-scoped, so the
+// p5 lifecycle hooks must be exposed on window explicitly for global mode.
+window.setup = setup;
+window.draw = draw;
+window.windowResized = windowResized;
+window.keyPressed = keyPressed;
