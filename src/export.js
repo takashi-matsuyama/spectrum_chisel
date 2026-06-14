@@ -36,7 +36,13 @@ export function downloadSVG() {
   save(svg, fileName);
 
   console.log('SVG export complete.');
-  svg.remove();
+  // The file is already saved here. p5.js-svg graphics can throw inside p5's
+  // Element.remove() during cleanup, so guard it to avoid an uncaught error.
+  try {
+    svg.remove();
+  } catch (err) {
+    console.warn('SVG graphics cleanup failed (non-fatal):', err);
+  }
 
   if (state.isPlaying || state.isRecording) {
     loop();
