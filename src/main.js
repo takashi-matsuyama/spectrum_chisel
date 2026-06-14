@@ -80,10 +80,20 @@ function draw() {
 
 function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
-  // Reset history on resize so re-drawing starts cleanly.
   background(0);
-  state.spectrumHistory = [];
-  state.prevSpectrum = [];
+
+  // resizeCanvas() clears the pixel buffer, so the accumulated artwork would be
+  // lost. Keep spectrumHistory and prevSpectrum intact (so SVG export and the
+  // diff layer survive) and, in sculpture mode, replay the recorded frames onto
+  // the resized canvas. In afterimage mode the image is transient, so the next
+  // draw() frame repaints it.
+  const isSculpture = uiComponents.sculptureModeCheckbox && uiComponents.sculptureModeCheckbox.checked();
+  if (isSculpture && state.spectrumHistory.length > 0) {
+    const boost = state.currentInputMode === 'mic' ? select('#mic-boost-slider').value() : 1;
+    for (let i = 0; i < state.spectrumHistory.length; i++) {
+      drawVisuals(this, i + 1, true, boost);
+    }
+  }
 }
 
 function keyPressed() {
