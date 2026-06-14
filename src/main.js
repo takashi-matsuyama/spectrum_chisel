@@ -19,8 +19,26 @@ import {
 import { createUI, toggleUIVisibility } from './ui.js';
 import { downloadSVG, generateTimestampedFilename } from './export.js';
 import { toggleVideoRecording } from './recording.js';
-import { broadcastFrame, openViewer } from './broadcast.js';
+import { broadcastFrame, broadcastSync, onViewerHello, openViewer } from './broadcast.js';
+import { collectRenderParams } from './params.js';
 import { applyStaticTranslations } from './i18n/index.js';
+
+/** Current input gain multiplier (mic boost slider in mic mode, 1 otherwise). */
+function currentBoost() {
+  return state.currentInputMode === 'mic' ? select('#mic-boost-slider').value() : 1;
+}
+
+/**
+ * Answer a late-joining viewer with the current params and, in sculpture mode,
+ * the accumulated history so it can replay and match this atelier. Replaying
+ * with the current params mirrors windowResized() below.
+ * @param {string} viewerId
+ */
+function sendStateToViewer(viewerId) {
+  const params = collectRenderParams();
+  const history = params.sculptureMode ? state.spectrumHistory.map((s) => Array.from(s)) : null;
+  broadcastSync({ viewerId, params, boost: currentBoost(), history });
+}
 
 function setup() {
   applyStaticTranslations(); // Localize the static markup in index.html.
@@ -35,6 +53,9 @@ function setup() {
   initMic();
   setupSoundControls();
   createUI();
+
+  // Reply to viewers that open mid-session so they can catch up (late-join).
+  onViewerHello(sendStateToViewer);
 }
 
 function draw() {
@@ -75,10 +96,11 @@ function draw() {
   }
 
   frameRate(state.frameRateSlider.value());
-  const micBoost = state.currentInputMode === 'mic' ? select('#mic-boost-slider').value() : 1;
+  const micBoost = currentBoost();
   const rendered = drawVisuals(this, frameCount, false, micBoost);
-  // Mirror each drawn frame to any open viewing window.
-  if (rendered) broadcastFrame(frameCount, rendered, micBoost);
+  // Mirror each drawn frame to any open viewing window. drawVisuals already
+  // collected the params, so forward them instead of collecting a second time.
+  if (rendered) broadcastFrame(frameCount, rendered.spectrum, rendered.params, micBoost);
 }
 
 function windowResized() {
@@ -92,7 +114,7 @@ function windowResized() {
   // draw() frame repaints it.
   const isSculpture = uiComponents.sculptureModeCheckbox && uiComponents.sculptureModeCheckbox.checked();
   if (isSculpture && state.spectrumHistory.length > 0) {
-    const boost = state.currentInputMode === 'mic' ? select('#mic-boost-slider').value() : 1;
+    const boost = currentBoost();
     for (let i = 0; i < state.spectrumHistory.length; i++) {
       drawVisuals(this, i + 1, true, boost);
     }

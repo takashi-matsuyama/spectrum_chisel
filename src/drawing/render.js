@@ -99,8 +99,10 @@ export function renderFrame(pg, currentFrame, spectrum, prevSpectrum, params, bo
  * @param {number} currentFrame Frame index (1-based when replaying history).
  * @param {boolean} [isForSVG]  Whether this is an offline SVG render.
  * @param {number} [boost]      Input gain multiplier.
- * @returns {number[]|null} The spectrum that was drawn, or null if the frame
- *   was skipped (no data, near-silent, or previewing). Callers may broadcast it.
+ * @returns {{spectrum: number[], params: object}|null} The spectrum that was
+ *   drawn together with the params snapshot it was drawn with, or null if the
+ *   frame was skipped (no data, near-silent, or previewing). The live caller
+ *   forwards both to the viewer so params are collected only once per frame.
  */
 export function drawVisuals(pg, currentFrame, isForSVG = false, boost = 1) {
   let spectrum;
@@ -134,5 +136,5 @@ export function drawVisuals(pg, currentFrame, isForSVG = false, boost = 1) {
   renderFrame(pg, currentFrame, spectrum, prevSpectrum, params, boost);
 
   if (!isForSVG) state.prevSpectrum = spectrum.slice();
-  return spectrum;
+  return { spectrum, params };
 }
