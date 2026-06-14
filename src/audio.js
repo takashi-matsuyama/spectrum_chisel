@@ -3,6 +3,7 @@
 
 import { state } from './state.js';
 import { toggleVideoRecording, stopVideoRecording } from './recording.js';
+import { broadcastClear } from './broadcast.js';
 import { t } from './i18n/index.js';
 
 export function initMic() {
@@ -207,6 +208,8 @@ export function stopAndReset() {
   }
 
   noLoop();
+  // Clear any open viewing window too.
+  broadcastClear();
   console.log('Canvas and history cleared.');
 }
 

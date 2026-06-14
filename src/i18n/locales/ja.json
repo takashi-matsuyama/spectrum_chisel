@@ -14,6 +14,7 @@
   "savePng": "PNGを保存 (P)",
   "clearCanvas": "キャンバスを消去 (E)",
   "toggleUi": "UI表示切替 (C)",
+  "openViewer": "鑑賞窓を開く (W)",
   "savePreset": "技法を保存",
   "loadPreset": "技法を読込",
   "controls": "コントロール",

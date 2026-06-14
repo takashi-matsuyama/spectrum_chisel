@@ -6,6 +6,7 @@ import { defaultBandColor } from './core/colors.js';
 import { drawFunctionMap } from './drawing/styles.js';
 import { downloadSVG, savePreset, loadPreset, generateTimestampedFilename } from './export.js';
 import { stopAndReset } from './audio.js';
+import { openViewer } from './broadcast.js';
 import { t } from './i18n/index.js';
 
 export function toggleUIVisibility() {
@@ -47,6 +48,8 @@ export function createUI() {
   clearButton.mousePressed(stopAndReset);
   const toggleUiButton = createButton(t('toggleUi')).parent(state.uiPanel);
   toggleUiButton.mousePressed(toggleUIVisibility);
+  const viewerButton = createButton(t('openViewer')).parent(state.uiPanel);
+  viewerButton.mousePressed(openViewer);
 
   const presetDiv = createDiv().parent(state.uiPanel);
   const savePresetButton = createButton(t('savePreset')).parent(presetDiv);
