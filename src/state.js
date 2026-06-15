@@ -32,10 +32,8 @@ export const state = {
   prevSpectrum: [],
   /** Whether the control UI is visible. */
   uiVisible: true,
-  /** @type {MediaRecorder|null} Video recorder. */
+  /** @type {MediaRecorder|null} Video recorder for the current recording. */
   mediaRecorder: null,
-  /** @type {Blob[]} Recorded video chunks. */
-  recordedChunks: [],
   /** Whether video recording is active. */
   isVideoRecording: false,
 
