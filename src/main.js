@@ -16,7 +16,7 @@ import {
   toggleMicRecording,
   toggleFileRecording,
 } from './audio.js';
-import { createUI, toggleUIVisibility } from './ui.js';
+import { createUI, initLanguageToggle } from './ui.js';
 import { downloadSVG, generateTimestampedFilename } from './export.js';
 import { toggleVideoRecording } from './recording.js';
 import { broadcastFrame, broadcastSync, onViewerHello, openViewer } from './broadcast.js';
@@ -42,8 +42,11 @@ function sendStateToViewer(viewerId) {
 
 function setup() {
   applyStaticTranslations(); // Localize the static markup in index.html.
+  initLanguageToggle();
 
-  let myCanvas = createCanvas(windowWidth, windowHeight);
+  // The canvas fills the area beside the sidebar (not the whole window).
+  const container = document.getElementById('canvas-container');
+  let myCanvas = createCanvas(container.clientWidth, container.clientHeight);
   myCanvas.parent('canvas-container');
   colorMode(HSB, 360, 100, 100);
   background(0);
@@ -53,6 +56,17 @@ function setup() {
   initMic();
   setupSoundControls();
   createUI();
+
+  // Collapse the sidebar (its header button, the floating reopen button, or the
+  // C key). The canvas resizes to fill once the slide transition finishes.
+  document.getElementById('sidebar-collapse')?.addEventListener('click', toggleSidebar);
+  document.getElementById('sidebar-open')?.addEventListener('click', toggleSidebar);
+  const sidebar = document.getElementById('sidebar');
+  if (sidebar) {
+    sidebar.addEventListener('transitionend', (e) => {
+      if (e.propertyName === 'flex-basis' || e.propertyName === 'width') resizeToContainer();
+    });
+  }
 
   // Reply to viewers that open mid-session so they can catch up (late-join).
   onViewerHello(sendStateToViewer);
@@ -103,22 +117,39 @@ function draw() {
   if (rendered) broadcastFrame(frameCount, rendered.spectrum, rendered.params, micBoost);
 }
 
-function windowResized() {
-  resizeCanvas(windowWidth, windowHeight);
-  background(0);
+/**
+ * Resize the canvas to fill its container. resizeCanvas() clears the pixel
+ * buffer, so spectrumHistory/prevSpectrum are kept intact (SVG export and the
+ * diff layer survive) and, in sculpture mode, the recorded frames are replayed
+ * onto the resized canvas. In afterimage mode the next draw() frame repaints it.
+ * No-op when the size is unchanged, so a sidebar toggle that does not move the
+ * edge avoids a needless replay.
+ */
+function resizeToContainer() {
+  const container = document.getElementById('canvas-container');
+  if (!container) return;
+  const w = container.clientWidth;
+  const h = container.clientHeight;
+  if (w <= 0 || h <= 0 || (w === width && h === height)) return;
 
-  // resizeCanvas() clears the pixel buffer, so the accumulated artwork would be
-  // lost. Keep spectrumHistory and prevSpectrum intact (so SVG export and the
-  // diff layer survive) and, in sculpture mode, replay the recorded frames onto
-  // the resized canvas. In afterimage mode the image is transient, so the next
-  // draw() frame repaints it.
+  resizeCanvas(w, h);
+  background(0);
   const isSculpture = uiComponents.sculptureModeCheckbox && uiComponents.sculptureModeCheckbox.checked();
   if (isSculpture && state.spectrumHistory.length > 0) {
     const boost = currentBoost();
     for (let i = 0; i < state.spectrumHistory.length; i++) {
-      drawVisuals(this, i + 1, true, boost);
+      drawVisuals(window, i + 1, true, boost);
     }
   }
+}
+
+function windowResized() {
+  resizeToContainer();
+}
+
+/** Collapse/expand the sidebar; the canvas resizes on the slide's transitionend. */
+function toggleSidebar() {
+  document.getElementById('app')?.classList.toggle('collapsed');
 }
 
 function keyPressed() {
@@ -130,7 +161,7 @@ function keyPressed() {
     saveCanvas(fileName);
   }
   if (key === 'c' || key === 'C') {
-    toggleUIVisibility();
+    toggleSidebar();
   }
   if (key === 'e' || key === 'E') {
     stopAndReset();

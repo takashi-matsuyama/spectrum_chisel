@@ -11,7 +11,7 @@
 
 import { state } from './state.js';
 import { generateTimestampedFilename } from './export.js';
-import { t } from './i18n/index.js';
+import { t, applyLabel } from './i18n/index.js';
 
 // Filename captured when the current recording stops, while the session state
 // (id, frame count) is still intact. onstop reads it after the async flush.
@@ -91,7 +91,9 @@ export function startVideoRecording() {
     state.mediaRecorder = recorder;
     recorder.start();
     state.isVideoRecording = true;
-    select('#video-record-btn').html(t('stopVideoRec')).addClass('active');
+    const btn = select('#video-record-btn');
+    applyLabel(btn, 'stopVideoRec');
+    btn.addClass('active');
     console.log('Video recording started.');
   } catch (err) {
     console.error('Failed to initialize MediaRecorder:', err);
@@ -107,7 +109,9 @@ export function stopVideoRecording() {
   pendingFilename = generateTimestampedFilename('webm');
   state.mediaRecorder.stop();
   state.isVideoRecording = false;
-  select('#video-record-btn').html(t('startVideoRec')).removeClass('active');
+  const btn = select('#video-record-btn');
+  applyLabel(btn, 'startVideoRec');
+  btn.removeClass('active');
   console.log('Video recording stopped.');
 }
 

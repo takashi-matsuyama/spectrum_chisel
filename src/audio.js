@@ -4,7 +4,7 @@
 import { state } from './state.js';
 import { toggleVideoRecording, stopVideoRecording } from './recording.js';
 import { broadcastClear } from './broadcast.js';
-import { t } from './i18n/index.js';
+import { t, applyLabel } from './i18n/index.js';
 
 export function initMic() {
   state.mic = new p5.AudioIn();
@@ -109,8 +109,8 @@ export function handleSoundFile(event) {
       const fileVolumeSlider = select('#file-volume-slider');
       state.soundFile.setVolume(fileVolumeSlider.value());
 
-      select('#play-pause-btn').html(t('play'));
-      select('#file-record-btn').html(t('startDrawing'));
+      applyLabel(select('#play-pause-btn'), 'play');
+      applyLabel(select('#file-record-btn'), 'startDrawing');
       state.isPlaying = false;
       state.isRecording = false;
       noLoop();
@@ -125,11 +125,11 @@ export function toggleFilePlayback() {
   state.isPlaying = !state.isPlaying;
   if (state.isPlaying) {
     state.soundFile.play();
-    select('#play-pause-btn').html(t('pause'));
+    applyLabel(select('#play-pause-btn'), 'pause');
     loop();
   } else {
     state.soundFile.pause();
-    select('#play-pause-btn').html(t('play'));
+    applyLabel(select('#play-pause-btn'), 'play');
     if (!state.isRecording) noLoop(); // Keep looping while recording.
   }
 }
@@ -144,11 +144,11 @@ export function toggleFileRecording() {
       state.recordStartTime = millis();
       state.trimStart = state.soundFile.currentTime();
     }
-    select('#file-record-btn').html(t('stopDrawing'));
+    applyLabel(select('#file-record-btn'), 'stopDrawing');
     if (!state.isPlaying) loop();
   } else {
     state.trimEnd = state.soundFile.currentTime();
-    select('#file-record-btn').html(t('startDrawing'));
+    applyLabel(select('#file-record-btn'), 'startDrawing');
     if (!state.isPlaying) noLoop();
   }
 }
@@ -166,11 +166,11 @@ export function toggleMicRecording() {
     }
     state.mic.start();
     loop();
-    select('#mic-record-btn').html(t('pause'));
+    applyLabel(select('#mic-record-btn'), 'pause');
   } else {
     state.mic.stop();
     noLoop();
-    select('#mic-record-btn').html(t('startDrawing'));
+    applyLabel(select('#mic-record-btn'), 'startDrawing');
   }
 }
 
@@ -196,9 +196,9 @@ export function stopAndReset() {
   state.isPlaying = false;
   state.isRecording = false;
 
-  select('#play-pause-btn').html(t('play'));
-  select('#mic-record-btn').html(t('startDrawing'));
-  select('#file-record-btn').html(t('startDrawing'));
+  applyLabel(select('#play-pause-btn'), 'play');
+  applyLabel(select('#mic-record-btn'), 'startDrawing');
+  applyLabel(select('#file-record-btn'), 'startDrawing');
 
   background(0);
   state.spectrumHistory = [];

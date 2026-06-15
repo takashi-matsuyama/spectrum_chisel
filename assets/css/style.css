@@ -1,106 +1,259 @@
 @charset "UTF-8";
 
+/* Design tokens. The control UI is "chrome" that docks beside the full-height
+   canvas (the artwork). System font stacks keep it crisp and fully offline. */
+:root {
+  --bg: #0a0a0f;
+  --surface: #14141c;
+  --surface-2: #1b1b25;
+  --surface-3: #232330;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.18);
+  --text: #e9e9f0;
+  --text-muted: #9a9aa8;
+  --accent: #6c8cff;
+  --accent-strong: #8aa2ff;
+  --on-accent: #0a0a0f;
+  --danger: #ff5d6c;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-pill: 999px;
+  --transition: 0.2s ease;
+  --sidebar-w: 332px;
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
 html,
 body {
   margin: 0;
   padding: 0;
   height: 100%;
-  background-color: #000;
-  /* ★★★ 修正点: スクロールバーを非表示に ★★★ */
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 13.5px;
+  line-height: 1.5;
   overflow: hidden;
+  -webkit-font-smoothing: antialiased;
 }
-
-
 
 canvas {
   display: block;
 }
 
-.ui-panel {
-  font-family: 'Segoe UI', sans-serif;
-  font-size: 14px;
-  line-height: 1.4;
-  position: absolute;
-  /* ★★★ 修正点: 位置を固定 ★★★ */
-  top: 10px;
-  left: 10px;
-  color: white;
-  background: rgba(0, 0, 0, 0.6);
-  padding: 10px;
-  border-radius: 8px;
-  max-width: 320px;
-  /* 幅を固定 */
-  overflow-y: auto;
-  max-height: 90vh;
-  z-index: 10;
-}
-
-.ui-section-title {
-  font-weight: bold;
-  margin-top: 8px;
-  margin-bottom: 4px;
-  display: block;
-}
-
-.ui-slider {
-  width: 150px;
-  margin: 4px 10px;
-  accent-color: #ffaa00;
-}
-
-#sound-controls {
-  position: absolute;
-  top: 10px;
-  right: 10%;
-  background: rgba(0, 0, 0, 0.6);
-  padding: 10px;
-  border-radius: 8px;
-  color: white;
-  font-family: 'Segoe UI', sans-serif;
-  font-size: 14px;
+/* ---- Layout ------------------------------------------------------------- */
+#app {
   display: flex;
-  gap: 20px;
-  z-index: 10;
+  height: 100vh;
+  width: 100vw;
+}
+
+.sidebar {
+  flex: 0 0 var(--sidebar-w);
+  width: var(--sidebar-w);
+  height: 100vh;
+  display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  gap: 5px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  overflow: hidden;
+  transition: flex-basis var(--transition), width var(--transition);
 }
 
-#sound-controls input[type=range] {
-  width: 120px;
-  accent-color: #ffaa00;
+#app.collapsed .sidebar {
+  flex-basis: 0;
+  width: 0;
+  border-right-color: transparent;
 }
 
-.control-group {
+.canvas-wrapper {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100vh;
+  position: relative;
+  background: #000;
+}
+
+/* ---- Sidebar header ----------------------------------------------------- */
+.sidebar-header {
+  width: var(--sidebar-w);
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
+  gap: 10px;
+  padding: 14px 16px 13px;
+  border-bottom: 1px solid var(--border);
+  position: relative;
+}
+
+.sidebar-header::after {
+  /* A thin rainbow rule — the "seven-band" brand mark. */
+  content: "";
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #ff3b3b, #ff9b1e, #ffe21e, #37e06a, #2e9bff, #5b5bff, #c34bff);
+  opacity: 0.85;
+}
+
+.app-title {
+  flex: 1 1 auto;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+
+.sidebar-body {
+  width: var(--sidebar-w);
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 6px 16px 20px;
+}
+
+/* ---- Language toggle ---------------------------------------------------- */
+.lang-toggle {
+  display: inline-flex;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: 2px;
+}
+
+.lang-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: color var(--transition), background var(--transition);
+}
+
+.lang-btn:hover {
+  color: var(--text);
+}
+
+.lang-btn.active {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+/* ---- Icon buttons (collapse / open) ------------------------------------- */
+.icon-btn {
+  appearance: none;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  transition: color var(--transition), background var(--transition), border-color var(--transition);
+}
+
+.icon-btn:hover {
+  color: var(--text);
+  background: var(--surface-3);
+  border-color: var(--border-strong);
+}
+
+.icon-btn.floating {
+  position: fixed;
+  top: 14px;
+  left: 14px;
+  z-index: 30;
+  width: 34px;
+  height: 34px;
+  display: none;
+  background: rgba(20, 20, 28, 0.82);
+  backdrop-filter: blur(8px);
+}
+
+#app.collapsed #sidebar-open {
+  display: inline-flex;
+}
+
+/* ---- Sections ----------------------------------------------------------- */
+.panel-section,
+.ui-section-title {
+  /* JS-built sections reuse .ui-section-title for their headings. */
+}
+
+.section-title,
+.ui-section-title {
+  display: block;
+  margin: 18px 0 9px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.section-title:first-child,
+.panel-section:first-child .section-title {
+  margin-top: 12px;
+}
+
+/* ---- Source controls ---------------------------------------------------- */
+#sound-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.control-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
-#sound-controls button {
-  background-color: #333;
-  color: white;
-  border: 1px solid #555;
-  padding: 5px 10px;
-  border-radius: 4px;
-  cursor: pointer;
+.field-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
 }
 
-#sound-controls button:hover {
-  background-color: #444;
+.time-readout {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
-#sound-controls button.active {
-  background-color: #ffaa00;
-  color: black;
-  border-color: #ffaa00;
+.mono {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text);
 }
-
 
 .file-control {
   flex-direction: column;
+  align-items: stretch;
   gap: 10px;
-  width: 100%;
 }
 
 .file-playback-controls,
@@ -108,33 +261,254 @@ canvas {
   display: flex;
   align-items: center;
   gap: 8px;
-  width: 100%;
 }
 
 #progress-bar-container {
-  flex-grow: 1;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 #progress-bar {
   width: 100%;
 }
 
-#file-time-display,
-#trim-info {
-  min-width: 120px;
-  text-align: center;
+#file-time-display {
+  min-width: 86px;
+  text-align: right;
 }
 
-/* Utility and dynamically toggled classes (toggled from JS via class names,
-   so no inline style strings live in the scripts). */
-.hidden {
-  display: none !important;
+/* ---- Buttons ------------------------------------------------------------ */
+.btn,
+.ui-panel button {
+  appearance: none;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 550;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 7px 12px;
+  cursor: pointer;
+  transition: background var(--transition), border-color var(--transition), color var(--transition),
+    transform var(--transition);
+}
+
+.btn:hover,
+.ui-panel button:hover {
+  background: var(--surface-3);
+  border-color: var(--border-strong);
+}
+
+.btn:active,
+.ui-panel button:active {
+  transform: translateY(1px);
+}
+
+.btn-primary {
+  background: var(--accent);
+  border-color: transparent;
+  color: var(--on-accent);
+  font-weight: 650;
+}
+
+.btn-primary:hover {
+  background: var(--accent-strong);
+  border-color: transparent;
+}
+
+.btn-danger {
+  background: transparent;
+  border-color: rgba(255, 93, 108, 0.5);
+  color: var(--danger);
+}
+
+.btn-danger:hover {
+  background: rgba(255, 93, 108, 0.14);
+  border-color: var(--danger);
+}
+
+/* Active/engaged toggle button (e.g. video recording in progress). */
+.btn.active {
+  background: var(--accent);
+  border-color: transparent;
+  color: var(--on-accent);
+}
+
+/* ---- Segmented control (mic / file) ------------------------------------- */
+.segmented {
+  display: inline-flex;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: 3px;
+  gap: 2px;
+}
+
+.seg-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 13px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: color var(--transition), background var(--transition);
+}
+
+.seg-btn:hover {
+  color: var(--text);
+}
+
+.seg-btn.active {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+/* ---- Form controls ------------------------------------------------------ */
+input[type="range"],
+.ui-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: var(--surface-3);
+  border-radius: var(--radius-pill);
+  accent-color: var(--accent);
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.ui-slider {
+  width: 100%;
+  max-width: 180px;
+  margin: 0;
+}
+
+#sound-controls input[type="range"] {
+  flex: 1 1 110px;
+  min-width: 90px;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--bg);
+  cursor: pointer;
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--bg);
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+}
+
+input[type="checkbox"] {
+  accent-color: var(--accent);
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+}
+
+select {
+  appearance: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 5px 8px;
+  cursor: pointer;
+}
+
+select:hover {
+  border-color: var(--border-strong);
+}
+
+input[type="color"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 26px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 2px;
+}
+
+input[type="color"]::-webkit-color-swatch {
+  border: 0;
+  border-radius: 4px;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 2px;
+}
+
+/* ---- JS-built drawing panel --------------------------------------------- */
+.ui-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 13px;
+}
+
+.ui-panel > button,
+.ui-panel > div > button {
+  align-self: flex-start;
+}
+
+/* Generic labelled-slider rows and band sections produced by createUI(). */
+.ui-panel > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+
+.ui-panel label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .ui-value {
-  margin-left: 5px;
+  margin-left: 2px;
+  min-width: 28px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--text-muted);
 }
 
 .ui-subcontrols {
-  padding-left: 20px;
+  width: 100%;
+  padding-left: 14px;
+  border-left: 1px solid var(--border);
+  margin-left: 2px;
+}
+
+/* The preset row holds two buttons side by side. */
+.ui-panel > div:has(> button + button) {
+  gap: 8px;
+}
+
+/* ---- Utilities ---------------------------------------------------------- */
+.hidden {
+  display: none !important;
 }
