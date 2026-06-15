@@ -117,10 +117,13 @@ export function drawVisuals(pg, currentFrame, isForSVG = false, boost = 1) {
 
   if (!spectrum) return null;
 
-  // Skip near-silent live frames (the diff layer still needs prevSpectrum).
+  // Skip near-silent frames identically for live and SVG export, so the
+  // exported image matches what was drawn live. Only the live path owns
+  // state.prevSpectrum; SVG replay reads its previous frame from history
+  // (see below) and must not clobber the live diff state.
   let totalEnergy = spectrum.reduce((a, b) => a + b, 0);
-  if (totalEnergy * boost < 100 && !isForSVG) {
-    state.prevSpectrum = spectrum.slice();
+  if (totalEnergy * boost < 100) {
+    if (!isForSVG) state.prevSpectrum = spectrum.slice();
     return null;
   }
 
