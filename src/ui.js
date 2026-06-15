@@ -1,29 +1,52 @@
-// Control-panel UI construction and visibility toggling.
+// Control-panel UI construction (the drawing controls inside the sidebar) and
+// the language toggle wiring. Appearance lives in assets/css/style.css; only
+// structure and behavior are set here.
 
 import { state, uiComponents } from './state.js';
 import { BAND_CONFIG } from './core/bands.js';
 import { defaultBandColor } from './core/colors.js';
 import { drawFunctionMap } from './drawing/styles.js';
 import { downloadSVG, savePreset, loadPreset, generateTimestampedFilename } from './export.js';
-import { stopAndReset } from './audio.js';
 import { openViewer } from './broadcast.js';
-import { t } from './i18n/index.js';
+import { t, switchLocale, getLocale, supportedLocales } from './i18n/index.js';
 
-export function toggleUIVisibility() {
-  state.uiVisible = !state.uiVisible;
-  const soundControls = select('#sound-controls');
-  if (state.uiVisible) {
-    state.uiPanel.removeClass('hidden');
-    soundControls.removeClass('hidden');
-  } else {
-    state.uiPanel.addClass('hidden');
-    soundControls.addClass('hidden');
-  }
+/** Section heading tagged so it re-localizes when the locale changes. */
+function sectionTitle(key, parent) {
+  return createDiv(t(key)).parent(parent).addClass('ui-section-title').attribute('data-i18n', key);
+}
+
+/** Button with a localized, re-translatable label. */
+function labeledButton(key, handler, parent) {
+  const btn = createButton(t(key)).parent(parent).attribute('data-i18n', key);
+  btn.mousePressed(handler);
+  return btn;
+}
+
+/** Tag a p5 checkbox's label span so it re-localizes on locale switch. */
+function tagCheckbox(checkbox, key) {
+  const span = checkbox.elt.querySelector('span');
+  if (span) span.setAttribute('data-i18n', key);
+  return checkbox;
+}
+
+/** Wire the JA/EN segmented toggle in the sidebar header. */
+export function initLanguageToggle() {
+  const buttons = Array.from(document.querySelectorAll('.lang-btn'));
+  const sync = () => {
+    const active = getLocale();
+    buttons.forEach((b) => b.classList.toggle('active', b.dataset.lang === active));
+  };
+  buttons.forEach((b) => {
+    if (!supportedLocales().includes(b.dataset.lang)) return;
+    b.addEventListener('click', () => {
+      switchLocale(b.dataset.lang);
+      sync();
+    });
+  });
+  sync();
 }
 
 export function createUI() {
-  // Appearance lives in .ui-panel (assets/css/style.css); only structure and
-  // behavior are set here.
   state.uiPanel = createDiv();
   state.uiPanel.parent('ui-container');
   state.uiPanel.addClass('ui-panel');
@@ -36,48 +59,47 @@ export function createUI() {
     return slider;
   };
 
-  createDiv(t('controls')).parent(state.uiPanel).addClass('ui-section-title');
-  const saveButton = createButton(t('saveSvg')).parent(state.uiPanel);
-  saveButton.mousePressed(downloadSVG);
-  const pngButton = createButton(t('savePng')).parent(state.uiPanel);
-  pngButton.mousePressed(() => {
-    const fileName = generateTimestampedFilename('png');
-    saveCanvas(fileName);
-  });
-  const clearButton = createButton(t('clearCanvas')).parent(state.uiPanel);
-  clearButton.mousePressed(stopAndReset);
-  const toggleUiButton = createButton(t('toggleUi')).parent(state.uiPanel);
-  toggleUiButton.mousePressed(toggleUIVisibility);
-  const viewerButton = createButton(t('openViewer')).parent(state.uiPanel);
-  viewerButton.mousePressed(openViewer);
+  // Canvas output + presets.
+  sectionTitle('canvasSection', state.uiPanel);
+  const canvasRow = createDiv().parent(state.uiPanel);
+  labeledButton('saveSvg', downloadSVG, canvasRow);
+  labeledButton('savePng', () => saveCanvas(generateTimestampedFilename('png')), canvasRow);
+  labeledButton('openViewer', openViewer, canvasRow);
 
-  const presetDiv = createDiv().parent(state.uiPanel);
-  const savePresetButton = createButton(t('savePreset')).parent(presetDiv);
-  savePresetButton.mousePressed(savePreset);
-  const loadPresetButton = createButton(t('loadPreset')).parent(presetDiv);
-  loadPresetButton.mousePressed(loadPreset);
+  sectionTitle('presets', state.uiPanel);
+  const presetRow = createDiv().parent(state.uiPanel);
+  labeledButton('savePreset', savePreset, presetRow);
+  labeledButton('loadPreset', loadPreset, presetRow);
 
-  createDiv(t('drawingMode')).parent(state.uiPanel).addClass('ui-section-title');
-  uiComponents.sculptureModeCheckbox = createCheckbox(t('sculptureMode'), false).parent(state.uiPanel);
+  // Drawing mode + frame rate.
+  sectionTitle('drawingMode', state.uiPanel);
+  uiComponents.sculptureModeCheckbox = tagCheckbox(
+    createCheckbox(t('sculptureMode'), false).parent(state.uiPanel),
+    'sculptureMode'
+  );
 
-  createDiv('Frame Rate').parent(state.uiPanel).addClass('ui-section-title');
-  state.frameRateSlider = createSlider(1, 60, 15, 1).parent(state.uiPanel);
-  const frameRateValueSpan = createSpan(state.frameRateSlider.value())
-    .parent(state.frameRateSlider.parent())
-    .addClass('ui-value');
+  const frameRateRow = createDiv('Frame Rate: ').parent(state.uiPanel);
+  state.frameRateSlider = createSlider(1, 60, 15, 1).parent(frameRateRow).addClass('ui-slider');
+  const frameRateValueSpan = createSpan(state.frameRateSlider.value()).parent(frameRateRow).addClass('ui-value');
   state.frameRateSlider.input(() => frameRateValueSpan.html(state.frameRateSlider.value()));
 
-  const spectrumDiv = createDiv(t('spectrumLayers')).parent(state.uiPanel).addClass('ui-section-title');
-
-  state.spectrumRingCheckbox = createCheckbox(t('drawSpectrumRing'), true).parent(spectrumDiv);
-  const ringControls = createDiv().parent(spectrumDiv).addClass('ui-subcontrols');
+  // Global spectrum layers.
+  sectionTitle('spectrumLayers', state.uiPanel);
+  state.spectrumRingCheckbox = tagCheckbox(
+    createCheckbox(t('drawSpectrumRing'), true).parent(state.uiPanel),
+    'drawSpectrumRing'
+  );
+  const ringControls = createDiv().parent(state.uiPanel).addClass('ui-subcontrols');
   uiComponents.ring = {
     gainSlider: createSliderWithLabel('Gain', 0.1, 10.0, 1.0, 0.1, ringControls),
     thresholdSlider: createSliderWithLabel('Threshold', 0, 255, 30, 1, ringControls),
   };
 
-  state.spectrumDiffCheckbox = createCheckbox(t('drawSpectrumDiff'), true).parent(spectrumDiv);
-  const diffControls = createDiv().parent(spectrumDiv).addClass('ui-subcontrols');
+  state.spectrumDiffCheckbox = tagCheckbox(
+    createCheckbox(t('drawSpectrumDiff'), true).parent(state.uiPanel),
+    'drawSpectrumDiff'
+  );
+  const diffControls = createDiv().parent(state.uiPanel).addClass('ui-subcontrols');
   state.spectrumDiffColorPicker = createColorPicker('#ffffff').parent(diffControls);
   uiComponents.diff = {
     gainSlider: createSliderWithLabel('Gain', 0.1, 10.0, 1.0, 0.1, diffControls),
@@ -85,10 +107,10 @@ export function createUI() {
     colorPicker: state.spectrumDiffColorPicker,
   };
 
-  // Default per-band energy mapping (identical across bands; kept as a single
-  // constant so it does not need to track the band list).
+  // Per-band controls.
   const DEFAULT_BAND_ENERGY = { gain: 1.0, threshold: 100 };
 
+  sectionTitle('bands', state.uiPanel);
   BAND_CONFIG.forEach((band) => {
     let name = band.name;
     let title = `${name.charAt(0).toUpperCase() + name.slice(1)} (${band.freq[0]} - ${band.freq[1]} Hz)`;
@@ -96,7 +118,10 @@ export function createUI() {
 
     uiComponents[name] = {};
 
-    uiComponents[name].enabledCheckbox = createCheckbox(t('enabled'), true).parent(section);
+    uiComponents[name].enabledCheckbox = tagCheckbox(
+      createCheckbox(t('enabled'), true).parent(section),
+      'enabled'
+    );
     uiComponents[name].colorPicker = createColorPicker(defaultBandColor(name)).parent(section);
     const drawSelector = createSelect().parent(section);
     for (let key in drawFunctionMap) {
