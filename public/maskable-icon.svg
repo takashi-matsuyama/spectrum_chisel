@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Spectrum Chisel">
+  <rect width="512" height="512" fill="#000000"/>
+  <g fill="none" stroke-width="13" stroke-linecap="round">
+    <path d="M106 331 A150 150 0 0 1 406 331" stroke="#ff0000"/>
+    <path d="M121 331 A135 135 0 0 1 391 331" stroke="#ff8000"/>
+    <path d="M136 331 A120 120 0 0 1 376 331" stroke="#ffea00"/>
+    <path d="M151 331 A105 105 0 0 1 361 331" stroke="#2aff00"/>
+    <path d="M166 331 A90 90 0 0 1 346 331" stroke="#0080ff"/>
+    <path d="M181 331 A75 75 0 0 1 331 331" stroke="#2a00ff"/>
+    <path d="M196 331 A60 60 0 0 1 316 331" stroke="#d500ff"/>
+  </g>
+</svg>
