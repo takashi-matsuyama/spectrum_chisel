@@ -29,5 +29,6 @@
   "alertNoAudioTrack": "エラー: 音声トラックをキャプチャできませんでした。",
   "alertVideoInit": "動画の録画機能の初期化に失敗しました。お使いのブラウザが対応していない可能性があります。",
   "alertSelectJson": "エラー: JSONファイルを指定してください。",
-  "alertPresetIncompatible": "このプリセットは古い帯域構成（虹以前）のため、一部の帯域設定は適用されませんでした。"
+  "alertPresetIncompatible": "このプリセットは古い帯域構成（虹以前）のため、一部の帯域設定は適用されませんでした。",
+  "alertPresetInvalid": "エラー: このファイルは有効なプリセットではありません。"
 }

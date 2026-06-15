@@ -29,3 +29,19 @@ export function detectBandIncompatibility(preset, currentBandNames) {
   const unknown = presetBands.filter((name) => !currentSet.has(name));
   return { compatible: missing.length === 0 && unknown.length === 0, missing, unknown };
 }
+
+/**
+ * Check that a loaded preset has the structural shape loadPreset() relies on, so
+ * a malformed or unrelated JSON file is rejected gracefully instead of throwing
+ * when its global layers or bands map are accessed. Band-name compatibility is a
+ * separate concern (see detectBandIncompatibility).
+ * @param {any} preset
+ * @returns {boolean}
+ */
+export function isValidPreset(preset) {
+  if (!preset || typeof preset !== 'object') return false;
+  if (typeof preset.frameRate !== 'number') return false;
+  return ['spectrumRing', 'spectrumDiff', 'bands'].every(
+    (key) => preset[key] !== null && typeof preset[key] === 'object'
+  );
+}

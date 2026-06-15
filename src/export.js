@@ -4,7 +4,7 @@
 import { state, uiComponents } from './state.js';
 import { BAND_CONFIG, bandNames } from './core/bands.js';
 import { buildTimestampedFilename } from './core/filename.js';
-import { detectBandIncompatibility, PRESET_VERSION } from './core/preset.js';
+import { detectBandIncompatibility, isValidPreset, PRESET_VERSION } from './core/preset.js';
 import { drawVisuals } from './drawing/render.js';
 import { collectRenderParams } from './params.js';
 import { t } from './i18n/index.js';
@@ -62,6 +62,15 @@ export function loadPreset() {
   const input = createFileInput((file) => {
     if (file.type === 'application' && file.subtype === 'json') {
       const preset = file.data;
+
+      // Reject a malformed or unrelated JSON file before reading its fields, so
+      // a missing global layer or bands map cannot throw mid-load.
+      if (!isValidPreset(preset)) {
+        console.warn('Preset is missing required fields; skipping load.', preset);
+        alert(t('alertPresetInvalid'));
+        input.remove();
+        return;
+      }
 
       // Presets saved before the rainbow redesign use the old band names; warn
       // that those band settings will not apply (global settings still do).
