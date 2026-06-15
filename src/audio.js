@@ -42,9 +42,9 @@ export function switchInputMode(mode) {
     fileControls.removeClass('hidden');
 
     // Fully reset the mic connection so audio input is reliably off.
-    if (state.mic.started) {
-      state.mic.stop();
-    }
+    // p5.AudioIn exposes no reliable "started" flag, and stop() is a safe no-op
+    // when the mic is already stopped, so stop it unconditionally.
+    state.mic.stop();
     state.mic.disconnect();
 
     if (state.soundFile) {
@@ -178,7 +178,10 @@ export function stopAndReset() {
   if (state.soundFile && (state.soundFile.isPlaying() || state.soundFile.isPaused())) {
     state.soundFile.stop();
   }
-  if (state.mic && state.mic.started) {
+  // Always stop the mic so input is released on reset. state.mic.started does
+  // not exist on p5.AudioIn (it was always undefined, so the mic was never
+  // stopped here); stop() is a safe no-op when the mic is already stopped.
+  if (state.mic) {
     state.mic.stop();
   }
 
