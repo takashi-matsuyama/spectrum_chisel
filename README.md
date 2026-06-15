@@ -83,23 +83,26 @@ worker precaches the whole app, including the separate viewing window
 (`getUserMedia`) keeps working offline, which it cannot do when the files are
 opened directly from `file://`.
 
-## 🚀 Deploying to Cloudflare Pages
+## 🚀 Deploying to Cloudflare
 
-The app builds to a static bundle, so any static host works; Cloudflare Pages is
-the reference target.
+The app builds to a static bundle, so any static host works. The reference
+target is a Cloudflare **Worker serving static assets**: `wrangler.jsonc`
+declares an assets-only Worker (no server script) that serves the `dist/` build
+output, and `wrangler deploy` uploads it.
 
 1. Push this repository to GitHub.
-2. In the Cloudflare dashboard, create a **Pages** project and connect the
-   repository.
+2. In the Cloudflare dashboard, create a **Worker** and connect the repository
+   (Workers → Import a repository).
 3. Set the build configuration:
     -   **Build command**: `pnpm build`
-    -   **Build output directory**: `dist`
+    -   **Deploy command**: `npx wrangler deploy`
     -   **Node version**: 20.19 or newer (set a `NODE_VERSION` environment
         variable if the default is older).
-4. Deploy. Every push to the production branch then redeploys automatically.
+4. Deploy. Every push to the production branch then rebuilds and redeploys
+   automatically.
 
 The site is served over HTTPS, so the microphone works and the app is
-installable. `public/_headers` keeps the service worker, its registration
-script, the manifest, and the page navigations uncached so a new deployment is
-picked up immediately, while the content-hashed assets under `assets/` are
-cached long-term.
+installable. `public/_headers` (copied into `dist/`) keeps the service worker,
+its registration script, the manifest, and the page navigations uncached so a
+new deployment is picked up immediately, while the content-hashed assets under
+`assets/` are cached long-term.

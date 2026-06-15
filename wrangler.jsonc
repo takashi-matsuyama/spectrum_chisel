@@ -1,0 +1,15 @@
+{
+  // Static-assets-only Worker: serves the Vite build output (dist/) over
+  // Cloudflare's edge. There is no `main` Worker script — every request is
+  // answered from the precached static assets. The _headers file copied into
+  // dist/ (from public/_headers) is honored for cache control.
+  //
+  // This is what makes `wrangler deploy` work without the Cloudflare Vite
+  // plugin (which would require Vite >= 6); the build just emits dist/ and this
+  // config uploads it as assets.
+  "name": "spectrum-chisel",
+  "compatibility_date": "2026-06-15",
+  "assets": {
+    "directory": "./dist"
+  }
+}
