@@ -175,6 +175,14 @@ export function toggleMicRecording() {
 }
 
 export function stopAndReset() {
+  // Stop any in-flight video recording first, while the session id and frame
+  // count are still intact: stopVideoRecording() snapshots the filename now and
+  // its onstop handler owns finalizing the file and tearing down the capture
+  // graph, so we must not clear that state out from under it here.
+  if (state.isVideoRecording) {
+    stopVideoRecording();
+  }
+
   if (state.soundFile && (state.soundFile.isPlaying() || state.soundFile.isPaused())) {
     state.soundFile.stop();
   }
@@ -195,13 +203,6 @@ export function stopAndReset() {
   background(0);
   state.spectrumHistory = [];
   state.prevSpectrum = [];
-
-  // Fully reset video recording too.
-  if (state.isVideoRecording) {
-    stopVideoRecording();
-  }
-  state.mediaRecorder = null;
-  state.recordedChunks = [];
 
   state.sessionId = null;
   select('#time-display').html('0.0s');
