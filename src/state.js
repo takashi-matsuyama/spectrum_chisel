@@ -26,7 +26,12 @@ export const state = {
   trimEnd: null,
   /** millis() timestamp when recording started. */
   recordStartTime: 0,
-  /** @type {number[][]} Spectrum frames captured while recording (for SVG export). */
+  /**
+   * @type {number[][]} Every spectrum frame captured while recording. This is
+   * intentionally unbounded: SVG export replays the full history to build the
+   * accumulated image, and the viewer mirrors it for resize fidelity, so it must
+   * not be capped without regressing both. Cleared on reset.
+   */
   spectrumHistory: [],
   /** @type {number[]} Previous spectrum frame (for the diff layer). */
   prevSpectrum: [],
