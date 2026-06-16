@@ -30,6 +30,11 @@ function tagCheckbox(checkbox, key) {
   return checkbox;
 }
 
+/** i18n key for a draw-style's display label, e.g. drawSpiral -> effectSpiral. */
+function effectLabelKey(funcKey) {
+  return 'effect' + funcKey.replace(/^draw/, '');
+}
+
 /** Wire the JA/EN segmented toggle in the sidebar header. */
 export function initLanguageToggle() {
   const buttons = Array.from(document.querySelectorAll('.lang-btn'));
@@ -126,8 +131,14 @@ export function createUI() {
     uiComponents[name].colorPicker = createColorPicker(defaultBandColor(name)).parent(section);
     const drawSelector = createSelect().parent(section);
     for (let key in drawFunctionMap) {
-      drawSelector.option(key);
+      // Show a localized label but keep the function key as the option value
+      // (presets serialize the key).
+      drawSelector.option(t(effectLabelKey(key)), key);
     }
+    // Tag each option so its label re-localizes on a locale switch.
+    drawSelector.elt.querySelectorAll('option').forEach((opt) => {
+      opt.setAttribute('data-i18n', effectLabelKey(opt.value));
+    });
     drawSelector.selected(band.defFunc);
     uiComponents[name].drawSelector = drawSelector;
     const defaultWeight = drawFunctionMap[band.defFunc].defaultWeight;

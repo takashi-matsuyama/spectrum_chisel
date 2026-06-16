@@ -2,6 +2,15 @@
 // target `pg` from an `energy` value plus a style/params bundle; they hold no
 // shared state, so they are pure with respect to application state.
 
+// Deterministic pseudo-random value in [0, 1) from a numeric input. Newer styles
+// use this instead of p5 random()/noise() so a frame reproduces identically in
+// the viewing window (a separate p5 instance, with its own global PRNG) and in
+// SVG export. (The original styles above predate this and still use random().)
+function pseudo(n) {
+  const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+  return x - Math.floor(x);
+}
+
 export function drawSmoothEllipse(pg, energy, frameCount, time, style, params) {
   let c = pg.color(style.color); c.setAlpha(style.alpha); pg.stroke(c); pg.strokeWeight(style.weight); pg.noFill();
   let intensityGain = (params && typeof params.intensityGain === "number") ? params.intensityGain : 1.0;
@@ -136,6 +145,122 @@ export function drawFloatingDots(pg, energy, frameCount, time, style, params) {
   }
 }
 
+// --- Additional deterministic styles (no unseeded random()/noise()) ----------
+
+// Logarithmic spiral arms winding outward; arm count and extent track energy.
+export function drawSpiral(pg, energy, frameCount, time, style, params) {
+  let c = pg.color(style.color); c.setAlpha(style.alpha); pg.stroke(c); pg.strokeWeight(style.weight); pg.noFill();
+  const intensityGain = (params && typeof params.intensityGain === 'number') ? params.intensityGain : 1.0;
+  const angleSpeed = (params && typeof params.angleSpeed === 'number') ? params.angleSpeed : 1.0;
+  pg.rotate(frameCount * 0.01 * angleSpeed);
+  const arms = 1 + pg.floor(pg.map(energy, params.threshold, 255, 1, 5));
+  const turns = pg.map(energy, 0, 255, 1.5, 5);
+  const maxR = pg.map(energy, 0, 255, 60, 320) * intensityGain;
+  const tMax = turns * pg.TWO_PI;
+  for (let a = 0; a < arms; a++) {
+    pg.beginShape();
+    for (let t = 0; t <= tMax; t += 0.12) {
+      const r = (t / tMax) * maxR + 4;
+      const ang = t + (pg.TWO_PI / arms) * a;
+      pg.curveVertex(r * pg.cos(ang), r * pg.sin(ang));
+    }
+    pg.endShape();
+  }
+}
+
+// Concentric regular polygons (a mandala); ring count and sides track energy.
+export function drawMandala(pg, energy, frameCount, time, style, params) {
+  let c = pg.color(style.color); c.setAlpha(style.alpha); pg.stroke(c); pg.strokeWeight(style.weight); pg.noFill();
+  const intensityGain = (params && typeof params.intensityGain === 'number') ? params.intensityGain : 1.0;
+  const angleSpeed = (params && typeof params.angleSpeed === 'number') ? params.angleSpeed : 1.0;
+  pg.rotate(frameCount * 0.02 * angleSpeed);
+  const rings = 1 + pg.floor(pg.map(energy, params.threshold, 255, 1, 6));
+  const sides = 3 + pg.floor(pg.map(energy, 0, 255, 0, 9));
+  const maxR = pg.map(energy, 0, 255, 40, 300) * intensityGain;
+  for (let ring = 1; ring <= rings; ring++) {
+    const r = (maxR * ring) / rings;
+    const phase = ring * 0.3 + time * 0.2 * angleSpeed;
+    pg.beginShape();
+    for (let s = 0; s <= sides; s++) {
+      const ang = (pg.TWO_PI / sides) * s + phase;
+      pg.vertex(r * pg.cos(ang), r * pg.sin(ang));
+    }
+    pg.endShape(pg.CLOSE);
+  }
+}
+
+// A grid of small crosses with deterministic jitter (a woven lattice).
+export function drawLattice(pg, energy, frameCount, time, style, params) {
+  let c = pg.color(style.color); c.setAlpha(style.alpha); pg.stroke(c); pg.strokeWeight(style.weight); pg.noFill();
+  const intensityGain = (params && typeof params.intensityGain === 'number') ? params.intensityGain : 1.0;
+  const angleSpeed = (params && typeof params.angleSpeed === 'number') ? params.angleSpeed : 1.0;
+  pg.rotate(frameCount * 0.005 * angleSpeed);
+  const cells = 2 + pg.floor(pg.map(energy, params.threshold, 255, 2, 9)); // per half-axis
+  const span = pg.map(energy, 0, 255, 80, 300) * intensityGain;
+  const step = span / cells;
+  const wob = pg.map(energy, 0, 255, 0, step * 0.6);
+  for (let gx = -cells; gx <= cells; gx++) {
+    for (let gy = -cells; gy <= cells; gy++) {
+      const seed = (gx + 50) * 131 + (gy + 50);
+      const x = gx * step + (pseudo(seed) - 0.5) * 2 * wob;
+      const y = gy * step + (pseudo(seed + 7.7) - 0.5) * 2 * wob;
+      const sz = step * 0.4 * (0.5 + pseudo(seed + 3.3));
+      pg.line(x - sz, y, x + sz, y);
+      pg.line(x, y - sz, x, y + sz);
+    }
+  }
+}
+
+// A Lissajous/harmonograph curve; frequencies track energy, phase drifts slowly.
+export function drawHarmonograph(pg, energy, frameCount, time, style, params) {
+  let c = pg.color(style.color); c.setAlpha(style.alpha); pg.stroke(c); pg.strokeWeight(style.weight); pg.noFill();
+  const intensityGain = (params && typeof params.intensityGain === 'number') ? params.intensityGain : 1.0;
+  const angleSpeed = (params && typeof params.angleSpeed === 'number') ? params.angleSpeed : 1.0;
+  const fx = 2 + pg.floor(pg.map(energy, 0, 255, 0, 6));
+  const fy = 3 + pg.floor(pg.map(energy, 0, 255, 0, 6));
+  const amp = pg.map(energy, 0, 255, 60, 300) * intensityGain;
+  const phase = time * 0.3 * angleSpeed;
+  const detail = pg.ceil(pg.map(energy, params.threshold, 255, 1, 3));
+  for (let d = 0; d < detail; d++) {
+    pg.beginShape();
+    for (let t = 0; t <= pg.TWO_PI + 0.05; t += 0.03) {
+      pg.curveVertex(pg.sin(fx * t + phase + d * 0.4) * amp, pg.sin(fy * t) * amp);
+    }
+    pg.endShape();
+  }
+}
+
+// Concentric rings expanding outward over time (a ripple).
+export function drawRippleRings(pg, energy, frameCount, time, style, params) {
+  let c = pg.color(style.color); c.setAlpha(style.alpha); pg.stroke(c); pg.strokeWeight(style.weight); pg.noFill();
+  const intensityGain = (params && typeof params.intensityGain === 'number') ? params.intensityGain : 1.0;
+  const angleSpeed = (params && typeof params.angleSpeed === 'number') ? params.angleSpeed : 1.0;
+  const ringCount = 1 + pg.floor(pg.map(energy, params.threshold, 255, 1, 8));
+  const maxR = pg.map(energy, 0, 255, 40, 320) * intensityGain;
+  const phase = (time * 0.4 * angleSpeed) % 1;
+  for (let i = 0; i < ringCount; i++) {
+    const f = ((i + phase) % ringCount) / ringCount; // 0..1, expanding
+    const r = f * maxR + 4;
+    pg.ellipse(0, 0, r * 2, r * 2);
+  }
+}
+
+// Radial spokes of alternating length (a starburst).
+export function drawStarburst(pg, energy, frameCount, time, style, params) {
+  let c = pg.color(style.color); c.setAlpha(style.alpha); pg.stroke(c); pg.strokeWeight(style.weight); pg.noFill();
+  const intensityGain = (params && typeof params.intensityGain === 'number') ? params.intensityGain : 1.0;
+  const angleSpeed = (params && typeof params.angleSpeed === 'number') ? params.angleSpeed : 1.0;
+  pg.rotate(frameCount * 0.02 * angleSpeed);
+  const spokes = 6 + pg.floor(pg.map(energy, params.threshold, 255, 2, 30));
+  const len = pg.map(energy, 0, 255, 40, 320) * intensityGain;
+  const inner = pg.map(energy, 0, 255, 6, 40) * intensityGain;
+  for (let i = 0; i < spokes; i++) {
+    const ang = (pg.TWO_PI / spokes) * i;
+    const l = len * (i % 2 === 0 ? 1 : 0.6 + 0.4 * pseudo(i));
+    pg.line(pg.cos(ang) * inner, pg.sin(ang) * inner, pg.cos(ang) * l, pg.sin(ang) * l);
+  }
+}
+
 /**
  * Map of drawing-style key to its function and default stroke weight. The keys
  * match BandConfig.defFunc and the UI selector options.
@@ -149,4 +274,10 @@ export const drawFunctionMap = {
   drawSparks: { func: drawSparks, defaultWeight: 0.1 },
   drawNoisyContours: { func: drawNoisyContours, defaultWeight: 0.6 },
   drawFloatingDots: { func: drawFloatingDots, defaultWeight: 1.0 },
+  drawSpiral: { func: drawSpiral, defaultWeight: 1.0 },
+  drawMandala: { func: drawMandala, defaultWeight: 1.2 },
+  drawLattice: { func: drawLattice, defaultWeight: 0.8 },
+  drawHarmonograph: { func: drawHarmonograph, defaultWeight: 1.0 },
+  drawRippleRings: { func: drawRippleRings, defaultWeight: 1.5 },
+  drawStarburst: { func: drawStarburst, defaultWeight: 1.2 },
 };
