@@ -16,7 +16,7 @@ import {
   toggleMicRecording,
   toggleFileRecording,
 } from './audio.js';
-import { createUI, initLanguageToggle } from './ui.js';
+import { createUI, initLanguageToggle, applyCapabilityNotices } from './ui.js';
 import { downloadSVG, generateTimestampedFilename } from './export.js';
 import { toggleVideoRecording } from './recording.js';
 import { broadcastFrame, broadcastSync, onViewerHello, openViewer } from './broadcast.js';
@@ -56,6 +56,8 @@ function setup() {
   initMic();
   setupSoundControls();
   createUI();
+  // Explain any features this browser can't run (video codec, viewer, mic).
+  applyCapabilityNotices();
 
   // Collapse the sidebar (its header button, the floating reopen button, or the
   // C key). The canvas resizes to fill once the slide transition finishes.

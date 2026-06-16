@@ -335,6 +335,25 @@ canvas {
   color: var(--on-accent);
 }
 
+/* A control for a feature this browser can't run (e.g. video recording with no
+   supported codec, or Open Viewer without BroadcastChannel). It stays hoverable
+   so its title / aria-label can explain why; the handler surfaces the same note. */
+.is-unsupported {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn.is-unsupported:hover,
+.ui-panel button.is-unsupported:hover {
+  background: var(--surface-2);
+  border-color: var(--border);
+}
+
+.seg-btn.is-unsupported:hover {
+  background: transparent;
+  color: var(--text-muted);
+}
+
 /* ---- Segmented control (mic / file) ------------------------------------- */
 .segmented {
   display: inline-flex;

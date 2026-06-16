@@ -37,5 +37,9 @@
   "alertVideoInit": "Failed to initialize video recording. Your browser may not support it.",
   "alertSelectJson": "Error: please choose a JSON file.",
   "alertPresetIncompatible": "This preset uses an older band layout (pre-rainbow); some band settings were not applied.",
-  "alertPresetInvalid": "Error: this file is not a valid preset."
+  "alertPresetInvalid": "Error: this file is not a valid preset.",
+  "alertVideoUnsupported": "Video recording isn't supported in this browser.",
+  "alertViewerUnsupported": "The viewing window isn't supported in this browser (it needs BroadcastChannel).",
+  "alertSoundLoad": "Couldn't load this audio file. Your browser may not support its format.",
+  "alertMicUnsupported": "Microphone capture isn't available here. It needs a secure (https) connection and a supported browser."
 }
