@@ -508,6 +508,24 @@ input[type="color"]::-webkit-color-swatch {
   gap: 8px;
 }
 
+/* ---- Sidebar footer ----------------------------------------------------- */
+.sidebar-footer {
+  width: var(--sidebar-w);
+  margin-top: auto;
+  padding: 16px 18px 20px;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 11.5px;
+}
+.sidebar-footer a {
+  color: var(--text-muted);
+  text-decoration: none;
+}
+.sidebar-footer a:hover {
+  color: var(--accent-strong);
+  text-decoration: underline;
+}
+
 /* ---- Utilities ---------------------------------------------------------- */
 .hidden {
   display: none !important;
