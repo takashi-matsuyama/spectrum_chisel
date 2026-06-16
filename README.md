@@ -1,5 +1,9 @@
 # Spectrum Chisel — Sculpting Sound and Time
 
+![Abstract rainbow artwork sculpted from sound with Spectrum Chisel](docs/preview.webp)
+
+> See sound as a rainbow. Try the live instrument at **[studio.spectrum-chisel.tak3.jp](https://studio.spectrum-chisel.tak3.jp)** — guide and docs at **[spectrum-chisel.tak3.jp](https://spectrum-chisel.tak3.jp)**.
+
 ## ✨ Concept: Visualizing and Abstracting Sound
 
 This project generates abstract visualizations that accumulate over time from audio captured in real time. Its central aim is to capture "sound" — a fleeting phenomenon — in a visual, organic form, and to preserve it as a permanent record: an artwork.
