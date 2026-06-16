@@ -1,0 +1,489 @@
+// Parametric pattern model (pure, p5-independent).
+//
+// A "pattern" is a JSON-serializable spec interpreted by one generic draw
+// function (src/drawing/customPattern.js). This module owns everything that can
+// be reasoned about without p5: the schema, validation, normalization, the
+// deterministic modulation math, and the pure geometry resolver. The shell only
+// rasterizes the numbers this module produces.
+//
+// Determinism is the contract: resolveInstances() must return identical geometry
+// for identical inputs, because the same spec is rendered in the atelier, in the
+// separate-p5-instance viewer, and in SVG export. No Math.random(); any
+// per-element variation derives from a seeded integer hash (seededUnit).
+
+/** The spec schema version. Distinct from the preset file version. */
+export const PATTERN_SPEC_VERSION = '1.0.0';
+
+/** Per-pattern caps (perf + SVG-size guard). A layer cannot exceed MAX_INSTANCES. */
+export const MAX_LAYERS = 4;
+export const MAX_INSTANCES = 256;
+export const MAX_SIDES = 24;
+export const MAX_MODULATIONS = 16;
+
+/** Closed enums. Extend by appending; normalize drops values not listed here. */
+export const PRIMITIVES = ['point', 'line', 'polygon', 'ring'];
+export const GENERATORS = ['single', 'radial'];
+export const MOD_SOURCES = ['energy', 'time', 'index', 'constant'];
+export const MOD_TARGETS = ['count', 'radius', 'size', 'rotation', 'scale', 'sides'];
+export const CURVES = ['linear', 'sqrt', 'square', 'smoothstep', 'sin'];
+
+/**
+ * @typedef {Object} Modulation
+ * @property {string} source  One of MOD_SOURCES.
+ * @property {string} target  One of MOD_TARGETS.
+ * @property {string} curve   One of CURVES.
+ * @property {number} gain    Scalar applied to curve(source) before accumulation.
+ *
+ * @typedef {Object} Primitive
+ * @property {string} type    One of PRIMITIVES.
+ * @property {number} size    Drawn extent (ring radius / polygon radius / line half-length / point diameter).
+ * @property {number} sides   Polygon side count (ignored by other primitives).
+ *
+ * @typedef {Object} PatternGenerator
+ * @property {string} type    One of GENERATORS.
+ * @property {number} count   Instance count (radial only; single is always 1).
+ * @property {number} radius  Placement radius for radial instances.
+ * @property {number} phase   Angular offset (radians) for the first radial instance.
+ *
+ * @typedef {Object} Layer
+ * @property {Primitive} primitive
+ * @property {PatternGenerator} generator
+ * @property {number} rotation  Whole-layer base rotation (radians).
+ * @property {number} scale     Whole-layer base scale.
+ * @property {Modulation[]} modulations
+ *
+ * @typedef {Object} PatternSpec
+ * @property {string} specVersion
+ * @property {number} seed
+ * @property {Layer[]} layers
+ *
+ * @typedef {Object} Sources
+ * @property {number} energy    Band energy normalized to [0, 1].
+ * @property {number} time      Slowly increasing time value (frame-derived).
+ * @property {number} index     Per-instance index normalized to [0, 1].
+ * @property {number} constant  Always 1.
+ *
+ * @typedef {Object} ResolvedInstance
+ * @property {number} x
+ * @property {number} y
+ * @property {number} size
+ * @property {number} sides
+ * @property {number} angle   Orientation (radians) of this instance.
+ *
+ * @typedef {Object} ResolvedLayer
+ * @property {number} rotation
+ * @property {number} scale
+ * @property {ResolvedInstance[]} instances
+ *
+ * @typedef {Record<string, PatternSpec>} PatternLibrary
+ */
+
+/**
+ * Coerce to a finite number and clamp to [lo, hi]; fall back when not numeric.
+ * @param {unknown} n
+ * @param {number} lo
+ * @param {number} hi
+ * @param {number} fallback
+ * @returns {number}
+ */
+function clampNum(n, lo, hi, fallback) {
+  const x = typeof n === 'number' && Number.isFinite(n) ? n : fallback;
+  return Math.min(hi, Math.max(lo, x));
+}
+
+/**
+ * Like clampNum but rounded to an integer.
+ * @param {unknown} n
+ * @param {number} lo
+ * @param {number} hi
+ * @param {number} fallback
+ * @returns {number}
+ */
+function clampInt(n, lo, hi, fallback) {
+  return Math.round(clampNum(n, lo, hi, fallback));
+}
+
+/**
+ * Deterministic integer-hash pseudo-random value in [-1, 1] from up to four
+ * integer inputs. Integer-based (FNV-1a style) rather than Math.sin so it
+ * reproduces bit-for-bit across engines and p5 instances. This is the project's
+ * seeded-determinism primitive; jitter modulation (a later slice) builds on it.
+ * @param {number} seed
+ * @param {number} layerIndex
+ * @param {number} elementIndex
+ * @param {number} [frameBucket]
+ * @returns {number}
+ */
+export function seededUnit(seed, layerIndex, elementIndex, frameBucket = 0) {
+  let h = 2166136261 >>> 0;
+  const mix = (v) => {
+    h ^= v >>> 0;
+    h = Math.imul(h, 16777619) >>> 0;
+    h ^= h >>> 13;
+    h = Math.imul(h, 16777619) >>> 0;
+  };
+  mix(seed | 0);
+  mix(layerIndex | 0);
+  mix(elementIndex | 0);
+  mix(frameBucket | 0);
+  return (h >>> 0) / 0xffffffff * 2 - 1;
+}
+
+/**
+ * Pure scalar response curve. Inputs are expected in [0, 1] for most sources
+ * (energy/index), but the maps are total for any finite input.
+ * @param {string} curve
+ * @param {number} x
+ * @returns {number}
+ */
+export function evalCurve(curve, x) {
+  switch (curve) {
+    case 'sqrt':
+      return Math.sqrt(Math.max(0, x));
+    case 'square':
+      return x * x;
+    case 'smoothstep': {
+      const t = x <= 0 ? 0 : x >= 1 ? 1 : x;
+      return t * t * (3 - 2 * t);
+    }
+    case 'sin':
+      return Math.sin(x);
+    case 'linear':
+    default:
+      return x;
+  }
+}
+
+/**
+ * Resolve a modulation source to its scalar value.
+ * @param {string} source
+ * @param {Sources} sources
+ * @returns {number}
+ */
+function sourceValue(source, sources) {
+  switch (source) {
+    case 'energy':
+      return sources.energy;
+    case 'time':
+      return sources.time;
+    case 'index':
+      return sources.index;
+    case 'constant':
+      return 1;
+    default:
+      return 0;
+  }
+}
+
+/**
+ * Accumulate every modulation aimed at `target` additively on top of `base`.
+ * @param {Modulation[]} modulations
+ * @param {string} target
+ * @param {number} base
+ * @param {Sources} sources
+ * @returns {number}
+ */
+export function evalModulation(modulations, target, base, sources) {
+  let value = base;
+  for (const m of modulations) {
+    if (m.target !== target) continue;
+    value += m.gain * evalCurve(m.curve, sourceValue(m.source, sources));
+  }
+  return value;
+}
+
+/**
+ * Structural guard: does this look like a pattern spec the interpreter can use?
+ * Band-name and version concerns are handled separately.
+ * @param {any} spec
+ * @returns {boolean}
+ */
+export function isValidPatternSpec(spec) {
+  if (!spec || typeof spec !== 'object') return false;
+  if (typeof spec.specVersion !== 'string') return false;
+  if (!Array.isArray(spec.layers)) return false;
+  return spec.layers.every(
+    (l) =>
+      l &&
+      typeof l === 'object' &&
+      l.primitive &&
+      typeof l.primitive === 'object' &&
+      l.generator &&
+      typeof l.generator === 'object'
+  );
+}
+
+/**
+ * Normalize one raw layer: fill defaults, clamp ranges, drop unknown enums.
+ * @param {any} raw
+ * @returns {Layer}
+ */
+function normalizeLayer(raw) {
+  const src = raw && typeof raw === 'object' ? raw : {};
+  const p = src.primitive && typeof src.primitive === 'object' ? src.primitive : {};
+  const g = src.generator && typeof src.generator === 'object' ? src.generator : {};
+  const modsIn = Array.isArray(src.modulations) ? src.modulations : [];
+  /** @type {Modulation[]} */
+  const modulations = [];
+  for (const m of modsIn) {
+    const nm = normalizeModulation(m);
+    if (nm) modulations.push(nm);
+    if (modulations.length >= MAX_MODULATIONS) break;
+  }
+  return {
+    primitive: {
+      type: PRIMITIVES.includes(p.type) ? p.type : 'point',
+      size: clampNum(p.size, 0, 1000, 20),
+      sides: clampInt(p.sides, 2, MAX_SIDES, 3),
+    },
+    generator: {
+      type: GENERATORS.includes(g.type) ? g.type : 'single',
+      count: clampInt(g.count, 1, MAX_INSTANCES, 1),
+      radius: clampNum(g.radius, 0, 2000, 0),
+      phase: clampNum(g.phase, -10000, 10000, 0),
+    },
+    rotation: clampNum(src.rotation, -10000, 10000, 0),
+    scale: clampNum(src.scale, 0.01, 100, 1),
+    modulations,
+  };
+}
+
+/**
+ * Normalize one raw modulation, or null to drop it (unknown source/target enum).
+ * @param {any} raw
+ * @returns {Modulation|null}
+ */
+function normalizeModulation(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  if (!MOD_SOURCES.includes(raw.source)) return null;
+  if (!MOD_TARGETS.includes(raw.target)) return null;
+  return {
+    source: raw.source,
+    target: raw.target,
+    curve: CURVES.includes(raw.curve) ? raw.curve : 'linear',
+    gain: clampNum(raw.gain, -10000, 10000, 0),
+  };
+}
+
+/**
+ * Total, never-throws normalization. Fills defaults, clamps counts/sizes, drops
+ * unknown enums (graceful forward-compat), caps layer/instance/modulation
+ * budgets, and is idempotent: normalize(normalize(x)) deep-equals normalize(x).
+ * @param {any} raw
+ * @returns {PatternSpec}
+ */
+export function normalizePatternSpec(raw) {
+  const src = raw && typeof raw === 'object' ? raw : {};
+  const layersIn = Array.isArray(src.layers) ? src.layers : [];
+  const layers = layersIn.slice(0, MAX_LAYERS).map(normalizeLayer);
+  return {
+    specVersion: typeof src.specVersion === 'string' ? src.specVersion : PATTERN_SPEC_VERSION,
+    seed: Number.isFinite(src.seed) ? Math.trunc(src.seed) : 0,
+    layers,
+  };
+}
+
+/**
+ * Whether the interpreter supports this spec's version. A higher major version
+ * is "from the future" and must fall back rather than render partially.
+ * @param {any} spec
+ * @returns {boolean}
+ */
+export function isSupportedSpecVersion(spec) {
+  const major = (v) => parseInt(String(v).split('.')[0], 10) || 0;
+  return major(spec && spec.specVersion) <= major(PATTERN_SPEC_VERSION);
+}
+
+/**
+ * Resolve one normalized layer into concrete geometry — the regression anchor
+ * that guarantees atelier == viewer == SVG. Pure: no drawing, no p5, no RNG.
+ * @param {Layer} layer    A normalized layer.
+ * @param {Sources} sources
+ * @returns {ResolvedLayer}
+ */
+export function resolveInstances(layer, sources) {
+  const layerSources = { ...sources, index: 0 };
+  const rotation = evalModulation(layer.modulations, 'rotation', layer.rotation, layerSources);
+  const scale = evalModulation(layer.modulations, 'scale', layer.scale, layerSources);
+  const count =
+    layer.generator.type === 'single'
+      ? 1
+      : clampInt(
+          evalModulation(layer.modulations, 'count', layer.generator.count, layerSources),
+          1,
+          MAX_INSTANCES,
+          1
+        );
+
+  /** @type {ResolvedInstance[]} */
+  const instances = [];
+  const radial = layer.generator.type === 'radial';
+  for (let i = 0; i < count; i++) {
+    const index = count > 1 ? i / (count - 1) : 0;
+    const sourcesI = { ...sources, index };
+    const radius = evalModulation(layer.modulations, 'radius', layer.generator.radius, sourcesI);
+    const size = Math.max(0, evalModulation(layer.modulations, 'size', layer.primitive.size, sourcesI));
+    const sides = clampInt(
+      evalModulation(layer.modulations, 'sides', layer.primitive.sides, sourcesI),
+      2,
+      MAX_SIDES,
+      3
+    );
+    const angle = radial ? layer.generator.phase + (Math.PI * 2 * i) / count : 0;
+    const x = radial ? radius * Math.cos(angle) : 0;
+    const y = radial ? radius * Math.sin(angle) : 0;
+    instances.push({ x, y, size, sides, angle });
+  }
+  return { rotation, scale, instances };
+}
+
+/**
+ * Total instance count a spec resolves to right now (for the SVG-size guard and
+ * tests). Sums each enabled layer's resolved instance count.
+ * @param {PatternSpec} spec  A normalized spec.
+ * @param {Sources} sources
+ * @returns {number}
+ */
+export function instanceCount(spec, sources) {
+  return spec.layers.reduce((sum, layer) => sum + resolveInstances(layer, sources).instances.length, 0);
+}
+
+/**
+ * Content-addressed id: a stable short hash of the normalized spec's JSON.
+ * Identical specs collapse to one id (harmless dedupe); different specs
+ * (practically) never collide, so merging a shared preset's patterns into a
+ * local library is collision-safe by construction.
+ * @param {any} rawSpec
+ * @returns {string}
+ */
+export function patternId(rawSpec) {
+  const json = JSON.stringify(normalizePatternSpec(rawSpec));
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < json.length; i++) {
+    h ^= json.charCodeAt(i);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return 'p' + (h >>> 0).toString(36);
+}
+
+/**
+ * Add a pattern to a library (immutably), returning the new library and the
+ * content-addressed id. An identical spec maps to the same id (idempotent).
+ * @param {PatternLibrary} library
+ * @param {any} rawSpec
+ * @returns {{library: PatternLibrary, id: string}}
+ */
+export function addPattern(library, rawSpec) {
+  const spec = normalizePatternSpec(rawSpec);
+  const id = patternId(spec);
+  return { library: { ...(library || {}), [id]: spec }, id };
+}
+
+/**
+ * @param {PatternLibrary} library
+ * @param {string} id
+ * @returns {PatternSpec|null}
+ */
+export function findPattern(library, id) {
+  return library && library[id] ? library[id] : null;
+}
+
+/**
+ * Remove a pattern by id (immutably).
+ * @param {PatternLibrary} library
+ * @param {string} id
+ * @returns {PatternLibrary}
+ */
+export function removePattern(library, id) {
+  const rest = { ...(library || {}) };
+  delete rest[id];
+  return rest;
+}
+
+/**
+ * Resolve the closure of patterns referenced by `ids` from `library`. Used to
+ * emit a self-contained patternLibrary in the render params, so the viewer
+ * never needs the local library.
+ * @param {PatternLibrary} library
+ * @param {Iterable<string>} ids
+ * @returns {PatternLibrary}
+ */
+export function resolveLibraryClosure(library, ids) {
+  /** @type {PatternLibrary} */
+  const out = {};
+  for (const id of ids) {
+    const spec = findPattern(library, id);
+    if (spec) out[id] = spec;
+  }
+  return out;
+}
+
+/**
+ * Parse a serialized library (e.g. from a preset or localStorage) into a
+ * normalized in-memory library, dropping anything structurally invalid.
+ * @param {any} raw  Either a {version, patterns} envelope or a bare {id: spec} map.
+ * @returns {PatternLibrary}
+ */
+export function parseLibrary(raw) {
+  const patterns =
+    raw && typeof raw === 'object'
+      ? raw.patterns && typeof raw.patterns === 'object'
+        ? raw.patterns
+        : raw
+      : {};
+  /** @type {PatternLibrary} */
+  const out = {};
+  for (const [id, spec] of Object.entries(patterns)) {
+    if (isValidPatternSpec(spec)) out[id] = normalizePatternSpec(spec);
+  }
+  return out;
+}
+
+/**
+ * A few ready-to-use patterns to seed the composer (and to drive round-trip
+ * smokes before the editor exists). Pure data; ids are derived on demand.
+ * @type {Array<{name: string, spec: PatternSpec}>}
+ */
+export const STARTER_PATTERNS = [
+  {
+    name: 'Radial Bloom',
+    spec: {
+      specVersion: PATTERN_SPEC_VERSION,
+      seed: 1,
+      layers: [
+        {
+          primitive: { type: 'polygon', size: 24, sides: 3 },
+          generator: { type: 'radial', count: 8, radius: 60, phase: 0 },
+          rotation: 0,
+          scale: 1,
+          modulations: [
+            { source: 'energy', target: 'radius', curve: 'linear', gain: 160 },
+            { source: 'energy', target: 'count', curve: 'linear', gain: 16 },
+            { source: 'energy', target: 'rotation', curve: 'linear', gain: 1.2 },
+            { source: 'energy', target: 'size', curve: 'sqrt', gain: 30 },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    name: 'Pulse Rings',
+    spec: {
+      specVersion: PATTERN_SPEC_VERSION,
+      seed: 2,
+      layers: [
+        {
+          primitive: { type: 'ring', size: 20, sides: 3 },
+          generator: { type: 'radial', count: 6, radius: 0, phase: 0 },
+          rotation: 0,
+          scale: 1,
+          modulations: [
+            { source: 'index', target: 'size', curve: 'linear', gain: 240 },
+            { source: 'energy', target: 'size', curve: 'linear', gain: 60 },
+            { source: 'energy', target: 'count', curve: 'linear', gain: 6 },
+          ],
+        },
+      ],
+    },
+  },
+];

@@ -5,7 +5,9 @@
 // longer match the current band names, so such presets are detected on load and
 // surfaced to the user; the matching global settings still apply.
 
-export const PRESET_VERSION = '1.0.0';
+// 1.1.0 added an optional top-level `patternLibrary` (custom pattern specs) plus
+// per-band `customPatternId`. Older presets simply lack both and still load.
+export const PRESET_VERSION = '1.1.0';
 
 /**
  * @typedef {Object} BandIncompatibility
@@ -41,6 +43,14 @@ export function detectBandIncompatibility(preset, currentBandNames) {
 export function isValidPreset(preset) {
   if (!preset || typeof preset !== 'object') return false;
   if (typeof preset.frameRate !== 'number') return false;
+  // The optional pattern library, when present, must be a plain object (id ->
+  // spec). Absence is fine (pre-1.1.0 presets); individual specs are validated
+  // and normalized on merge, not here.
+  if (preset.patternLibrary !== undefined) {
+    if (preset.patternLibrary === null || typeof preset.patternLibrary !== 'object' || Array.isArray(preset.patternLibrary)) {
+      return false;
+    }
+  }
   return ['spectrumRing', 'spectrumDiff', 'bands'].every(
     (key) => preset[key] !== null && typeof preset[key] === 'object'
   );

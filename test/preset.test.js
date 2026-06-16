@@ -70,10 +70,34 @@ describe('isValidPreset', () => {
     const eightBand = { ...validPreset, bands: { subBass: {}, high: {} } };
     expect(isValidPreset(eightBand)).toBe(true);
   });
+
+  it('accepts a 1.1.0 preset carrying a custom-pattern library', () => {
+    const withLibrary = {
+      ...validPreset,
+      bands: { red: { drawFunc: 'drawCustomPattern', customPatternId: 'pabc' } },
+      patternLibrary: { pabc: { specVersion: '1.0.0', seed: 0, layers: [] } },
+    };
+    expect(isValidPreset(withLibrary)).toBe(true);
+  });
+
+  it('still accepts an old preset that lacks patternLibrary (back-compat)', () => {
+    expect('patternLibrary' in validPreset).toBe(false);
+    expect(isValidPreset(validPreset)).toBe(true);
+  });
+
+  it('rejects a preset whose patternLibrary is not a plain object', () => {
+    expect(isValidPreset({ ...validPreset, patternLibrary: [] })).toBe(false);
+    expect(isValidPreset({ ...validPreset, patternLibrary: null })).toBe(false);
+    expect(isValidPreset({ ...validPreset, patternLibrary: 'x' })).toBe(false);
+  });
 });
 
 describe('PRESET_VERSION', () => {
   it('is a semantic version string', () => {
     expect(PRESET_VERSION).toMatch(/^\d+\.\d+\.\d+$/);
+  });
+
+  it('is bumped to 1.1.0 for the custom-pattern library', () => {
+    expect(PRESET_VERSION).toBe('1.1.0');
   });
 });

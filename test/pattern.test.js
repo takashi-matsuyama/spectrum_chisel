@@ -1,0 +1,262 @@
+import { describe, it, expect } from 'vitest';
+import {
+  PATTERN_SPEC_VERSION,
+  MAX_LAYERS,
+  MAX_INSTANCES,
+  MAX_MODULATIONS,
+  isValidPatternSpec,
+  normalizePatternSpec,
+  isSupportedSpecVersion,
+  seededUnit,
+  evalCurve,
+  evalModulation,
+  resolveInstances,
+  instanceCount,
+  patternId,
+  addPattern,
+  findPattern,
+  removePattern,
+  resolveLibraryClosure,
+  parseLibrary,
+  STARTER_PATTERNS,
+} from '../src/core/pattern.js';
+
+/** A minimal valid raw layer for building specs in tests. */
+const layer = (over = {}) => ({
+  primitive: { type: 'polygon', size: 10, sides: 3 },
+  generator: { type: 'radial', count: 4, radius: 100, phase: 0 },
+  rotation: 0,
+  scale: 1,
+  modulations: [],
+  ...over,
+});
+
+const baseSources = { energy: 0, time: 0, index: 0, constant: 1 };
+
+describe('isValidPatternSpec', () => {
+  it('accepts a structurally sound spec', () => {
+    expect(isValidPatternSpec({ specVersion: '1.0.0', seed: 0, layers: [layer()] })).toBe(true);
+  });
+  it('rejects non-objects and missing/!array layers', () => {
+    expect(isValidPatternSpec(null)).toBe(false);
+    expect(isValidPatternSpec({ specVersion: '1.0.0' })).toBe(false);
+    expect(isValidPatternSpec({ specVersion: '1.0.0', layers: {} })).toBe(false);
+  });
+  it('rejects a non-string specVersion', () => {
+    expect(isValidPatternSpec({ specVersion: 1, layers: [] })).toBe(false);
+  });
+  it('rejects a layer without primitive/generator', () => {
+    expect(isValidPatternSpec({ specVersion: '1.0.0', layers: [{ primitive: {} }] })).toBe(false);
+  });
+});
+
+describe('normalizePatternSpec', () => {
+  it('fills defaults for an empty input without throwing', () => {
+    const n = normalizePatternSpec(undefined);
+    expect(n.specVersion).toBe(PATTERN_SPEC_VERSION);
+    expect(n.seed).toBe(0);
+    expect(n.layers).toEqual([]);
+  });
+
+  it('clamps counts, sizes, sides and coerces bad numbers', () => {
+    const n = normalizePatternSpec({
+      layers: [
+        {
+          primitive: { type: 'polygon', size: -5, sides: 999 },
+          generator: { type: 'radial', count: 100000, radius: 'x', phase: NaN },
+          rotation: Infinity,
+          scale: 0,
+          modulations: [],
+        },
+      ],
+    });
+    const l = n.layers[0];
+    expect(l.primitive.size).toBe(0);
+    expect(l.primitive.sides).toBe(24);
+    expect(l.generator.count).toBe(MAX_INSTANCES);
+    expect(l.generator.radius).toBe(0);
+    expect(l.generator.phase).toBe(0);
+    expect(Number.isFinite(l.rotation)).toBe(true);
+    expect(l.scale).toBe(0.01);
+  });
+
+  it('drops unknown enum values gracefully (forward-compat)', () => {
+    const n = normalizePatternSpec({
+      layers: [
+        {
+          primitive: { type: 'hyperbola', size: 10, sides: 3 },
+          generator: { type: 'spiral', count: 2, radius: 10, phase: 0 },
+          modulations: [
+            { source: 'energy', target: 'radius', curve: 'linear', gain: 1 },
+            { source: 'bogus', target: 'radius', curve: 'linear', gain: 1 },
+            { source: 'energy', target: 'unknownTarget', curve: 'linear', gain: 1 },
+            { source: 'energy', target: 'radius', curve: 'wat', gain: 1 },
+          ],
+        },
+      ],
+    });
+    const l = n.layers[0];
+    expect(l.primitive.type).toBe('point'); // unknown -> default
+    expect(l.generator.type).toBe('single'); // unknown -> default
+    expect(l.modulations).toHaveLength(2); // two bad-enum mods dropped
+    expect(l.modulations[1].curve).toBe('linear'); // unknown curve -> linear
+  });
+
+  it('caps layers and modulations to budget', () => {
+    const many = Array.from({ length: MAX_LAYERS + 5 }, () => layer());
+    const manyMods = Array.from({ length: MAX_MODULATIONS + 10 }, () => ({
+      source: 'energy',
+      target: 'radius',
+      curve: 'linear',
+      gain: 1,
+    }));
+    const n = normalizePatternSpec({ layers: [...many, layer({ modulations: manyMods })] });
+    expect(n.layers).toHaveLength(MAX_LAYERS);
+    expect(n.layers.every((l) => l.modulations.length <= MAX_MODULATIONS)).toBe(true);
+  });
+
+  it('is idempotent', () => {
+    const raw = { layers: [layer({ modulations: [{ source: 'energy', target: 'size', curve: 'sqrt', gain: 3 }] })] };
+    const once = normalizePatternSpec(raw);
+    const twice = normalizePatternSpec(once);
+    expect(twice).toEqual(once);
+  });
+});
+
+describe('isSupportedSpecVersion', () => {
+  it('supports same or lower major, rejects a future major', () => {
+    expect(isSupportedSpecVersion({ specVersion: '1.0.0' })).toBe(true);
+    expect(isSupportedSpecVersion({ specVersion: '1.9.9' })).toBe(true);
+    expect(isSupportedSpecVersion({ specVersion: '2.0.0' })).toBe(false);
+  });
+});
+
+describe('seededUnit', () => {
+  it('is deterministic for identical inputs', () => {
+    expect(seededUnit(1, 2, 3, 4)).toBe(seededUnit(1, 2, 3, 4));
+  });
+  it('stays within [-1, 1] and varies with inputs', () => {
+    const a = seededUnit(1, 0, 0);
+    const b = seededUnit(1, 0, 1);
+    expect(a).toBeGreaterThanOrEqual(-1);
+    expect(a).toBeLessThanOrEqual(1);
+    expect(a).not.toBe(b);
+  });
+});
+
+describe('evalCurve', () => {
+  it('maps known points', () => {
+    expect(evalCurve('linear', 0.5)).toBe(0.5);
+    expect(evalCurve('square', 0.5)).toBe(0.25);
+    expect(evalCurve('sqrt', 0.25)).toBe(0.5);
+    expect(evalCurve('smoothstep', 0)).toBe(0);
+    expect(evalCurve('smoothstep', 1)).toBe(1);
+    expect(evalCurve('smoothstep', 0.5)).toBe(0.5);
+    expect(evalCurve('sin', 0)).toBe(0);
+    expect(evalCurve('unknown', 0.7)).toBe(0.7); // defaults to linear
+  });
+});
+
+describe('evalModulation', () => {
+  it('accumulates only matching targets, additively', () => {
+    const mods = [
+      { source: 'energy', target: 'radius', curve: 'linear', gain: 50 },
+      { source: 'constant', target: 'radius', curve: 'linear', gain: 5 },
+      { source: 'energy', target: 'size', curve: 'linear', gain: 999 },
+    ];
+    const sources = { ...baseSources, energy: 0.5 };
+    // base 100 + 50*0.5 + 5*1 = 130; the 'size' mod is ignored for target 'radius'.
+    expect(evalModulation(mods, 'radius', 100, sources)).toBe(130);
+  });
+});
+
+describe('resolveInstances', () => {
+  it('places radial instances on a circle and is deterministic', () => {
+    const r1 = resolveInstances(normalizePatternSpec({ layers: [layer()] }).layers[0], baseSources);
+    const r2 = resolveInstances(normalizePatternSpec({ layers: [layer()] }).layers[0], baseSources);
+    expect(r1).toEqual(r2);
+    expect(r1.instances).toHaveLength(4);
+    expect(r1.instances[0].x).toBeCloseTo(100, 6);
+    expect(r1.instances[0].y).toBeCloseTo(0, 6);
+    expect(r1.instances[1].x).toBeCloseTo(0, 6);
+    expect(r1.instances[1].y).toBeCloseTo(100, 6);
+    expect(r1.instances[2].x).toBeCloseTo(-100, 6);
+  });
+
+  it('a single generator yields exactly one instance at the origin', () => {
+    const l = normalizePatternSpec({ layers: [layer({ generator: { type: 'single', count: 9, radius: 100, phase: 0 } })] }).layers[0];
+    const r = resolveInstances(l, baseSources);
+    expect(r.instances).toHaveLength(1);
+    expect(r.instances[0].x).toBe(0);
+    expect(r.instances[0].y).toBe(0);
+  });
+
+  it('modulates count by energy and clamps to >= 1', () => {
+    const l = normalizePatternSpec({
+      layers: [layer({ generator: { type: 'radial', count: 2, radius: 50, phase: 0 }, modulations: [{ source: 'energy', target: 'count', curve: 'linear', gain: 10 }] })],
+    }).layers[0];
+    expect(resolveInstances(l, { ...baseSources, energy: 1 }).instances).toHaveLength(12);
+    expect(resolveInstances(l, { ...baseSources, energy: 0 }).instances).toHaveLength(2);
+  });
+
+  it('normalizes the index source across instances', () => {
+    // size = base 0 + 100*index, so first instance has size 0 and last has size 100.
+    const l = normalizePatternSpec({
+      layers: [layer({ primitive: { type: 'ring', size: 0, sides: 3 }, generator: { type: 'radial', count: 5, radius: 0, phase: 0 }, modulations: [{ source: 'index', target: 'size', curve: 'linear', gain: 100 }] })],
+    }).layers[0];
+    const r = resolveInstances(l, baseSources);
+    expect(r.instances[0].size).toBeCloseTo(0, 6);
+    expect(r.instances[4].size).toBeCloseTo(100, 6);
+  });
+});
+
+describe('instanceCount', () => {
+  it('sums resolved instances across layers', () => {
+    const spec = normalizePatternSpec({ layers: [layer(), layer({ generator: { type: 'single', count: 1, radius: 0, phase: 0 } })] });
+    expect(instanceCount(spec, baseSources)).toBe(4 + 1);
+  });
+});
+
+describe('patternId + library helpers', () => {
+  it('gives identical specs the same id, different specs different ids', () => {
+    const a = { specVersion: '1.0.0', seed: 0, layers: [layer()] };
+    const b = { specVersion: '1.0.0', seed: 0, layers: [layer()] };
+    const c = { specVersion: '1.0.0', seed: 0, layers: [layer({ rotation: 0.1 })] };
+    expect(patternId(a)).toBe(patternId(b));
+    expect(patternId(a)).not.toBe(patternId(c));
+  });
+
+  it('add/find/remove round-trips by content id', () => {
+    const { library, id } = addPattern({}, { specVersion: '1.0.0', seed: 0, layers: [layer()] });
+    expect(findPattern(library, id)).not.toBeNull();
+    // Adding the same spec again is idempotent (same id, same single entry).
+    const again = addPattern(library, { specVersion: '1.0.0', seed: 0, layers: [layer()] });
+    expect(again.id).toBe(id);
+    expect(Object.keys(again.library)).toHaveLength(1);
+    expect(Object.keys(removePattern(library, id))).toHaveLength(0);
+  });
+
+  it('resolveLibraryClosure emits only referenced patterns', () => {
+    const { library: l1, id: id1 } = addPattern({}, { specVersion: '1.0.0', seed: 1, layers: [layer()] });
+    const { library: l2, id: id2 } = addPattern(l1, { specVersion: '1.0.0', seed: 2, layers: [layer()] });
+    const closure = resolveLibraryClosure(l2, [id1]);
+    expect(Object.keys(closure)).toEqual([id1]);
+    expect(closure[id2]).toBeUndefined();
+  });
+
+  it('parseLibrary accepts both envelope and bare maps, dropping invalid specs', () => {
+    const { library, id } = addPattern({}, { specVersion: '1.0.0', seed: 0, layers: [layer()] });
+    expect(Object.keys(parseLibrary({ version: '1.0.0', patterns: library }))).toEqual([id]);
+    expect(Object.keys(parseLibrary(library))).toEqual([id]);
+    expect(parseLibrary({ patterns: { bad: { nope: true } } })).toEqual({});
+  });
+});
+
+describe('STARTER_PATTERNS', () => {
+  it('are all valid and normalize without change', () => {
+    for (const { spec } of STARTER_PATTERNS) {
+      expect(isValidPatternSpec(spec)).toBe(true);
+      expect(normalizePatternSpec(spec)).toEqual(normalizePatternSpec(normalizePatternSpec(spec)));
+    }
+  });
+});
