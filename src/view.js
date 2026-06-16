@@ -7,6 +7,7 @@
 import './p5-global.js';
 import { renderFrame } from './drawing/render.js';
 import { VIEW_CHANNEL } from './broadcast.js';
+import { t } from './i18n/index.js';
 
 // Messages are queued and drained in draw() so no frame is dropped: a single p5
 // tick renders every frame received since the last one (important for sculpture
@@ -34,6 +35,17 @@ function setup() {
   createCanvas(windowWidth, windowHeight);
   colorMode(HSB, 360, 100, 100); // Match the atelier's color environment.
   background(0);
+
+  // Reached only by opening view.html directly on a browser without
+  // BroadcastChannel (the atelier blocks Open Viewer there). Show a note on the
+  // canvas instead of throwing on the constructor below.
+  if (typeof BroadcastChannel === 'undefined') {
+    fill(0, 0, 100);
+    textAlign(CENTER, CENTER);
+    text(t('alertViewerUnsupported'), width / 2, height / 2);
+    noLoop();
+    return;
+  }
 
   const channel = new BroadcastChannel(VIEW_CHANNEL);
   channel.onmessage = (event) => queue.push(event.data);

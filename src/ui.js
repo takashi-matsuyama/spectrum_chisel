@@ -8,6 +8,7 @@ import { defaultBandColor } from './core/colors.js';
 import { drawFunctionMap } from './drawing/styles.js';
 import { downloadSVG, savePreset, loadPreset, generateTimestampedFilename } from './export.js';
 import { openViewer } from './broadcast.js';
+import { supportedVideoFormat, hasViewerSupport, micUnavailableReason } from './capabilities.js';
 import { t, switchLocale, getLocale, supportedLocales } from './i18n/index.js';
 
 /** Section heading tagged so it re-localizes when the locale changes. */
@@ -64,7 +65,7 @@ export function createUI() {
   const canvasRow = createDiv().parent(state.uiPanel);
   labeledButton('saveSvg', downloadSVG, canvasRow);
   labeledButton('savePng', () => saveCanvas(generateTimestampedFilename('png')), canvasRow);
-  labeledButton('openViewer', openViewer, canvasRow);
+  uiComponents.openViewerBtn = labeledButton('openViewer', openViewer, canvasRow);
 
   sectionTitle('presets', state.uiPanel);
   const presetRow = createDiv().parent(state.uiPanel);
@@ -143,4 +144,41 @@ export function createUI() {
       uiComponents[name].strokeSlider.value(newWeight);
     });
   });
+}
+
+/**
+ * Dim a control whose feature this browser cannot run and explain why via its
+ * tooltip / accessible name. The `data-i18n-label` tag re-localizes it on a
+ * locale switch. The control's own handler surfaces the same message, so a
+ * click is never a silent no-op.
+ * @param {Element|null} el
+ * @param {string} messageKey
+ */
+function markUnsupported(el, messageKey) {
+  if (!el) return;
+  el.classList.add('is-unsupported');
+  el.setAttribute('aria-disabled', 'true');
+  el.setAttribute('data-i18n-label', messageKey);
+  const message = t(messageKey);
+  el.setAttribute('title', message);
+  el.setAttribute('aria-label', message);
+}
+
+/**
+ * Flag the controls for features this browser cannot run, so the gaps are
+ * explained rather than failing silently: video recording with no supported
+ * codec, the viewing window without BroadcastChannel, and the microphone
+ * outside a secure context. Call once after createUI().
+ */
+export function applyCapabilityNotices() {
+  if (!supportedVideoFormat()) {
+    markUnsupported(document.getElementById('video-record-btn'), 'alertVideoUnsupported');
+  }
+  if (!hasViewerSupport()) {
+    markUnsupported(uiComponents.openViewerBtn?.elt, 'alertViewerUnsupported');
+  }
+  if (micUnavailableReason()) {
+    markUnsupported(document.getElementById('mic-mode-btn'), 'alertMicUnsupported');
+    markUnsupported(document.getElementById('mic-record-btn'), 'alertMicUnsupported');
+  }
 }

@@ -7,6 +7,9 @@
 // can announce itself ('hello') and receive the current params plus, in
 // sculpture mode, the accumulated history to replay (late-join backfill).
 
+import { hasViewerSupport } from './capabilities.js';
+import { t } from './i18n/index.js';
+
 export const VIEW_CHANNEL = 'spectrum-chisel-view';
 
 let channel = null;
@@ -18,6 +21,9 @@ let helloHandler = null;
 let lastSentParams = null;
 
 function getChannel() {
+  // BroadcastChannel is absent on very old browsers (e.g. Safari < 15.4). Return
+  // null so the atelier still runs; the viewer link is disabled separately.
+  if (!hasViewerSupport()) return null;
   if (!channel) {
     channel = new BroadcastChannel(VIEW_CHANNEL);
     channel.onmessage = (event) => {
@@ -51,6 +57,8 @@ export function onViewerHello(handler) {
  * @param {number} boost
  */
 export function broadcastFrame(frameIndex, spectrum, params, boost) {
+  const ch = getChannel();
+  if (!ch) return;
   const serialized = JSON.stringify(params);
   /** @type {Record<string, any>} */
   const message = { type: 'frame', frameIndex, spectrum: Array.from(spectrum), boost };
@@ -58,7 +66,7 @@ export function broadcastFrame(frameIndex, spectrum, params, boost) {
     message.params = params;
     lastSentParams = serialized;
   }
-  getChannel().postMessage(message);
+  ch.postMessage(message);
 }
 
 /**
@@ -71,19 +79,25 @@ export function broadcastFrame(frameIndex, spectrum, params, boost) {
  * @param {{viewerId: string, params: object, boost: number, history: number[][]|null}} payload
  */
 export function broadcastSync({ viewerId, params, boost, history }) {
+  const ch = getChannel();
+  if (!ch) return;
   /** @type {Record<string, any>} */
   const message = { type: 'sync', viewerId, params, boost };
   if (history) message.history = history;
-  getChannel().postMessage(message);
+  ch.postMessage(message);
 }
 
 /** Tell the viewer to clear its canvas and history (atelier reset). */
 export function broadcastClear() {
   lastSentParams = null; // The next frame must re-send full params.
-  getChannel().postMessage({ type: 'clear' });
+  getChannel()?.postMessage({ type: 'clear' });
 }
 
-/** Open the UI-less viewing window. */
+/** Open the UI-less viewing window, unless this browser lacks BroadcastChannel. */
 export function openViewer() {
+  if (!hasViewerSupport()) {
+    alert(t('alertViewerUnsupported'));
+    return;
+  }
   window.open('view.html', 'spectrum-chisel-viewer');
 }

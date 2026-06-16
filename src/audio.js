@@ -4,10 +4,18 @@
 import { state } from './state.js';
 import { toggleVideoRecording, stopVideoRecording } from './recording.js';
 import { broadcastClear } from './broadcast.js';
+import { micUnavailableReason } from './capabilities.js';
 import { t, applyLabel } from './i18n/index.js';
 
 export function initMic() {
   state.mic = new p5.AudioIn();
+  if (micUnavailableReason()) {
+    // No usable microphone path (insecure context or no getUserMedia). Skip the
+    // start() that would throw or prompt for nothing; keeping state.mic defined
+    // means stop()/disconnect() stay safe no-ops. The UI marks the mic controls
+    // as unavailable so the gap is explained rather than silent.
+    return;
+  }
   state.mic.start(
     () => {
       console.log('Mic ready.');
@@ -97,24 +105,33 @@ export function handleSoundFile(event) {
     if (state.soundFile) {
       state.soundFile.stop();
     }
-    state.soundFile = loadSound(event.target.files[0], () => {
-      console.log('Sound file loaded.');
+    state.soundFile = loadSound(
+      event.target.files[0],
+      () => {
+        console.log('Sound file loaded.');
 
-      // Initialize the trim range to the whole file.
-      state.trimStart = 0;
-      state.trimEnd = state.soundFile.duration();
+        // Initialize the trim range to the whole file.
+        state.trimStart = 0;
+        state.trimEnd = state.soundFile.duration();
 
-      switchInputMode('file');
+        switchInputMode('file');
 
-      const fileVolumeSlider = select('#file-volume-slider');
-      state.soundFile.setVolume(fileVolumeSlider.value());
+        const fileVolumeSlider = select('#file-volume-slider');
+        state.soundFile.setVolume(fileVolumeSlider.value());
 
-      applyLabel(select('#play-pause-btn'), 'play');
-      applyLabel(select('#file-record-btn'), 'startDrawing');
-      state.isPlaying = false;
-      state.isRecording = false;
-      noLoop();
-    });
+        applyLabel(select('#play-pause-btn'), 'play');
+        applyLabel(select('#file-record-btn'), 'startDrawing');
+        state.isPlaying = false;
+        state.isRecording = false;
+        noLoop();
+      },
+      (err) => {
+        // A decode failure is otherwise silent (no success, no mode switch).
+        // Safari and Firefox reject formats Chromium accepts (e.g. some OGG).
+        console.error('Failed to load sound file:', err);
+        alert(t('alertSoundLoad'));
+      }
+    );
   }
 }
 
@@ -154,6 +171,10 @@ export function toggleFileRecording() {
 }
 
 export function toggleMicRecording() {
+  if (micUnavailableReason()) {
+    alert(t('alertMicUnsupported'));
+    return;
+  }
   if (getAudioContext().state !== 'running') userStartAudio();
 
   state.isRecording = !state.isRecording;

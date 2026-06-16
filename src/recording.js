@@ -11,11 +11,19 @@
 
 import { state } from './state.js';
 import { generateTimestampedFilename } from './export.js';
+import { supportedVideoFormat } from './capabilities.js';
+import { baseMimeType } from './core/video-format.js';
 import { t, applyLabel } from './i18n/index.js';
 
 // Filename captured when the current recording stops, while the session state
 // (id, frame count) is still intact. onstop reads it after the async flush.
 let pendingFilename = null;
+
+// The format negotiated for the active recording (WebM where supported, MP4 on
+// Safari). Set when a recording starts, read by stop/onstop to name the file and
+// type the Blob, cleared once the file is saved.
+/** @type {import('./core/video-format.js').VideoFormat|null} */
+let activeFormat = null;
 
 export function toggleVideoRecording() {
   if (state.isVideoRecording) {
@@ -30,6 +38,15 @@ export function startVideoRecording() {
   if (getAudioContext().state !== 'running') userStartAudio();
   if (!state.isRecording && !state.isPlaying) {
     alert(t('alertNotStarted'));
+    return;
+  }
+
+  // Negotiate a format this browser can actually record (WebM elsewhere, MP4 on
+  // Safari). Null means no codec/MediaRecorder support at all; the UI already
+  // marks the button as unsupported, but guard the keyboard shortcut path too.
+  const format = supportedVideoFormat();
+  if (!format) {
+    alert(t('alertVideoUnsupported'));
     return;
   }
 
@@ -61,9 +78,8 @@ export function startVideoRecording() {
       audioStream.getAudioTracks()[0],
     ]);
 
-    const recorder = new MediaRecorder(combinedStream, {
-      mimeType: 'video/webm; codecs=vp9,opus',
-    });
+    const recorder = new MediaRecorder(combinedStream, { mimeType: format.mimeType });
+    activeFormat = format;
 
     // Per-session chunks so a concurrent reset cannot empty them.
     const chunks = [];
@@ -71,12 +87,12 @@ export function startVideoRecording() {
       if (event.data.size > 0) chunks.push(event.data);
     };
     recorder.onstop = () => {
-      const blob = new Blob(chunks, { type: 'video/webm' });
+      const blob = new Blob(chunks, { type: baseMimeType(format.mimeType) });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.className = 'hidden';
       a.href = url;
-      a.download = pendingFilename || generateTimestampedFilename('webm');
+      a.download = pendingFilename || generateTimestampedFilename(format.extension);
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -84,7 +100,13 @@ export function startVideoRecording() {
       pendingFilename = null;
       // Release the capture graph so nothing leaks between recordings.
       releaseCaptureGraph(videoStream, destination, sourceNode);
-      state.mediaRecorder = null;
+      // Only clear the shared "current recording" pointers if a newer recording
+      // has not already taken over, so a rapid stop -> restart cannot null out
+      // the live recorder or its negotiated format.
+      if (state.mediaRecorder === recorder) {
+        activeFormat = null;
+        state.mediaRecorder = null;
+      }
       console.log('Video file saved.');
     };
 
@@ -97,6 +119,7 @@ export function startVideoRecording() {
     console.log('Video recording started.');
   } catch (err) {
     console.error('Failed to initialize MediaRecorder:', err);
+    activeFormat = null;
     releaseCaptureGraph(videoStream, destination, sourceNode);
     alert(t('alertVideoInit'));
   }
@@ -106,7 +129,7 @@ export function stopVideoRecording() {
   if (!state.isVideoRecording) return;
   // Capture the filename now, while the session id and frame count are still
   // intact; onstop fires later, possibly after a reset has cleared that state.
-  pendingFilename = generateTimestampedFilename('webm');
+  pendingFilename = generateTimestampedFilename(activeFormat?.extension ?? 'webm');
   state.mediaRecorder.stop();
   state.isVideoRecording = false;
   const btn = select('#video-record-btn');
