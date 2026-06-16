@@ -7,7 +7,7 @@
   // This is what makes `wrangler deploy` work without the Cloudflare Vite
   // plugin (which would require Vite >= 6); the build just emits dist/ and this
   // config uploads it as assets.
-  "name": "spectrum-chisel",
+  "name": "studio-spectrum-chisel",
   "compatibility_date": "2026-06-15",
   "assets": {
     "directory": "./dist"
