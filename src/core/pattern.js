@@ -21,10 +21,10 @@ export const MAX_SIDES = 24;
 export const MAX_MODULATIONS = 16;
 
 /** Closed enums. Extend by appending; normalize drops values not listed here. */
-export const PRIMITIVES = ['point', 'line', 'polygon', 'ring'];
-export const GENERATORS = ['single', 'radial'];
-export const MOD_SOURCES = ['energy', 'time', 'index', 'constant'];
-export const MOD_TARGETS = ['count', 'radius', 'size', 'rotation', 'scale', 'sides'];
+export const PRIMITIVES = ['point', 'line', 'polygon', 'ring', 'star', 'arc'];
+export const GENERATORS = ['single', 'radial', 'grid'];
+export const MOD_SOURCES = ['energy', 'time', 'index', 'constant', 'frameCount', 'jitter'];
+export const MOD_TARGETS = ['count', 'radius', 'size', 'rotation', 'scale', 'sides', 'strokeWeight', 'alpha', 'hueShift'];
 export const CURVES = ['linear', 'sqrt', 'square', 'smoothstep', 'sin'];
 
 /**
@@ -58,10 +58,12 @@ export const CURVES = ['linear', 'sqrt', 'square', 'smoothstep', 'sin'];
  * @property {Layer[]} layers
  *
  * @typedef {Object} Sources
- * @property {number} energy    Band energy normalized to [0, 1].
- * @property {number} time      Slowly increasing time value (frame-derived).
- * @property {number} index     Per-instance index normalized to [0, 1].
- * @property {number} constant  Always 1.
+ * @property {number} energy      Band energy normalized to [0, 1].
+ * @property {number} time        Slowly increasing time value (frame-derived).
+ * @property {number} index       Per-instance index normalized to [0, 1].
+ * @property {number} constant    Always 1.
+ * @property {number} [frameCount] Raw frame counter (for steady spin/drift).
+ * @property {number} [jitter]    Per-element seeded value in [-1, 1] (set per instance).
  *
  * @typedef {Object} ResolvedInstance
  * @property {number} x
@@ -73,6 +75,9 @@ export const CURVES = ['linear', 'sqrt', 'square', 'smoothstep', 'sin'];
  * @typedef {Object} ResolvedLayer
  * @property {number} rotation
  * @property {number} scale
+ * @property {number} strokeWeightMod  Additive delta for the base stroke weight.
+ * @property {number} alphaMod         Additive delta for the base alpha (0-255).
+ * @property {number} hueShift         Hue rotation in degrees applied to the color.
  * @property {ResolvedInstance[]} instances
  *
  * @typedef {Record<string, PatternSpec>} PatternLibrary
@@ -170,6 +175,10 @@ function sourceValue(source, sources) {
       return sources.index;
     case 'constant':
       return 1;
+    case 'frameCount':
+      return typeof sources.frameCount === 'number' ? sources.frameCount : 0;
+    case 'jitter':
+      return typeof sources.jitter === 'number' ? sources.jitter : 0;
     default:
       return 0;
   }
@@ -296,32 +305,44 @@ export function isSupportedSpecVersion(spec) {
 
 /**
  * Resolve one normalized layer into concrete geometry — the regression anchor
- * that guarantees atelier == viewer == SVG. Pure: no drawing, no p5, no RNG.
- * @param {Layer} layer    A normalized layer.
+ * that guarantees atelier == viewer == SVG. Pure: no drawing, no p5, no
+ * Math.random(). The `jitter` source is seeded from (seed, layerIndex,
+ * elementIndex), so it is deterministic across instances.
+ * @param {Layer} layer        A normalized layer.
  * @param {Sources} sources
+ * @param {number} [seed]       The spec seed (for the jitter source).
+ * @param {number} [layerIndex] This layer's index (for the jitter source).
  * @returns {ResolvedLayer}
  */
-export function resolveInstances(layer, sources) {
-  const layerSources = { ...sources, index: 0 };
+export function resolveInstances(layer, sources, seed = 0, layerIndex = 0) {
+  const layerSources = { ...sources, index: 0, jitter: seededUnit(seed, layerIndex, 0, 0) };
   const rotation = evalModulation(layer.modulations, 'rotation', layer.rotation, layerSources);
   const scale = evalModulation(layer.modulations, 'scale', layer.scale, layerSources);
-  const count =
-    layer.generator.type === 'single'
+  const strokeWeightMod = evalModulation(layer.modulations, 'strokeWeight', 0, layerSources);
+  const alphaMod = evalModulation(layer.modulations, 'alpha', 0, layerSources);
+  const hueShift = evalModulation(layer.modulations, 'hueShift', 0, layerSources);
+
+  const gen = layer.generator;
+  let count =
+    gen.type === 'single'
       ? 1
-      : clampInt(
-          evalModulation(layer.modulations, 'count', layer.generator.count, layerSources),
-          1,
-          MAX_INSTANCES,
-          1
-        );
+      : clampInt(evalModulation(layer.modulations, 'count', gen.count, layerSources), 1, MAX_INSTANCES, 1);
+
+  // grid: `count` is per-axis; the grid is count*count cells (capped). Its span
+  // is a single layer-level radius so the lattice stays regular.
+  let perAxis = 0;
+  let gridRadius = 0;
+  if (gen.type === 'grid') {
+    perAxis = Math.max(1, Math.min(count, Math.floor(Math.sqrt(MAX_INSTANCES))));
+    count = perAxis * perAxis;
+    gridRadius = evalModulation(layer.modulations, 'radius', gen.radius, layerSources);
+  }
 
   /** @type {ResolvedInstance[]} */
   const instances = [];
-  const radial = layer.generator.type === 'radial';
   for (let i = 0; i < count; i++) {
     const index = count > 1 ? i / (count - 1) : 0;
-    const sourcesI = { ...sources, index };
-    const radius = evalModulation(layer.modulations, 'radius', layer.generator.radius, sourcesI);
+    const sourcesI = { ...sources, index, jitter: seededUnit(seed, layerIndex, i, 0) };
     const size = Math.max(0, evalModulation(layer.modulations, 'size', layer.primitive.size, sourcesI));
     const sides = clampInt(
       evalModulation(layer.modulations, 'sides', layer.primitive.sides, sourcesI),
@@ -329,23 +350,39 @@ export function resolveInstances(layer, sources) {
       MAX_SIDES,
       3
     );
-    const angle = radial ? layer.generator.phase + (Math.PI * 2 * i) / count : 0;
-    const x = radial ? radius * Math.cos(angle) : 0;
-    const y = radial ? radius * Math.sin(angle) : 0;
+    let x = 0;
+    let y = 0;
+    let angle = 0;
+    if (gen.type === 'radial') {
+      const radius = evalModulation(layer.modulations, 'radius', gen.radius, sourcesI);
+      angle = gen.phase + (Math.PI * 2 * i) / count;
+      x = radius * Math.cos(angle);
+      y = radius * Math.sin(angle);
+    } else if (gen.type === 'grid') {
+      const gx = i % perAxis;
+      const gy = Math.floor(i / perAxis);
+      const step = perAxis > 1 ? (2 * gridRadius) / (perAxis - 1) : 0;
+      x = -gridRadius + gx * step;
+      y = -gridRadius + gy * step;
+      angle = gen.phase;
+    }
     instances.push({ x, y, size, sides, angle });
   }
-  return { rotation, scale, instances };
+  return { rotation, scale, strokeWeightMod, alphaMod, hueShift, instances };
 }
 
 /**
  * Total instance count a spec resolves to right now (for the SVG-size guard and
- * tests). Sums each enabled layer's resolved instance count.
+ * tests). Sums each layer's resolved instance count.
  * @param {PatternSpec} spec  A normalized spec.
  * @param {Sources} sources
  * @returns {number}
  */
 export function instanceCount(spec, sources) {
-  return spec.layers.reduce((sum, layer) => sum + resolveInstances(layer, sources).instances.length, 0);
+  return spec.layers.reduce(
+    (sum, layer, layerIndex) => sum + resolveInstances(layer, sources, spec.seed, layerIndex).instances.length,
+    0
+  );
 }
 
 /**

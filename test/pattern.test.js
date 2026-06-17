@@ -260,3 +260,69 @@ describe('STARTER_PATTERNS', () => {
     }
   });
 });
+
+describe('2c expressive set', () => {
+  it('normalize keeps the new primitives, generator, sources and targets', () => {
+    const n = normalizePatternSpec({
+      layers: [
+        {
+          primitive: { type: 'star', size: 20, sides: 5 },
+          generator: { type: 'grid', count: 3, radius: 100, phase: 0 },
+          modulations: [
+            { source: 'jitter', target: 'size', curve: 'linear', gain: 10 },
+            { source: 'frameCount', target: 'rotation', curve: 'linear', gain: 0.01 },
+            { source: 'energy', target: 'strokeWeight', curve: 'linear', gain: 2 },
+            { source: 'energy', target: 'alpha', curve: 'linear', gain: 100 },
+            { source: 'index', target: 'hueShift', curve: 'linear', gain: 120 },
+          ],
+        },
+      ],
+    });
+    const l = n.layers[0];
+    expect(l.primitive.type).toBe('star');
+    expect(l.generator.type).toBe('grid');
+    expect(l.modulations).toHaveLength(5); // all enums valid -> none dropped
+  });
+
+  it('grid generates count*count instances', () => {
+    const l = normalizePatternSpec({
+      layers: [layer({ generator: { type: 'grid', count: 4, radius: 100, phase: 0 } })],
+    }).layers[0];
+    expect(resolveInstances(l, baseSources).instances).toHaveLength(16);
+  });
+
+  it('the jitter source is deterministic and varies per element', () => {
+    const l = normalizePatternSpec({
+      layers: [layer({ primitive: { type: 'ring', size: 0, sides: 3 }, generator: { type: 'radial', count: 6, radius: 0, phase: 0 }, modulations: [{ source: 'jitter', target: 'size', curve: 'linear', gain: 50 }] })],
+    }).layers[0];
+    const a = resolveInstances(l, baseSources, 7, 0);
+    const b = resolveInstances(l, baseSources, 7, 0);
+    expect(a).toEqual(b); // same seed/layer -> identical
+    const sizes = a.instances.map((i) => i.size);
+    expect(new Set(sizes).size).toBeGreaterThan(1); // jitter differs per element
+    // A different seed gives a different (still deterministic) result.
+    expect(resolveInstances(l, baseSources, 8, 0)).not.toEqual(a);
+  });
+
+  it('returns layer-level style modulation amounts', () => {
+    const l = normalizePatternSpec({
+      layers: [layer({ modulations: [
+        { source: 'energy', target: 'strokeWeight', curve: 'linear', gain: 4 },
+        { source: 'energy', target: 'alpha', curve: 'linear', gain: 200 },
+        { source: 'constant', target: 'hueShift', curve: 'linear', gain: 90 },
+      ] })],
+    }).layers[0];
+    const r = resolveInstances(l, { ...baseSources, energy: 0.5 }, 1, 0);
+    expect(r.strokeWeightMod).toBeCloseTo(2, 6);
+    expect(r.alphaMod).toBeCloseTo(100, 6);
+    expect(r.hueShift).toBeCloseTo(90, 6);
+  });
+
+  it('the frameCount source feeds modulation', () => {
+    const l = normalizePatternSpec({
+      layers: [layer({ modulations: [{ source: 'frameCount', target: 'rotation', curve: 'linear', gain: 0.5 }] })],
+    }).layers[0];
+    const r = resolveInstances(l, { ...baseSources, frameCount: 10 }, 0, 0);
+    expect(r.rotation).toBeCloseTo(5, 6); // 0.5 * 10
+  });
+});
