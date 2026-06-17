@@ -21,6 +21,7 @@ import { downloadSVG, generateTimestampedFilename } from './export.js';
 import { toggleVideoRecording } from './recording.js';
 import { broadcastFrame, broadcastSync, onViewerHello, openViewer } from './broadcast.js';
 import { collectRenderParams } from './params.js';
+import { addPattern } from './core/pattern.js';
 import { applyStaticTranslations } from './i18n/index.js';
 
 /** Current input gain multiplier (mic boost slider in mic mode, 1 otherwise). */
@@ -72,6 +73,27 @@ function setup() {
 
   // Reply to viewers that open mid-session so they can catch up (late-join).
   onViewerHello(sendStateToViewer);
+
+  // Dev-only test seam for the custom-pattern round-trip (assign a spec to a
+  // band before the composer UI exists). `import.meta.env.DEV` is false in the
+  // production build, so this whole block is tree-shaken out of the bundle.
+  if (import.meta.env.DEV) {
+    /** @type {any} */ (window).__sc = {
+      addPattern: (spec) => {
+        const result = addPattern(state.patternLibrary, spec);
+        state.patternLibrary = result.library;
+        return result.id;
+      },
+      assignBand: (bandName, id) => {
+        state.bandPatterns[bandName] = id;
+      },
+      clearBand: (bandName) => {
+        delete state.bandPatterns[bandName];
+      },
+      collectRenderParams,
+      state,
+    };
+  }
 }
 
 function draw() {

@@ -5,6 +5,7 @@ import { state, uiComponents } from './state.js';
 import { BAND_CONFIG, bandNames } from './core/bands.js';
 import { buildTimestampedFilename } from './core/filename.js';
 import { detectBandIncompatibility, isValidPreset, PRESET_VERSION } from './core/preset.js';
+import { parseLibrary } from './core/pattern.js';
 import { drawVisuals } from './drawing/render.js';
 import { collectRenderParams } from './params.js';
 import { t } from './i18n/index.js';
@@ -92,13 +93,29 @@ export function loadPreset() {
       uiComponents.diff.thresholdSlider.value(preset.spectrumDiff.threshold);
       uiComponents.diff.colorPicker.value(preset.spectrumDiff.color);
 
+      // Merge any custom patterns the preset carries into the in-memory library
+      // before restoring band assignments. Content-addressed ids make the merge
+      // collision-safe (same content -> same id, different content -> different id).
+      if (preset.patternLibrary) {
+        state.patternLibrary = { ...state.patternLibrary, ...parseLibrary(preset.patternLibrary) };
+      }
+
       BAND_CONFIG.forEach((band) => {
         const name = band.name;
         const bandPreset = preset.bands[name];
         if (bandPreset) {
           uiComponents[name].enabledCheckbox.checked(bandPreset.enabled);
           uiComponents[name].colorPicker.value(bandPreset.color);
-          uiComponents[name].drawSelector.value(bandPreset.drawFunc);
+          // A custom-pattern assignment lives in state (drawCustomPattern is not
+          // a selector option); otherwise restore the built-in selection and
+          // drop any stale assignment. The composer slice refreshes its own
+          // assign-to-band affordance explicitly (p5 .value() fires no event).
+          if (bandPreset.drawFunc === 'drawCustomPattern' && bandPreset.customPatternId) {
+            state.bandPatterns[name] = bandPreset.customPatternId;
+          } else {
+            delete state.bandPatterns[name];
+            uiComponents[name].drawSelector.value(bandPreset.drawFunc);
+          }
           uiComponents[name].strokeSlider.value(bandPreset.stroke);
           uiComponents[name].alphaSlider.value(bandPreset.alpha);
           uiComponents[name].gainSlider.value(bandPreset.gain);

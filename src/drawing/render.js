@@ -12,6 +12,8 @@ import { state } from '../state.js';
 import { BAND_CONFIG } from '../core/bands.js';
 import { bandEnergy } from '../core/energy.js';
 import { drawFunctionMap } from './styles.js';
+import { drawCustomPattern } from './customPattern.js';
+import { isSupportedSpecVersion } from '../core/pattern.js';
 import { drawSpectrumRingByBands, drawSpectrumDiff } from './layers.js';
 import { collectRenderParams } from '../params.js';
 
@@ -60,7 +62,7 @@ export function renderFrame(pg, currentFrame, spectrum, prevSpectrum, params, bo
     if (bandParams) bandColors[bandInfo.name] = hexColor(pg, bandParams.color);
   });
 
-  BAND_CONFIG.forEach((bandInfo) => {
+  BAND_CONFIG.forEach((bandInfo, bandIndex) => {
     const bandParams = params.bands[bandInfo.name];
     if (!bandParams || !bandParams.enabled) return;
 
@@ -76,8 +78,25 @@ export function renderFrame(pg, currentFrame, spectrum, prevSpectrum, params, bo
       pg.translate(dx, dy);
       const style = { color: bandColors[bandInfo.name], weight: bandParams.stroke, alpha: bandParams.alpha };
       const drawParams = { intensityGain: bandParams.intensityGain, angleSpeed: bandParams.angleSpeed, threshold: bandParams.threshold };
-      const func = drawFunctionMap[bandParams.drawFunc].func;
-      func(pg, scaledEnergy, currentFrame, time, style, drawParams);
+
+      if (bandParams.drawFunc === 'drawCustomPattern') {
+        // Custom pattern: resolve its spec from the self-contained library that
+        // rode in with the params. Missing or too-new specs degrade to the
+        // band's default built-in (no throw), so a shared preset referencing an
+        // unknown pattern still renders.
+        const spec = params.patternLibrary && params.patternLibrary[bandParams.customPatternId];
+        if (spec && isSupportedSpecVersion(spec)) {
+          drawCustomPattern(pg, scaledEnergy, currentFrame, time, style, { ...drawParams, spec, bandIndex });
+        } else {
+          drawFunctionMap[bandInfo.defFunc].func(pg, scaledEnergy, currentFrame, time, style, drawParams);
+        }
+      } else {
+        // `?? defFunc` hardens against an unknown built-in key from a
+        // forward-compatible preset (drawCustomPattern is dispatched above and is
+        // intentionally absent from drawFunctionMap).
+        const entry = drawFunctionMap[bandParams.drawFunc] ?? drawFunctionMap[bandInfo.defFunc];
+        entry.func(pg, scaledEnergy, currentFrame, time, style, drawParams);
+      }
       pg.pop();
     }
   });

@@ -7,6 +7,7 @@
 
 import { state, uiComponents } from './state.js';
 import { BAND_CONFIG } from './core/bands.js';
+import { findPattern, resolveLibraryClosure } from './core/pattern.js';
 
 /**
  * Collect the current UI settings into a serializable params object.
@@ -24,10 +25,12 @@ import { BAND_CONFIG } from './core/bands.js';
  */
 export function collectRenderParams() {
   const bands = {};
+  const referencedPatternIds = new Set();
   BAND_CONFIG.forEach((band) => {
     const name = band.name;
     const c = uiComponents[name];
-    bands[name] = {
+    /** @type {Record<string, any>} */
+    const bandParams = {
       enabled: c.enabledCheckbox.checked(),
       color: c.colorPicker.value(),
       drawFunc: c.drawSelector.value(),
@@ -38,6 +41,18 @@ export function collectRenderParams() {
       intensityGain: c.intensityGainSlider.value(),
       angleSpeed: c.angleSpeedSlider.value(),
     };
+
+    // A custom-pattern assignment overrides the built-in draw style. We only
+    // honor it when the referenced pattern still exists, so a dangling
+    // assignment falls back to the selector's built-in style.
+    const patternId = state.bandPatterns[name];
+    if (patternId && findPattern(state.patternLibrary, patternId)) {
+      bandParams.drawFunc = 'drawCustomPattern';
+      bandParams.customPatternId = patternId;
+      referencedPatternIds.add(patternId);
+    }
+
+    bands[name] = bandParams;
   });
 
   return {
@@ -55,5 +70,11 @@ export function collectRenderParams() {
       color: uiComponents.diff.colorPicker.value(),
     },
     bands,
+    // Self-contained closure of exactly the patterns the bands reference, so the
+    // viewer renders from params alone (no local-library lookup) and presets are
+    // shareable. Omitted entirely when no band uses a custom pattern.
+    ...(referencedPatternIds.size > 0
+      ? { patternLibrary: resolveLibraryClosure(state.patternLibrary, referencedPatternIds) }
+      : {}),
   };
 }

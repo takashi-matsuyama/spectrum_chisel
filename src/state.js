@@ -35,6 +35,18 @@ export const state = {
   spectrumHistory: [],
   /** @type {number[]} Previous spectrum frame (for the diff layer). */
   prevSpectrum: [],
+  /**
+   * @type {Record<string, any>} In-memory custom-pattern library, keyed by the
+   * content-addressed pattern id (see core/pattern.js). Persisted to
+   * localStorage and embedded in shareable presets by a later composer slice.
+   */
+  patternLibrary: {},
+  /**
+   * @type {Record<string, string>} Per-band custom-pattern assignment: band name
+   * -> pattern id. A band present here renders that custom pattern instead of
+   * its built-in draw style (resolved in params.js / drawing/render.js).
+   */
+  bandPatterns: {},
   /** Whether the control UI is visible. */
   uiVisible: true,
   /** @type {MediaRecorder|null} Video recorder for the current recording. */
