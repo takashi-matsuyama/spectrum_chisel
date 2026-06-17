@@ -59,6 +59,8 @@
   "confirmDeletePattern": "Delete this custom pattern? Bands using it revert to their built-in style.",
   "alertNoPattern": "Create a pattern first (New).",
   "alertPatternDropped": "Some saved patterns couldn't be read and were skipped.",
+  "alertPatternMissing": "This preset uses a custom pattern that couldn't be loaded; those bands use their built-in style.",
+  "alertSvgLarge": "This sculpture is very large; the SVG export may be slow and the file big.",
   "alertMicInit": "Failed to initialize the microphone. Please check your browser settings.",
   "alertNotStarted": "Drawing or playback has not started, so recording cannot begin.",
   "alertNoAudioTrack": "Error: could not capture an audio track.",

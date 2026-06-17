@@ -5,15 +5,50 @@ import { state, uiComponents } from './state.js';
 import { BAND_CONFIG, bandNames } from './core/bands.js';
 import { buildTimestampedFilename } from './core/filename.js';
 import { detectBandIncompatibility, isValidPreset, PRESET_VERSION } from './core/preset.js';
-import { parseLibrary } from './core/pattern.js';
+import { parseLibrary, instanceCount, isSupportedSpecVersion } from './core/pattern.js';
 import { drawVisuals } from './drawing/render.js';
 import { collectRenderParams } from './params.js';
 import { syncComposerToState } from './composer.js';
 import { t } from './i18n/index.js';
 
+// Above this many estimated vector nodes, a sculpture SVG export is warned about
+// (it still proceeds). Bounds the TOTAL cost (frames x bands x instances), which
+// the per-frame instance cap alone does not.
+const SVG_NODE_WARN_THRESHOLD = 200000;
+// Upper-bound sources for the estimate: full energy maximizes resolved counts.
+const SVG_ESTIMATE_SOURCES = { energy: 1, time: 0, index: 0, constant: 1, frameCount: 0 };
+
+/**
+ * Estimate the vector node count of an SVG export so a huge sculpture is a
+ * conscious choice. A custom band contributes its resolved instance count; a
+ * built-in band ~1 group.
+ * @param {object} params  collectRenderParams() snapshot.
+ * @param {number} frames
+ * @returns {number}
+ */
+function estimateSvgNodes(params, frames) {
+  let perFrame = 0;
+  BAND_CONFIG.forEach((band) => {
+    const bp = params.bands[band.name];
+    if (!bp || !bp.enabled) return;
+    const spec = bp.drawFunc === 'drawCustomPattern' && params.patternLibrary && params.patternLibrary[bp.customPatternId];
+    perFrame += spec ? instanceCount(spec, SVG_ESTIMATE_SOURCES) : 1;
+  });
+  if (params.spectrumRing && params.spectrumRing.enabled) perFrame += BAND_CONFIG.length;
+  if (params.spectrumDiff && params.spectrumDiff.enabled) perFrame += 1;
+  return perFrame * Math.max(1, frames);
+}
+
 export function downloadSVG() {
   console.log('Starting SVG export...');
   noLoop();
+
+  // Warn (without blocking) before a very large sculpture export.
+  const sculpture = uiComponents.sculptureModeCheckbox.checked();
+  const frames = sculpture ? state.spectrumHistory.length : 1;
+  if (estimateSvgNodes(collectRenderParams(), frames) > SVG_NODE_WARN_THRESHOLD) {
+    alert(t('alertSvgLarge'));
+  }
 
   const svg = createGraphics(width, height, SVG);
   svg.colorMode(HSB, 360, 100, 100);
@@ -140,6 +175,22 @@ export function loadPreset() {
       if (frameRateValueSpan && frameRateValueSpan.tagName === 'SPAN') {
         frameRateValueSpan.innerHTML = state.frameRateSlider.value();
       }
+
+      // Graceful degradation: a band may reference a custom pattern that the
+      // merged library lacks (dropped on parse) or that a newer spec version
+      // authored. Such bands render their built-in style (render.js falls back);
+      // clear dangling assignments and notify once.
+      let degraded = false;
+      for (const band of Object.keys(state.bandPatterns)) {
+        const spec = state.patternLibrary[state.bandPatterns[band]];
+        if (!spec) {
+          delete state.bandPatterns[band];
+          degraded = true;
+        } else if (!isSupportedSpecVersion(spec)) {
+          degraded = true;
+        }
+      }
+      if (degraded) alert(t('alertPatternMissing'));
 
       // Refresh the composer + per-band pattern pickers: p5 .value() fires no
       // change event, so the merged library and restored assignments must be
