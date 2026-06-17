@@ -9,6 +9,7 @@ import { drawFunctionMap } from './drawing/styles.js';
 import { downloadSVG, savePreset, loadPreset, generateTimestampedFilename } from './export.js';
 import { openViewer } from './broadcast.js';
 import { supportedVideoFormat, hasViewerSupport, micUnavailableReason } from './capabilities.js';
+import { loadPatternLibrary, attachBandPatternControl, initComposerUI } from './composer.js';
 import { t, switchLocale, getLocale, supportedLocales } from './i18n/index.js';
 
 /** Section heading tagged so it re-localizes when the locale changes. */
@@ -56,6 +57,10 @@ export function createUI() {
   state.uiPanel = createDiv();
   state.uiPanel.parent('ui-container');
   state.uiPanel.addClass('ui-panel');
+
+  // Load the custom-pattern library before the band controls, so each band's
+  // pattern picker can list it.
+  loadPatternLibrary();
 
   const createSliderWithLabel = (label, min, max, initial, step, parentEl) => {
     let container = createDiv(label + ': ').parent(parentEl);
@@ -154,7 +159,13 @@ export function createUI() {
       const newWeight = drawFunctionMap[selectedKey].defaultWeight;
       uiComponents[name].strokeSlider.value(newWeight);
     });
+
+    // Optional custom-pattern override for this band (composer-managed).
+    attachBandPatternControl(name, section);
   });
+
+  // Custom-pattern composer section (library + editor), after the bands.
+  initComposerUI();
 }
 
 /**

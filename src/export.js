@@ -8,6 +8,7 @@ import { detectBandIncompatibility, isValidPreset, PRESET_VERSION } from './core
 import { parseLibrary } from './core/pattern.js';
 import { drawVisuals } from './drawing/render.js';
 import { collectRenderParams } from './params.js';
+import { syncComposerToState } from './composer.js';
 import { t } from './i18n/index.js';
 
 export function downloadSVG() {
@@ -139,6 +140,11 @@ export function loadPreset() {
       if (frameRateValueSpan && frameRateValueSpan.tagName === 'SPAN') {
         frameRateValueSpan.innerHTML = state.frameRateSlider.value();
       }
+
+      // Refresh the composer + per-band pattern pickers: p5 .value() fires no
+      // change event, so the merged library and restored assignments must be
+      // re-synced explicitly.
+      syncComposerToState();
 
       console.log('Preset loaded successfully.');
     } else {

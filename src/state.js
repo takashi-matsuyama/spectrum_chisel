@@ -47,6 +47,13 @@ export const state = {
    * its built-in draw style (resolved in params.js / drawing/render.js).
    */
   bandPatterns: {},
+  /**
+   * @type {Record<string, string>} Display names for library patterns, keyed by
+   * the content-addressed pattern id. The id is the stable render handle; the
+   * name is the stable UX handle (editing a pattern recomputes its id but keeps
+   * the name, and rewires the bands that referenced the old id).
+   */
+  patternNames: {},
   /** Whether the control UI is visible. */
   uiVisible: true,
   /** @type {MediaRecorder|null} Video recorder for the current recording. */
