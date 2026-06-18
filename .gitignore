@@ -44,3 +44,6 @@ Thumbs.db
 
 # Vite dev cache
 .vite/
+
+# Basou - local-only: never commit basou's trail (regenerable from the agents' logs)
+.basou/
