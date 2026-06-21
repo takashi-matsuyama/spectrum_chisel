@@ -4,6 +4,8 @@ import {
   MAX_LAYERS,
   MAX_INSTANCES,
   MAX_MODULATIONS,
+  MAX_MOTIONS,
+  MOTIONS,
   isValidPatternSpec,
   normalizePatternSpec,
   isSupportedSpecVersion,
@@ -12,6 +14,7 @@ import {
   evalCurve,
   evalModulation,
   resolveInstances,
+  expandMotions,
   instanceCount,
   patternId,
   addPattern,
@@ -429,5 +432,70 @@ describe('animatedJitter (Phase 1)', () => {
     const a0 = resolveInstances(animated, { ...baseSources, frameCount: 0 }, 7, 0).instances[0].size;
     const a1 = resolveInstances(animated, { ...baseSources, frameCount: 600 }, 7, 0).instances[0].size;
     expect(a1).not.toBe(a0); // shimmer changes the value across frames
+  });
+});
+
+describe('Motion presets (Phase 2a)', () => {
+  it('MOTIONS exposes the expected kinds', () => {
+    expect(MOTIONS).toEqual(['orbit', 'pulse', 'breathe', 'drift', 'bloom', 'shimmer']);
+  });
+
+  it('normalizeLayer clamps motions, drops unknown kinds, caps, and omits empty', () => {
+    const n = normalizePatternSpec({
+      layers: [layer({ motions: [
+        { kind: 'orbit', speed: 99, depth: -5 }, // clamped to 4 / 0
+        { kind: 'nope' }, // dropped
+        { kind: 'shimmer', speed: 2, depth: 1 },
+        { kind: 'pulse' },
+        { kind: 'bloom' },
+        { kind: 'drift' }, // beyond MAX_MOTIONS -> not reached
+      ] })],
+    });
+    const m = n.layers[0].motions;
+    expect(m).toHaveLength(MAX_MOTIONS);
+    expect(m[0]).toEqual({ kind: 'orbit', speed: 4, depth: 0 });
+    expect(m.map((x) => x.kind)).toEqual(['orbit', 'shimmer', 'pulse', 'bloom']);
+    const empty = normalizePatternSpec({ layers: [layer({ motions: [] })] });
+    expect(empty.layers[0]).not.toHaveProperty('motions');
+  });
+
+  it('motions preserve patternId when empty, change it when present (idempotent)', () => {
+    const base = { layers: [layer()] };
+    expect(patternId({ layers: [layer({ motions: [] })] })).toBe(patternId(base));
+    const withMotion = { layers: [layer({ motions: [{ kind: 'orbit', speed: 1, depth: 1 }] })] };
+    expect(patternId(withMotion)).not.toBe(patternId(base));
+    const once = normalizePatternSpec(withMotion);
+    expect(normalizePatternSpec(once)).toEqual(once);
+  });
+
+  it('expandMotions returns the layer unchanged when there are no motions', () => {
+    const l = normalizePatternSpec({ layers: [layer({ modulations: [{ source: 'energy', target: 'radius', curve: 'linear', gain: 10 }] })] }).layers[0];
+    const out = expandMotions(l);
+    expect(out.modulations).toBe(l.modulations);
+    expect(out.jitterRate).toBe(0);
+  });
+
+  it('expandMotions appends motion rows and shimmer raises jitterRate', () => {
+    const l = normalizePatternSpec({ layers: [layer({ motions: [
+      { kind: 'orbit', speed: 1, depth: 1 },
+      { kind: 'shimmer', speed: 3, depth: 1 },
+    ] })] }).layers[0];
+    const out = expandMotions(l);
+    expect(out.modulations.some((m) => m.source === 'frameCount' && m.target === 'rotation')).toBe(true);
+    expect(out.modulations.filter((m) => m.source === 'jitter')).toHaveLength(2);
+    expect(out.jitterRate).toBe(18); // 6 * speed(3)
+  });
+
+  it('expandMotions is deterministic and caps at MAX_MODULATIONS', () => {
+    const l = normalizePatternSpec({ layers: [layer({ motions: [{ kind: 'bloom', speed: 1, depth: 1 }] })] }).layers[0];
+    expect(expandMotions(l)).toEqual(expandMotions(l));
+    expect(expandMotions(l).modulations.length).toBeLessThanOrEqual(MAX_MODULATIONS);
+  });
+
+  it('a motion resolves identically to its equivalent hand-written modulations', () => {
+    const sources = { ...baseSources, frameCount: 100 };
+    const motionLayer = normalizePatternSpec({ layers: [layer({ motions: [{ kind: 'orbit', speed: 1, depth: 1 }] })] }).layers[0];
+    const handLayer = normalizePatternSpec({ layers: [layer({ modulations: [{ source: 'frameCount', target: 'rotation', curve: 'linear', gain: 0.008 }] })] }).layers[0];
+    expect(resolveInstances(motionLayer, sources, 1, 0)).toEqual(resolveInstances(handLayer, sources, 1, 0));
   });
 });
