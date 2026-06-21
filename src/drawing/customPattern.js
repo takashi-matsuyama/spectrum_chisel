@@ -88,7 +88,7 @@ function shiftHue(pg, rgbColor, degrees) {
  * @param {number} frameCount
  * @param {number} time
  * @param {{color:any, weight:number, alpha:number}} style
- * @param {{intensityGain?:number, angleSpeed?:number, threshold?:number, spec:any}} params
+ * @param {{intensityGain?:number, angleSpeed?:number, threshold?:number, spec:any, centroid?:number}} params
  */
 export function drawCustomPattern(pg, energy, frameCount, time, style, params) {
   const spec = normalizePatternSpec(params.spec);
@@ -102,9 +102,10 @@ export function drawCustomPattern(pg, energy, frameCount, time, style, params) {
   pg.rotate(frameCount * 0.01 * angleSpeed);
   pg.scale(intensityGain);
 
-  // energy normalized to [0,1] is the primary source; index and jitter are
-  // resolved per-instance inside resolveInstances; frameCount drives steady drift.
-  const sources = { energy: energy / 255, time, index: 0, constant: 1, frameCount };
+  // energy normalized to [0,1] is the primary source; centroid is this frame's
+  // timbral brightness in [0,1]; index and jitter are resolved per-instance
+  // inside resolveInstances; frameCount drives steady drift.
+  const sources = { energy: energy / 255, time, index: 0, constant: 1, frameCount, centroid: typeof params.centroid === 'number' ? params.centroid : 0 };
 
   spec.layers.forEach((layer, layerIndex) => {
     const resolved = resolveInstances(layer, sources, spec.seed, layerIndex);

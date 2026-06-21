@@ -10,7 +10,7 @@
 
 import { state } from '../state.js';
 import { BAND_CONFIG } from '../core/bands.js';
-import { bandEnergy } from '../core/energy.js';
+import { bandEnergy, spectralCentroid } from '../core/energy.js';
 import { drawFunctionMap } from './styles.js';
 import { drawCustomPattern } from './customPattern.js';
 import { isSupportedSpecVersion } from '../core/pattern.js';
@@ -53,6 +53,12 @@ export function renderFrame(pg, currentFrame, spectrum, prevSpectrum, params, bo
   pg.scale(scaleFactor);
 
   const time = currentFrame * 0.005;
+  // This frame's timbral brightness in [0,1], shared by every band's custom
+  // pattern as the `centroid` modulation source. A pure function of the raw
+  // spectrum (pre-boost), so it is recomputed identically in the atelier, the
+  // viewer, and SVG export — no extra param rides along, and it sidesteps the
+  // per-frame-boost replay asymmetry.
+  const centroid = spectralCentroid(spectrum);
 
   // Resolve every band color up front: the ring layer uses all of them,
   // regardless of whether each band's own marks are enabled.
@@ -86,7 +92,7 @@ export function renderFrame(pg, currentFrame, spectrum, prevSpectrum, params, bo
         // unknown pattern still renders.
         const spec = params.patternLibrary && params.patternLibrary[bandParams.customPatternId];
         if (spec && isSupportedSpecVersion(spec)) {
-          drawCustomPattern(pg, scaledEnergy, currentFrame, time, style, { ...drawParams, spec, bandIndex });
+          drawCustomPattern(pg, scaledEnergy, currentFrame, time, style, { ...drawParams, spec, bandIndex, centroid });
         } else {
           drawFunctionMap[bandInfo.defFunc].func(pg, scaledEnergy, currentFrame, time, style, drawParams);
         }

@@ -24,7 +24,7 @@ export const MAX_MOTIONS = 4;
 /** Closed enums. Extend by appending; normalize drops values not listed here. */
 export const PRIMITIVES = ['point', 'line', 'polygon', 'ring', 'star', 'arc'];
 export const GENERATORS = ['single', 'radial', 'grid'];
-export const MOD_SOURCES = ['energy', 'time', 'index', 'constant', 'frameCount', 'jitter'];
+export const MOD_SOURCES = ['energy', 'time', 'index', 'constant', 'frameCount', 'jitter', 'centroid'];
 export const MOD_TARGETS = ['count', 'radius', 'size', 'rotation', 'scale', 'sides', 'strokeWeight', 'alpha', 'hueShift'];
 export const CURVES = ['linear', 'sqrt', 'square', 'smoothstep', 'sin', 'triangle', 'saw', 'pulse'];
 export const MOTIONS = ['orbit', 'pulse', 'breathe', 'drift', 'bloom', 'shimmer'];
@@ -75,6 +75,7 @@ export const MOTIONS = ['orbit', 'pulse', 'breathe', 'drift', 'bloom', 'shimmer'
  * @property {number} constant    Always 1.
  * @property {number} [frameCount] Raw frame counter (for steady spin/drift).
  * @property {number} [jitter]    Per-element seeded value in [-1, 1] (set per instance).
+ * @property {number} [centroid]  Spectral centroid (timbral brightness) in [0, 1].
  *
  * @typedef {Object} ResolvedInstance
  * @property {number} x
@@ -228,6 +229,8 @@ function sourceValue(source, sources) {
       return typeof sources.frameCount === 'number' ? sources.frameCount : 0;
     case 'jitter':
       return typeof sources.jitter === 'number' ? sources.jitter : 0;
+    case 'centroid':
+      return typeof sources.centroid === 'number' ? sources.centroid : 0;
     default:
       return 0;
   }
