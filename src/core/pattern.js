@@ -25,14 +25,16 @@ export const PRIMITIVES = ['point', 'line', 'polygon', 'ring', 'star', 'arc'];
 export const GENERATORS = ['single', 'radial', 'grid'];
 export const MOD_SOURCES = ['energy', 'time', 'index', 'constant', 'frameCount', 'jitter'];
 export const MOD_TARGETS = ['count', 'radius', 'size', 'rotation', 'scale', 'sides', 'strokeWeight', 'alpha', 'hueShift'];
-export const CURVES = ['linear', 'sqrt', 'square', 'smoothstep', 'sin'];
+export const CURVES = ['linear', 'sqrt', 'square', 'smoothstep', 'sin', 'triangle', 'saw', 'pulse'];
 
 /**
  * @typedef {Object} Modulation
  * @property {string} source  One of MOD_SOURCES.
  * @property {string} target  One of MOD_TARGETS.
  * @property {string} curve   One of CURVES.
- * @property {number} gain    Scalar applied to curve(source) before accumulation.
+ * @property {number} gain    Scalar applied to curve(drive) before accumulation.
+ * @property {number} [rate]  Optional frequency scale on the drive value (default 1).
+ * @property {number} [phase] Optional offset added to the drive value (default 0).
  *
  * @typedef {Object} Primitive
  * @property {string} type    One of PRIMITIVES.
@@ -51,6 +53,7 @@ export const CURVES = ['linear', 'sqrt', 'square', 'smoothstep', 'sin'];
  * @property {number} rotation  Whole-layer base rotation (radians).
  * @property {number} scale     Whole-layer base scale.
  * @property {Modulation[]} modulations
+ * @property {number} [jitterRate]  Optional animated-jitter speed (0 = frozen).
  *
  * @typedef {Object} PatternSpec
  * @property {string} specVersion
@@ -135,6 +138,38 @@ export function seededUnit(seed, layerIndex, elementIndex, frameBucket = 0) {
 }
 
 /**
+ * Frames-to-bucket scale for animated jitter. The seeded value steps to a new
+ * bucket roughly every 1/(jitterRate * JITTER_RATE_SCALE) frames; at jitterRate
+ * 1 that is ~60 frames (a slow wander), at 30 it is ~2 frames (a fast shimmer).
+ */
+const JITTER_RATE_SCALE = 1 / 60;
+
+/**
+ * Time-animated jitter: a deterministic, smooth walk for the per-element
+ * `jitter` source. When rate <= 0 it returns the exact frozen seededUnit value
+ * (so jitterRate 0 reproduces the pre-animation behavior bit-for-bit). Otherwise
+ * it smoothstep-lerps between two adjacent seeded buckets indexed by the frame,
+ * so it shimmers without any unseeded random()/noise() and reproduces identically
+ * in the atelier, the viewer, and SVG replay (all fed the same frameCount).
+ * @param {number} seed
+ * @param {number} layerIndex
+ * @param {number} elementIndex
+ * @param {number} frameCount
+ * @param {number} rate
+ * @returns {number}
+ */
+export function animatedJitter(seed, layerIndex, elementIndex, frameCount, rate) {
+  if (!(rate > 0)) return seededUnit(seed, layerIndex, elementIndex, 0);
+  const phase = frameCount * rate * JITTER_RATE_SCALE;
+  const bucket = Math.floor(phase);
+  const f = phase - bucket;
+  const eased = f * f * (3 - 2 * f);
+  const a = seededUnit(seed, layerIndex, elementIndex, bucket);
+  const b = seededUnit(seed, layerIndex, elementIndex, bucket + 1);
+  return a + (b - a) * eased;
+}
+
+/**
  * Pure scalar response curve. Inputs are expected in [0, 1] for most sources
  * (energy/index), but the maps are total for any finite input.
  * @param {string} curve
@@ -153,6 +188,12 @@ export function evalCurve(curve, x) {
     }
     case 'sin':
       return Math.sin(x);
+    case 'triangle':
+      return 1 - 4 * Math.abs((x - Math.floor(x)) - 0.5);
+    case 'saw':
+      return 2 * (x - Math.floor(x)) - 1;
+    case 'pulse':
+      return x - Math.floor(x) < 0.5 ? 1 : -1;
     case 'linear':
     default:
       return x;
@@ -196,7 +237,8 @@ export function evalModulation(modulations, target, base, sources) {
   let value = base;
   for (const m of modulations) {
     if (m.target !== target) continue;
-    value += m.gain * evalCurve(m.curve, sourceValue(m.source, sources));
+    const drive = sourceValue(m.source, sources) * (m.rate ?? 1) + (m.phase ?? 0);
+    value += m.gain * evalCurve(m.curve, drive);
   }
   return value;
 }
@@ -239,7 +281,8 @@ function normalizeLayer(raw) {
     if (nm) modulations.push(nm);
     if (modulations.length >= MAX_MODULATIONS) break;
   }
-  return {
+  /** @type {Layer} */
+  const layer = {
     primitive: {
       type: PRIMITIVES.includes(p.type) ? p.type : 'point',
       size: clampNum(p.size, 0, 1000, 20),
@@ -255,6 +298,11 @@ function normalizeLayer(raw) {
     scale: clampNum(src.scale, 0.01, 100, 1),
     modulations,
   };
+  // Animated-jitter clock for this layer; omit at the default 0 to preserve the
+  // content-addressed patternId of pre-animation specs.
+  const jitterRate = clampNum(src.jitterRate, 0, 30, 0);
+  if (jitterRate !== 0) layer.jitterRate = jitterRate;
+  return layer;
 }
 
 /**
@@ -266,12 +314,21 @@ function normalizeModulation(raw) {
   if (!raw || typeof raw !== 'object') return null;
   if (!MOD_SOURCES.includes(raw.source)) return null;
   if (!MOD_TARGETS.includes(raw.target)) return null;
-  return {
+  /** @type {Modulation} */
+  const out = {
     source: raw.source,
     target: raw.target,
     curve: CURVES.includes(raw.curve) ? raw.curve : 'linear',
     gain: clampNum(raw.gain, -10000, 10000, 0),
   };
+  // rate/phase form an optional per-row oscillator (frequency scale + offset on
+  // the drive value). Omit them at their defaults so existing specs keep their
+  // content-addressed patternId (no silent re-keying of saved libraries).
+  const rate = clampNum(raw.rate, 0, 16, 1);
+  const phase = clampNum(raw.phase, 0, 1, 0);
+  if (rate !== 1) out.rate = rate;
+  if (phase !== 0) out.phase = phase;
+  return out;
 }
 
 /**
@@ -306,8 +363,9 @@ export function isSupportedSpecVersion(spec) {
 /**
  * Resolve one normalized layer into concrete geometry — the regression anchor
  * that guarantees atelier == viewer == SVG. Pure: no drawing, no p5, no
- * Math.random(). The `jitter` source is seeded from (seed, layerIndex,
- * elementIndex), so it is deterministic across instances.
+ * Math.random(). The `jitter` source is a deterministic function of (seed,
+ * layerIndex, elementIndex) and, when layer.jitterRate > 0, of frameCount too
+ * (animatedJitter), so it stays reproducible across instances and contexts.
  * @param {Layer} layer        A normalized layer.
  * @param {Sources} sources
  * @param {number} [seed]       The spec seed (for the jitter source).
@@ -315,7 +373,9 @@ export function isSupportedSpecVersion(spec) {
  * @returns {ResolvedLayer}
  */
 export function resolveInstances(layer, sources, seed = 0, layerIndex = 0) {
-  const layerSources = { ...sources, index: 0, jitter: seededUnit(seed, layerIndex, 0, 0) };
+  const fc = typeof sources.frameCount === 'number' ? sources.frameCount : 0;
+  const jr = layer.jitterRate || 0;
+  const layerSources = { ...sources, index: 0, jitter: animatedJitter(seed, layerIndex, 0, fc, jr) };
   const rotation = evalModulation(layer.modulations, 'rotation', layer.rotation, layerSources);
   const scale = evalModulation(layer.modulations, 'scale', layer.scale, layerSources);
   const strokeWeightMod = evalModulation(layer.modulations, 'strokeWeight', 0, layerSources);
@@ -342,7 +402,7 @@ export function resolveInstances(layer, sources, seed = 0, layerIndex = 0) {
   const instances = [];
   for (let i = 0; i < count; i++) {
     const index = count > 1 ? i / (count - 1) : 0;
-    const sourcesI = { ...sources, index, jitter: seededUnit(seed, layerIndex, i, 0) };
+    const sourcesI = { ...sources, index, jitter: animatedJitter(seed, layerIndex, i, fc, jr) };
     const size = Math.max(0, evalModulation(layer.modulations, 'size', layer.primitive.size, sourcesI));
     const sides = clampInt(
       evalModulation(layer.modulations, 'sides', layer.primitive.sides, sourcesI),

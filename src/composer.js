@@ -163,11 +163,14 @@ function readEditorSpec() {
         },
         rotation: 0,
         scale: 1,
+        jitterRate: editor.jitterRate ? editor.jitterRate.value() : 0,
         modulations: editor.mods.map((m) => ({
           source: m.source.value(),
           target: m.target.value(),
           curve: m.curve.value(),
           gain: m.gain.value(),
+          rate: m.rate.value(),
+          phase: m.phase.value(),
         })),
       },
     ],
@@ -212,15 +215,29 @@ function addModRow(mod) {
   const gainRow = createDiv('gain: ').parent(row);
   const gain = createSlider(-300, 300, mod ? mod.gain : 80, 1).parent(gainRow).addClass('ui-slider');
   const gainSpan = createSpan(gain.value()).parent(gainRow).addClass('ui-value');
+  const rateRow = createDiv(t('modulationRate') + ': ').parent(row);
+  const rate = createSlider(0, 16, mod && typeof mod.rate === 'number' ? mod.rate : 1, 0.1).parent(rateRow).addClass('ui-slider');
+  const rateSpan = createSpan(rate.value()).parent(rateRow).addClass('ui-value');
+  const phaseRow = createDiv(t('modulationPhase') + ': ').parent(row);
+  const phase = createSlider(0, 1, mod && typeof mod.phase === 'number' ? mod.phase : 0, 0.01).parent(phaseRow).addClass('ui-slider');
+  const phaseSpan = createSpan(phase.value()).parent(phaseRow).addClass('ui-value');
   const del = createButton(t('deleteModulation')).parent(row).attribute('data-i18n', 'deleteModulation');
 
-  const entry = { source, target, curve, gain, row };
+  const entry = { source, target, curve, gain, rate, phase, row };
   const commit = () => commitSpec(readEditorSpec());
   source.changed(commit);
   target.changed(commit);
   curve.changed(commit);
   gain.input(() => {
     gainSpan.html(gain.value());
+    commit();
+  });
+  rate.input(() => {
+    rateSpan.html(rate.value());
+    commit();
+  });
+  phase.input(() => {
+    phaseSpan.html(phase.value());
     commit();
   });
   del.mousePressed(() => {
@@ -245,6 +262,7 @@ function buildEditor() {
   editor.radius = slider('Radius', 0, 400, Math.min(400, layer.generator.radius), 1, editorBody);
   editor.size = slider('Size', 0, 200, Math.min(200, layer.primitive.size), 1, editorBody);
   editor.sides = slider('Sides', 2, MAX_SIDES, layer.primitive.sides, 1, editorBody);
+  editor.jitterRate = slider(t('jitterRate'), 0, 30, layer.jitterRate || 0, 1, editorBody);
 
   editor.modList = createDiv().parent(editorBody);
   layer.modulations.slice(0, MAX_EDITOR_MODS).forEach((m) => addModRow(m));
