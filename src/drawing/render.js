@@ -43,8 +43,11 @@ export function hexColor(pg, hex) {
  * @param {number[]} prevSpectrum Previous spectrum frame (for the diff layer).
  * @param {object} params         Render-params snapshot (see params.js).
  * @param {number} [boost]        Input gain multiplier.
+ * @param {string|null} [bandFilter]  When set, draw only one plate: a band name
+ *   draws that band alone (global layers suppressed); '__ring__' / '__diff__'
+ *   draw only that global layer. null (default) draws everything.
  */
-export function renderFrame(pg, currentFrame, spectrum, prevSpectrum, params, boost = 1) {
+export function renderFrame(pg, currentFrame, spectrum, prevSpectrum, params, boost = 1, bandFilter = null) {
   if (!spectrum) return;
 
   pg.push();
@@ -71,6 +74,9 @@ export function renderFrame(pg, currentFrame, spectrum, prevSpectrum, params, bo
   BAND_CONFIG.forEach((bandInfo, bandIndex) => {
     const bandParams = params.bands[bandInfo.name];
     if (!bandParams || !bandParams.enabled) return;
+    // Plate export: a band-name filter draws only that band; the '__ring__' /
+    // '__diff__' sentinels match no band (only their global layer draws, below).
+    if (bandFilter && bandFilter !== bandInfo.name) return;
 
     const energy = bandEnergy(spectrum, bandInfo.freq[0], bandInfo.freq[1]);
     let scaledEnergy = pg.constrain(energy * bandParams.gain * boost, 0, 255);
@@ -107,10 +113,11 @@ export function renderFrame(pg, currentFrame, spectrum, prevSpectrum, params, bo
     }
   });
 
-  if (params.spectrumRing.enabled) {
+  // Global layers: drawn when unfiltered, or when this plate is their sentinel.
+  if (params.spectrumRing.enabled && (!bandFilter || bandFilter === '__ring__')) {
     drawSpectrumRingByBands(pg, spectrum, currentFrame, boost, params.spectrumRing, bandColors);
   }
-  if (params.spectrumDiff.enabled) {
+  if (params.spectrumDiff.enabled && (!bandFilter || bandFilter === '__diff__')) {
     drawSpectrumDiff(pg, spectrum, prevSpectrum, boost, params.spectrumDiff, hexColor(pg, params.spectrumDiff.color));
   }
 
@@ -124,12 +131,14 @@ export function renderFrame(pg, currentFrame, spectrum, prevSpectrum, params, bo
  * @param {number} currentFrame Frame index (1-based when replaying history).
  * @param {boolean} [isForSVG]  Whether this is an offline SVG render.
  * @param {number} [boost]      Input gain multiplier.
+ * @param {string|null} [bandFilter]  Plate filter forwarded to renderFrame (see
+ *   there); null draws everything.
  * @returns {{spectrum: number[], params: object}|null} The spectrum that was
  *   drawn together with the params snapshot it was drawn with, or null if the
  *   frame was skipped (no data, near-silent, or previewing). The live caller
  *   forwards both to the viewer so params are collected only once per frame.
  */
-export function drawVisuals(pg, currentFrame, isForSVG = false, boost = 1) {
+export function drawVisuals(pg, currentFrame, isForSVG = false, boost = 1, bandFilter = null) {
   let spectrum;
 
   if (isForSVG) {
@@ -161,7 +170,7 @@ export function drawVisuals(pg, currentFrame, isForSVG = false, boost = 1) {
   const params = collectRenderParams();
   const prevSpectrum = isForSVG ? state.spectrumHistory[currentFrame - 2] || [] : state.prevSpectrum;
 
-  renderFrame(pg, currentFrame, spectrum, prevSpectrum, params, boost);
+  renderFrame(pg, currentFrame, spectrum, prevSpectrum, params, boost, bandFilter);
 
   if (!isForSVG) state.prevSpectrum = spectrum.slice();
   return { spectrum, params };

@@ -6,7 +6,7 @@ import { state, uiComponents } from './state.js';
 import { BAND_CONFIG } from './core/bands.js';
 import { defaultBandColor } from './core/colors.js';
 import { drawFunctionMap } from './drawing/styles.js';
-import { downloadSVG, savePreset, loadPreset, generateTimestampedFilename } from './export.js';
+import { downloadSVG, downloadSVGPlates, savePreset, loadPreset, generateTimestampedFilename } from './export.js';
 import { openViewer } from './broadcast.js';
 import { supportedVideoFormat, hasViewerSupport, micUnavailableReason } from './capabilities.js';
 import { loadPatternLibrary, attachBandPatternControl, initComposerUI } from './composer.js';
@@ -74,6 +74,7 @@ export function createUI() {
   sectionTitle('canvasSection', state.uiPanel);
   const canvasRow = createDiv().parent(state.uiPanel);
   labeledButton('saveSvg', downloadSVG, canvasRow);
+  labeledButton('savePlates', downloadSVGPlates, canvasRow);
   labeledButton('savePng', () => saveCanvas(generateTimestampedFilename('png')), canvasRow);
   uiComponents.openViewerBtn = labeledButton('openViewer', openViewer, canvasRow);
 
