@@ -39,4 +39,13 @@ describe('buildTimestampedFilename', () => {
     });
     expect(name).toBe('sc-file-7-moment-t1.0s-f10.svg');
   });
+
+  it('appends a plate token for color-plate exports and omits it by default', () => {
+    expect(
+      buildTimestampedFilename({ extension: 'svg', totalFrames: 10, frameRate: 10, inputMode: 'mic', id: 7, sculptureMode: true })
+    ).toBe('sc-mic-7-eternity-t1.0s-f10.svg');
+    expect(
+      buildTimestampedFilename({ extension: 'svg', totalFrames: 10, frameRate: 10, inputMode: 'mic', id: 7, sculptureMode: true, plate: 'red' })
+    ).toBe('sc-mic-7-eternity-t1.0s-f10-plate[red].svg');
+  });
 });

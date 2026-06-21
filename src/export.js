@@ -6,6 +6,7 @@ import { BAND_CONFIG, bandNames } from './core/bands.js';
 import { buildTimestampedFilename } from './core/filename.js';
 import { detectBandIncompatibility, isValidPreset, PRESET_VERSION } from './core/preset.js';
 import { parseLibrary, instanceCount, isSupportedSpecVersion } from './core/pattern.js';
+import { derivePlateSet, combinePlatesSvg } from './core/plates.js';
 import { drawVisuals } from './drawing/render.js';
 import { collectRenderParams } from './params.js';
 import { syncComposerToState } from './composer.js';
@@ -86,6 +87,75 @@ export function downloadSVG() {
   if (state.isPlaying || state.isRecording) {
     loop();
   }
+}
+
+/**
+ * Color-plate SVG export: render each enabled band (and the ring/diff global
+ * layers) alone into its own transparent SVG buffer, then assemble all plates
+ * into ONE document with a labeled <g> layer each. Every plate shares the canvas
+ * coordinate space, so the layers register exactly when overlaid — a single
+ * download ready for multi-color printmaking. Reuses the same drawVisuals replay
+ * as downloadSVG (with a per-plate bandFilter), so a plate's marks match that
+ * band's contribution to the combined SVG for deterministic styles; random
+ * built-in styles keep their pre-existing live<->SVG nondeterminism per plate.
+ * Mirrors downloadSVG's loop/boost handling.
+ */
+export function downloadSVGPlates() {
+  noLoop();
+
+  const params = collectRenderParams();
+  const descriptors = derivePlateSet(params);
+  if (descriptors.length === 0) {
+    alert(t('alertNoPlates'));
+    if (state.isPlaying || state.isRecording) loop();
+    return;
+  }
+
+  const sculpture = uiComponents.sculptureModeCheckbox.checked();
+  const frames = sculpture ? state.spectrumHistory.length : 1;
+  if (estimateSvgNodes(params, frames) > SVG_NODE_WARN_THRESHOLD) {
+    alert(t('alertSvgLarge'));
+  }
+
+  const micBoostForSVG = state.currentInputMode === 'mic' ? select('#mic-boost-slider').value() : 1;
+
+  const plates = [];
+  descriptors.forEach((d) => {
+    const svg = createGraphics(width, height, SVG);
+    svg.colorMode(HSB, 360, 100, 100);
+    // No background: a transparent ground so the plates register when overlaid.
+    if (sculpture) {
+      for (let i = 0; i < state.spectrumHistory.length; i++) {
+        drawVisuals(svg, i + 1, true, micBoostForSVG, d.filter);
+      }
+    } else if (state.spectrumHistory.length > 0) {
+      drawVisuals(svg, state.spectrumHistory.length, true, micBoostForSVG, d.filter);
+    }
+    // p5.js-svg exposes the root <svg> as elt.svg (its own save() serializes the
+    // same node); elt has no querySelector. Take its inner markup (an empty
+    // <defs/> + the marks <g>) as the plate layer. The current draw set emits no
+    // root-level transform/defs, so reconstructing the combined root loses nothing.
+    const root = svg.elt && svg.elt.svg;
+    plates.push({ label: d.label, inner: root ? root.innerHTML : '' });
+    try {
+      svg.remove();
+    } catch (err) {
+      console.warn('SVG plate cleanup failed (non-fatal):', err);
+    }
+  });
+
+  const svgData = combinePlatesSvg(width, height, plates);
+  const blob = new Blob([svgData], { type: 'image/svg+xml' });
+  const url = URL.createObjectURL(blob);
+  const a = createA(url, '');
+  a.elt.download = generateTimestampedFilename('svg', 'plates');
+  a.elt.click();
+  setTimeout(() => {
+    a.remove();
+    URL.revokeObjectURL(url);
+  }, 0);
+
+  if (state.isPlaying || state.isRecording) loop();
 }
 
 // Save the current UI settings as a JSON preset. The preset body is the live
@@ -211,9 +281,10 @@ export function loadPreset() {
  * Collect the current p5/DOM state and build the output filename via the pure
  * helper in ./core/filename.js.
  * @param {string} extension
+ * @param {string|null} [plate]  Optional plate label for a color-plate export.
  * @returns {string}
  */
-export function generateTimestampedFilename(extension) {
+export function generateTimestampedFilename(extension, plate = null) {
   const trim =
     state.currentInputMode === 'file' && state.soundFile && state.trimEnd !== null
       ? { start: state.trimStart, end: state.trimEnd, duration: state.soundFile.duration() }
@@ -226,5 +297,6 @@ export function generateTimestampedFilename(extension) {
     id: state.sessionId || Date.now(),
     sculptureMode: uiComponents.sculptureModeCheckbox.checked(),
     trim,
+    plate,
   });
 }

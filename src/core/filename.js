@@ -25,6 +25,7 @@
  * @param {number} params.id                 Session id (caller resolves sessionId || now).
  * @param {boolean} params.sculptureMode     Whether sculpture (accumulate) mode is on.
  * @param {TrimRange|null} [params.trim]      Trim range, or null when not applicable.
+ * @param {string|null} [params.plate]        Plate label for a color-plate export, or null.
  * @returns {string}
  */
 export function buildTimestampedFilename({
@@ -35,6 +36,7 @@ export function buildTimestampedFilename({
   id,
   sculptureMode,
   trim = null,
+  plate = null,
 }) {
   const totalSeconds = (totalFrames / frameRate).toFixed(1);
   let prefix = inputMode === 'mic' ? 'sc-mic' : 'sc-file';
@@ -47,5 +49,6 @@ export function buildTimestampedFilename({
   }
 
   const modeSuffix = sculptureMode ? 'eternity' : 'moment';
-  return `${prefix}-${id}-${modeSuffix}-t${totalSeconds}s-f${totalFrames}.${extension}`;
+  const plateSuffix = plate ? `-plate[${plate}]` : '';
+  return `${prefix}-${id}-${modeSuffix}-t${totalSeconds}s-f${totalFrames}${plateSuffix}.${extension}`;
 }
