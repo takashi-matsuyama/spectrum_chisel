@@ -18,6 +18,8 @@ import {
   MOD_SOURCES,
   MOD_TARGETS,
   CURVES,
+  MOTIONS,
+  MAX_MOTIONS,
   PATTERN_SPEC_VERSION,
   MAX_SIDES,
   normalizePatternSpec,
@@ -164,6 +166,7 @@ function readEditorSpec() {
         rotation: 0,
         scale: 1,
         jitterRate: editor.jitterRate ? editor.jitterRate.value() : 0,
+        motions: editor.motions.map((m) => ({ kind: m.kind.value(), speed: m.speed.value(), depth: m.depth.value() })),
         modulations: editor.mods.map((m) => ({
           source: m.source.value(),
           target: m.target.value(),
@@ -248,6 +251,40 @@ function addModRow(mod) {
   editor.mods.push(entry);
 }
 
+/** Append one named-motion row (kind + speed/depth) to the editor. */
+function addMotionRow(motion) {
+  if (editor.motions.length >= MAX_MOTIONS) return;
+  const row = createDiv().parent(editor.motionList).addClass('ui-subcontrols');
+  const kind = createSelect().parent(row);
+  MOTIONS.forEach((o) => kind.option(t('motion' + o[0].toUpperCase() + o.slice(1)), o));
+  kind.selected(motion ? motion.kind : 'orbit');
+  const speedRow = createDiv(t('motionSpeed') + ': ').parent(row);
+  const speed = createSlider(0, 4, motion && typeof motion.speed === 'number' ? motion.speed : 1, 0.1).parent(speedRow).addClass('ui-slider');
+  const speedSpan = createSpan(speed.value()).parent(speedRow).addClass('ui-value');
+  const depthRow = createDiv(t('motionDepth') + ': ').parent(row);
+  const depth = createSlider(0, 2, motion && typeof motion.depth === 'number' ? motion.depth : 1, 0.1).parent(depthRow).addClass('ui-slider');
+  const depthSpan = createSpan(depth.value()).parent(depthRow).addClass('ui-value');
+  const del = createButton(t('removeMotion')).parent(row).attribute('data-i18n', 'removeMotion');
+
+  const entry = { kind, speed, depth, row };
+  const commit = () => commitSpec(readEditorSpec());
+  kind.changed(commit);
+  speed.input(() => {
+    speedSpan.html(speed.value());
+    commit();
+  });
+  depth.input(() => {
+    depthSpan.html(depth.value());
+    commit();
+  });
+  del.mousePressed(() => {
+    row.remove();
+    editor.motions = editor.motions.filter((e) => e !== entry);
+    commitSpec(readEditorSpec());
+  });
+  editor.motions.push(entry);
+}
+
 /** Rebuild the editor body for the pattern `currentId`. */
 function buildEditor() {
   editorBody.html('');
@@ -255,7 +292,7 @@ function buildEditor() {
   if (!currentId || !state.patternLibrary[currentId]) return;
   const layer = state.patternLibrary[currentId].layers[0] || normalizePatternSpec({ layers: [{}] }).layers[0];
 
-  editor = { seed: state.patternLibrary[currentId].seed || 1, mods: [], modList: null };
+  editor = { seed: state.patternLibrary[currentId].seed || 1, mods: [], modList: null, motions: [], motionList: null };
   editor.primitive = picker('Shape', PRIMITIVES, layer.primitive.type, editorBody);
   editor.generator = picker('Layout', GENERATORS, layer.generator.type, editorBody);
   editor.count = slider('Count', 1, 64, Math.min(64, layer.generator.count), 1, editorBody);
@@ -263,6 +300,15 @@ function buildEditor() {
   editor.size = slider('Size', 0, 200, Math.min(200, layer.primitive.size), 1, editorBody);
   editor.sides = slider('Sides', 2, MAX_SIDES, layer.primitive.sides, 1, editorBody);
   editor.jitterRate = slider(t('jitterRate'), 0, 30, layer.jitterRate || 0, 1, editorBody);
+
+  createDiv(t('motionSection')).parent(editorBody).addClass('ui-section-title').attribute('data-i18n', 'motionSection');
+  editor.motionList = createDiv().parent(editorBody);
+  (layer.motions || []).slice(0, MAX_MOTIONS).forEach((m) => addMotionRow(m));
+  const addMotionBtn = createButton(t('addMotion')).parent(editorBody).attribute('data-i18n', 'addMotion');
+  addMotionBtn.mousePressed(() => {
+    addMotionRow(null);
+    commitSpec(readEditorSpec());
+  });
 
   editor.modList = createDiv().parent(editorBody);
   layer.modulations.slice(0, MAX_EDITOR_MODS).forEach((m) => addModRow(m));

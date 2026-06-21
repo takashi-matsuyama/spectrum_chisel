@@ -19,6 +19,7 @@ export const MAX_LAYERS = 4;
 export const MAX_INSTANCES = 256;
 export const MAX_SIDES = 24;
 export const MAX_MODULATIONS = 16;
+export const MAX_MOTIONS = 4;
 
 /** Closed enums. Extend by appending; normalize drops values not listed here. */
 export const PRIMITIVES = ['point', 'line', 'polygon', 'ring', 'star', 'arc'];
@@ -26,6 +27,7 @@ export const GENERATORS = ['single', 'radial', 'grid'];
 export const MOD_SOURCES = ['energy', 'time', 'index', 'constant', 'frameCount', 'jitter'];
 export const MOD_TARGETS = ['count', 'radius', 'size', 'rotation', 'scale', 'sides', 'strokeWeight', 'alpha', 'hueShift'];
 export const CURVES = ['linear', 'sqrt', 'square', 'smoothstep', 'sin', 'triangle', 'saw', 'pulse'];
+export const MOTIONS = ['orbit', 'pulse', 'breathe', 'drift', 'bloom', 'shimmer'];
 
 /**
  * @typedef {Object} Modulation
@@ -35,6 +37,11 @@ export const CURVES = ['linear', 'sqrt', 'square', 'smoothstep', 'sin', 'triangl
  * @property {number} gain    Scalar applied to curve(drive) before accumulation.
  * @property {number} [rate]  Optional frequency scale on the drive value (default 1).
  * @property {number} [phase] Optional offset added to the drive value (default 0).
+ *
+ * @typedef {Object} Motion
+ * @property {string} kind   One of MOTIONS.
+ * @property {number} speed  Motion rate scale (0-4, default 1).
+ * @property {number} depth  Motion amount scale (0-2, default 1).
  *
  * @typedef {Object} Primitive
  * @property {string} type    One of PRIMITIVES.
@@ -53,6 +60,7 @@ export const CURVES = ['linear', 'sqrt', 'square', 'smoothstep', 'sin', 'triangl
  * @property {number} rotation  Whole-layer base rotation (radians).
  * @property {number} scale     Whole-layer base scale.
  * @property {Modulation[]} modulations
+ * @property {Motion[]} [motions]   Named motion presets, expanded to modulations at resolve time.
  * @property {number} [jitterRate]  Optional animated-jitter speed (0 = frozen).
  *
  * @typedef {Object} PatternSpec
@@ -281,6 +289,14 @@ function normalizeLayer(raw) {
     if (nm) modulations.push(nm);
     if (modulations.length >= MAX_MODULATIONS) break;
   }
+  const motionsIn = Array.isArray(src.motions) ? src.motions : [];
+  /** @type {Motion[]} */
+  const motions = [];
+  for (const m of motionsIn) {
+    const nm = normalizeMotion(m);
+    if (nm) motions.push(nm);
+    if (motions.length >= MAX_MOTIONS) break;
+  }
   /** @type {Layer} */
   const layer = {
     primitive: {
@@ -298,8 +314,10 @@ function normalizeLayer(raw) {
     scale: clampNum(src.scale, 0.01, 100, 1),
     modulations,
   };
-  // Animated-jitter clock for this layer; omit at the default 0 to preserve the
-  // content-addressed patternId of pre-animation specs.
+  // Named motions and the animated-jitter clock are optional; omit each at its
+  // empty/default value to preserve the content-addressed patternId of specs
+  // that don't use them.
+  if (motions.length) layer.motions = motions;
   const jitterRate = clampNum(src.jitterRate, 0, 30, 0);
   if (jitterRate !== 0) layer.jitterRate = jitterRate;
   return layer;
@@ -332,6 +350,21 @@ function normalizeModulation(raw) {
 }
 
 /**
+ * Normalize one raw motion, or null to drop it (unknown kind).
+ * @param {any} raw
+ * @returns {Motion|null}
+ */
+function normalizeMotion(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  if (!MOTIONS.includes(raw.kind)) return null;
+  return {
+    kind: raw.kind,
+    speed: clampNum(raw.speed, 0, 4, 1),
+    depth: clampNum(raw.depth, 0, 2, 1),
+  };
+}
+
+/**
  * Total, never-throws normalization. Fills defaults, clamps counts/sizes, drops
  * unknown enums (graceful forward-compat), caps layer/instance/modulation
  * budgets, and is idempotent: normalize(normalize(x)) deep-equals normalize(x).
@@ -361,6 +394,58 @@ export function isSupportedSpecVersion(spec) {
 }
 
 /**
+ * Lower each named motion into deterministic modulation rows built only from
+ * existing sources/targets/curves (plus the animated-jitter clock for shimmer).
+ * Constants are tuned to the composer's visual scale. Pure data.
+ * @type {Record<string, (speed: number, depth: number) => {mods: Modulation[], jitterRate?: number}>}
+ */
+const MOTION_DEFS = {
+  orbit: (speed) => ({ mods: [{ source: 'frameCount', target: 'rotation', curve: 'linear', gain: 0.008 * speed }] }),
+  pulse: (_speed, depth) => ({ mods: [{ source: 'energy', target: 'size', curve: 'square', gain: 45 * depth }] }),
+  breathe: (speed, depth) => ({ mods: [{ source: 'time', target: 'scale', curve: 'sin', gain: 0.18 * depth, rate: 5 * speed }] }),
+  drift: (speed, depth) => ({ mods: [{ source: 'time', target: 'rotation', curve: 'sin', gain: 0.25 * depth, rate: 3 * speed }] }),
+  bloom: (_speed, depth) => ({
+    mods: [
+      { source: 'energy', target: 'count', curve: 'linear', gain: 8 * depth },
+      { source: 'energy', target: 'radius', curve: 'sqrt', gain: 70 * depth },
+    ],
+  }),
+  shimmer: (speed, depth) => ({
+    mods: [
+      { source: 'jitter', target: 'size', curve: 'linear', gain: 14 * depth },
+      { source: 'jitter', target: 'alpha', curve: 'linear', gain: 70 * depth },
+    ],
+    jitterRate: 6 * speed,
+  }),
+};
+
+/**
+ * Expand a layer's named motions into a combined modulation list (the layer's
+ * own rows first, then each motion's rows) plus the effective jitter rate (the
+ * max of the layer's own jitterRate and any shimmer motion's). Pure and
+ * deterministic, so the regression anchor (atelier == viewer == SVG) holds. The
+ * combined list is capped at MAX_MODULATIONS.
+ * @param {Layer} layer  A normalized layer.
+ * @returns {{modulations: Modulation[], jitterRate: number}}
+ */
+export function expandMotions(layer) {
+  const motions = Array.isArray(layer.motions) ? layer.motions : [];
+  if (motions.length === 0) {
+    return { modulations: layer.modulations, jitterRate: layer.jitterRate || 0 };
+  }
+  const modulations = layer.modulations.slice();
+  let jitterRate = layer.jitterRate || 0;
+  for (const m of motions) {
+    const def = MOTION_DEFS[m.kind];
+    if (!def) continue;
+    const out = def(m.speed, m.depth);
+    for (const row of out.mods) modulations.push(row);
+    if (typeof out.jitterRate === 'number') jitterRate = Math.max(jitterRate, out.jitterRate);
+  }
+  return { modulations: modulations.slice(0, MAX_MODULATIONS), jitterRate };
+}
+
+/**
  * Resolve one normalized layer into concrete geometry — the regression anchor
  * that guarantees atelier == viewer == SVG. Pure: no drawing, no p5, no
  * Math.random(). The `jitter` source is a deterministic function of (seed,
@@ -374,19 +459,19 @@ export function isSupportedSpecVersion(spec) {
  */
 export function resolveInstances(layer, sources, seed = 0, layerIndex = 0) {
   const fc = typeof sources.frameCount === 'number' ? sources.frameCount : 0;
-  const jr = layer.jitterRate || 0;
+  const { modulations: mods, jitterRate: jr } = expandMotions(layer);
   const layerSources = { ...sources, index: 0, jitter: animatedJitter(seed, layerIndex, 0, fc, jr) };
-  const rotation = evalModulation(layer.modulations, 'rotation', layer.rotation, layerSources);
-  const scale = evalModulation(layer.modulations, 'scale', layer.scale, layerSources);
-  const strokeWeightMod = evalModulation(layer.modulations, 'strokeWeight', 0, layerSources);
-  const alphaMod = evalModulation(layer.modulations, 'alpha', 0, layerSources);
-  const hueShift = evalModulation(layer.modulations, 'hueShift', 0, layerSources);
+  const rotation = evalModulation(mods, 'rotation', layer.rotation, layerSources);
+  const scale = evalModulation(mods, 'scale', layer.scale, layerSources);
+  const strokeWeightMod = evalModulation(mods, 'strokeWeight', 0, layerSources);
+  const alphaMod = evalModulation(mods, 'alpha', 0, layerSources);
+  const hueShift = evalModulation(mods, 'hueShift', 0, layerSources);
 
   const gen = layer.generator;
   let count =
     gen.type === 'single'
       ? 1
-      : clampInt(evalModulation(layer.modulations, 'count', gen.count, layerSources), 1, MAX_INSTANCES, 1);
+      : clampInt(evalModulation(mods, 'count', gen.count, layerSources), 1, MAX_INSTANCES, 1);
 
   // grid: `count` is per-axis; the grid is count*count cells (capped). Its span
   // is a single layer-level radius so the lattice stays regular.
@@ -395,7 +480,7 @@ export function resolveInstances(layer, sources, seed = 0, layerIndex = 0) {
   if (gen.type === 'grid') {
     perAxis = Math.max(1, Math.min(count, Math.floor(Math.sqrt(MAX_INSTANCES))));
     count = perAxis * perAxis;
-    gridRadius = evalModulation(layer.modulations, 'radius', gen.radius, layerSources);
+    gridRadius = evalModulation(mods, 'radius', gen.radius, layerSources);
   }
 
   /** @type {ResolvedInstance[]} */
@@ -403,9 +488,9 @@ export function resolveInstances(layer, sources, seed = 0, layerIndex = 0) {
   for (let i = 0; i < count; i++) {
     const index = count > 1 ? i / (count - 1) : 0;
     const sourcesI = { ...sources, index, jitter: animatedJitter(seed, layerIndex, i, fc, jr) };
-    const size = Math.max(0, evalModulation(layer.modulations, 'size', layer.primitive.size, sourcesI));
+    const size = Math.max(0, evalModulation(mods, 'size', layer.primitive.size, sourcesI));
     const sides = clampInt(
-      evalModulation(layer.modulations, 'sides', layer.primitive.sides, sourcesI),
+      evalModulation(mods, 'sides', layer.primitive.sides, sourcesI),
       2,
       MAX_SIDES,
       3
@@ -414,7 +499,7 @@ export function resolveInstances(layer, sources, seed = 0, layerIndex = 0) {
     let y = 0;
     let angle = 0;
     if (gen.type === 'radial') {
-      const radius = evalModulation(layer.modulations, 'radius', gen.radius, sourcesI);
+      const radius = evalModulation(mods, 'radius', gen.radius, sourcesI);
       angle = gen.phase + (Math.PI * 2 * i) / count;
       x = radius * Math.cos(angle);
       y = radius * Math.sin(angle);

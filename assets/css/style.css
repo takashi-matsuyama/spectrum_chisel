@@ -522,6 +522,12 @@ input[type="color"]::-webkit-color-swatch {
   margin-left: 2px;
 }
 
+/* A heading inside the wrap-flow sub-controls takes its own full-width row
+   instead of sharing a line with the preceding control. */
+.ui-subcontrols > .ui-section-title {
+  flex-basis: 100%;
+}
+
 /* The preset row holds two buttons side by side. */
 .ui-panel > div:has(> button + button) {
   gap: 8px;
