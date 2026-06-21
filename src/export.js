@@ -15,8 +15,9 @@ import { t } from './i18n/index.js';
 // (it still proceeds). Bounds the TOTAL cost (frames x bands x instances), which
 // the per-frame instance cap alone does not.
 const SVG_NODE_WARN_THRESHOLD = 200000;
-// Upper-bound sources for the estimate: full energy maximizes resolved counts.
-const SVG_ESTIMATE_SOURCES = { energy: 1, time: 0, index: 0, constant: 1, frameCount: 0 };
+// Upper-bound sources for the estimate: max energy, centroid (both [0,1]) and
+// jitter maximize resolved counts so the warning stays a true upper bound.
+const SVG_ESTIMATE_SOURCES = { energy: 1, time: 0, index: 0, constant: 1, frameCount: 0, jitter: 1, centroid: 1 };
 
 /**
  * Estimate the vector node count of an SVG export so a huge sculpture is a

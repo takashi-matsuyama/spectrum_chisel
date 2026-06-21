@@ -6,6 +6,7 @@ import {
   MAX_MODULATIONS,
   MAX_MOTIONS,
   MOTIONS,
+  MOD_SOURCES,
   isValidPatternSpec,
   normalizePatternSpec,
   isSupportedSpecVersion,
@@ -497,5 +498,40 @@ describe('Motion presets (Phase 2a)', () => {
     const motionLayer = normalizePatternSpec({ layers: [layer({ motions: [{ kind: 'orbit', speed: 1, depth: 1 }] })] }).layers[0];
     const handLayer = normalizePatternSpec({ layers: [layer({ modulations: [{ source: 'frameCount', target: 'rotation', curve: 'linear', gain: 0.008 }] })] }).layers[0];
     expect(resolveInstances(motionLayer, sources, 1, 0)).toEqual(resolveInstances(handLayer, sources, 1, 0));
+  });
+});
+
+describe('centroid modulation source (audio feature)', () => {
+  it('MOD_SOURCES includes centroid', () => {
+    expect(MOD_SOURCES).toContain('centroid');
+  });
+
+  it('keeps a centroid-driven modulation through normalization', () => {
+    const n = normalizePatternSpec({ layers: [layer({ modulations: [{ source: 'centroid', target: 'size', curve: 'linear', gain: 20 }] })] });
+    expect(n.layers[0].modulations[0].source).toBe('centroid');
+  });
+
+  it('resolves the centroid source value through evalModulation', () => {
+    const mods = [{ source: 'centroid', target: 'size', curve: 'linear', gain: 100 }];
+    expect(evalModulation(mods, 'size', 0, { ...baseSources, centroid: 0.5 })).toBeCloseTo(50);
+    expect(evalModulation(mods, 'size', 0, { ...baseSources, centroid: 0 })).toBe(0);
+  });
+
+  it('drives geometry from centroid in resolveInstances', () => {
+    const l = normalizePatternSpec({ layers: [layer({ modulations: [{ source: 'centroid', target: 'size', curve: 'linear', gain: 40 }] })] }).layers[0];
+    const dark = resolveInstances(l, { ...baseSources, centroid: 0 }, 1, 0);
+    const bright = resolveInstances(l, { ...baseSources, centroid: 1 }, 1, 0);
+    expect(bright.instances[0].size).toBeGreaterThan(dark.instances[0].size);
+  });
+
+  it('pins a golden id so MOD_SOURCES growth cannot silently churn shared ids', () => {
+    // Frozen literal. MOD_SOURCES is a membership gate only and is never
+    // serialized into the normalized spec, so a representative non-centroid
+    // spec must keep this exact content-addressed id even as the enum grows.
+    const spec = { layers: [layer({ modulations: [{ source: 'energy', target: 'radius', curve: 'linear', gain: 10 }] })] };
+    expect(patternId(spec)).toBe('pzpke21');
+    const once = normalizePatternSpec(spec);
+    expect(normalizePatternSpec(once)).toEqual(once); // normalize idempotent
+    expect(patternId(once)).toBe(patternId(spec)); // stable across re-normalization
   });
 });

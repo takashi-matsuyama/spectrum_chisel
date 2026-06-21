@@ -487,7 +487,9 @@ function requestPreview() {
     frameCount,
     frameCount * 0.005,
     { color: previewColor, weight: 1.2, alpha: 220 },
-    { intensityGain: 1, angleSpeed: 1, threshold: 0, spec }
+    // A representative centroid (mid-brightness) so a centroid-driven pattern
+    // shows a response while authoring, mirroring the fixed sample energy 200.
+    { intensityGain: 1, angleSpeed: 1, threshold: 0, spec, centroid: 0.5 }
   );
   pop();
 }
