@@ -8,6 +8,7 @@ import {
   normalizePatternSpec,
   isSupportedSpecVersion,
   seededUnit,
+  animatedJitter,
   evalCurve,
   evalModulation,
   resolveInstances,
@@ -324,5 +325,109 @@ describe('2c expressive set', () => {
     }).layers[0];
     const r = resolveInstances(l, { ...baseSources, frameCount: 10 }, 0, 0);
     expect(r.rotation).toBeCloseTo(5, 6); // 0.5 * 10
+  });
+});
+
+describe('LFO rate/phase + waveform curves (Phase 1)', () => {
+  it('evalCurve maps the new periodic waveforms (turns-based, period 1)', () => {
+    // triangle: -1 at phase 0, +1 at phase 0.5
+    expect(evalCurve('triangle', 0)).toBeCloseTo(-1, 10);
+    expect(evalCurve('triangle', 0.25)).toBeCloseTo(0, 10);
+    expect(evalCurve('triangle', 0.5)).toBeCloseTo(1, 10);
+    expect(evalCurve('triangle', 0.75)).toBeCloseTo(0, 10);
+    // saw: ramp -1 -> 1 across one period
+    expect(evalCurve('saw', 0)).toBeCloseTo(-1, 10);
+    expect(evalCurve('saw', 0.25)).toBeCloseTo(-0.5, 10);
+    expect(evalCurve('saw', 0.75)).toBeCloseTo(0.5, 10);
+    // pulse: +1 for the first half of the period, -1 for the second
+    expect(evalCurve('pulse', 0.25)).toBe(1);
+    expect(evalCurve('pulse', 0.5)).toBe(-1);
+    expect(evalCurve('pulse', 0.9)).toBe(-1);
+    // periodicity (period 1)
+    expect(evalCurve('saw', 1.25)).toBeCloseTo(evalCurve('saw', 0.25), 10);
+  });
+
+  it('rate scales and phase offsets the modulation drive', () => {
+    // constant source -> 1; linear curve is identity, so the drive passes through.
+    const mod = (rate, phase) => [{ source: 'constant', target: 'radius', curve: 'linear', gain: 1, rate, phase }];
+    expect(evalModulation(mod(3, 0.5), 'radius', 0, baseSources)).toBeCloseTo(3.5, 10); // 1*3 + 0.5
+    // absent rate/phase default to 1/0 -> identity (back-compat)
+    expect(evalModulation([{ source: 'constant', target: 'radius', curve: 'linear', gain: 2 }], 'radius', 0, baseSources)).toBeCloseTo(2, 10);
+    // phase alone shifts a waveform: saw(0.25) = -0.5, saw(0.75) = 0.5
+    const saw = (phase) => [{ source: 'constant', target: 'radius', curve: 'saw', gain: 1, rate: 0, phase }];
+    expect(evalModulation(saw(0.25), 'radius', 0, baseSources)).toBeCloseTo(-0.5, 10);
+    expect(evalModulation(saw(0.75), 'radius', 0, baseSources)).toBeCloseTo(0.5, 10);
+  });
+
+  it('normalizeModulation omits default rate/phase but keeps non-defaults', () => {
+    const n = normalizePatternSpec({ layers: [layer({ modulations: [
+      { source: 'time', target: 'radius', curve: 'saw', gain: 30, rate: 1, phase: 0 },
+      { source: 'time', target: 'rotation', curve: 'sin', gain: 1, rate: 2, phase: 0.25 },
+    ] })] });
+    const [m0, m1] = n.layers[0].modulations;
+    expect(m0).not.toHaveProperty('rate');
+    expect(m0).not.toHaveProperty('phase');
+    expect(m1.rate).toBe(2);
+    expect(m1.phase).toBe(0.25);
+  });
+
+  it('omitting default rate/phase/jitterRate preserves patternId; non-defaults change it', () => {
+    const base = { layers: [layer({ modulations: [{ source: 'energy', target: 'radius', curve: 'linear', gain: 10 }] })] };
+    const defaults = { layers: [layer({ jitterRate: 0, modulations: [{ source: 'energy', target: 'radius', curve: 'linear', gain: 10, rate: 1, phase: 0 }] })] };
+    expect(patternId(defaults)).toBe(patternId(base));
+    const motion = { layers: [layer({ jitterRate: 5, modulations: [{ source: 'energy', target: 'radius', curve: 'linear', gain: 10, rate: 2, phase: 0 }] })] };
+    expect(patternId(motion)).not.toBe(patternId(base));
+  });
+
+  it('keeps the new waveform curves through normalize', () => {
+    const n = normalizePatternSpec({ layers: [layer({ modulations: [
+      { source: 'time', target: 'radius', curve: 'triangle', gain: 10 },
+      { source: 'time', target: 'size', curve: 'pulse', gain: 10 },
+    ] })] });
+    expect(n.layers[0].modulations.map((m) => m.curve)).toEqual(['triangle', 'pulse']);
+  });
+
+  it('normalize is idempotent with rate/phase/jitterRate present', () => {
+    const raw = { layers: [layer({ jitterRate: 12, modulations: [{ source: 'time', target: 'radius', curve: 'saw', gain: 30, rate: 2, phase: 0.25 }] })] };
+    const once = normalizePatternSpec(raw);
+    expect(normalizePatternSpec(once)).toEqual(once);
+  });
+});
+
+describe('animatedJitter (Phase 1)', () => {
+  it('rate <= 0 returns the frozen seededUnit value (back-compat)', () => {
+    expect(animatedJitter(1, 0, 0, 100, 0)).toBe(seededUnit(1, 0, 0, 0));
+    expect(animatedJitter(3, 2, 5, 999, -1)).toBe(seededUnit(3, 2, 5, 0));
+  });
+
+  it('is deterministic and stays within [-1, 1]', () => {
+    expect(animatedJitter(1, 0, 0, 123, 5)).toBe(animatedJitter(1, 0, 0, 123, 5));
+    for (const fc of [0, 37, 240, 1000]) {
+      const v = animatedJitter(1, 0, 0, fc, 9);
+      expect(v).toBeGreaterThanOrEqual(-1);
+      expect(v).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('smoothstep-lerps between adjacent seeded buckets', () => {
+    // phase = 10 * 15 / 60 = 2.5 -> bucket 2, fraction 0.5, smoothstep(0.5) = 0.5
+    const a = seededUnit(1, 0, 0, 2);
+    const b = seededUnit(1, 0, 0, 3);
+    expect(animatedJitter(1, 0, 0, 10, 15)).toBeCloseTo(a + (b - a) * 0.5, 10);
+  });
+
+  it('resolveInstances animates jitter across frames only when jitterRate > 0', () => {
+    const mods = [{ source: 'jitter', target: 'size', curve: 'linear', gain: 5 }];
+    const gen = { type: 'single', count: 1, radius: 0, phase: 0 };
+    const prim = { type: 'polygon', size: 200, sides: 3 };
+    const frozen = normalizePatternSpec({ layers: [layer({ primitive: prim, generator: gen, modulations: mods })] }).layers[0];
+    const f0 = resolveInstances(frozen, { ...baseSources, frameCount: 0 }, 7, 0).instances[0].size;
+    const f1 = resolveInstances(frozen, { ...baseSources, frameCount: 600 }, 7, 0).instances[0].size;
+    expect(f1).toBe(f0); // jitterRate defaults to 0 -> frozen
+
+    const animated = normalizePatternSpec({ layers: [layer({ jitterRate: 20, primitive: prim, generator: gen, modulations: mods })] }).layers[0];
+    const a0 = resolveInstances(animated, { ...baseSources, frameCount: 0 }, 7, 0).instances[0].size;
+    const a1 = resolveInstances(animated, { ...baseSources, frameCount: 600 }, 7, 0).instances[0].size;
+    expect(a1).not.toBe(a0); // shimmer changes the value across frames
   });
 });
