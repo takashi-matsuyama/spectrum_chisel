@@ -166,6 +166,8 @@ function readActiveLayer() {
     rotation: 0,
     scale: 1,
     jitterRate: editor.jitterRate ? editor.jitterRate.value() : 0,
+    timeScale: editor.timeScale ? editor.timeScale.value() : 1,
+    phaseOffset: editor.phaseOffset ? editor.phaseOffset.value() : 0,
     motions: editor.motions.map((m) => ({ kind: m.kind.value(), speed: m.speed.value(), depth: m.depth.value() })),
     modulations: editor.mods.map((m) => {
       const row = {
@@ -382,6 +384,11 @@ function buildEditor() {
   editor.size = slider('Size', 0, 200, Math.min(200, layer.primitive.size), 1, editorBody);
   editor.sides = slider('Sides', 2, MAX_SIDES, layer.primitive.sides, 1, editorBody);
   editor.jitterRate = slider(t('jitterRate'), 0, 30, layer.jitterRate || 0, 1, editorBody);
+  // Per-layer time controls (Slice B): time scale (negative reverses) and phase
+  // offset, in `time` units. Default 1 / 0 are omitted by normalize, so adding
+  // these sliders does not perturb the id of a layer left at the defaults.
+  editor.timeScale = slider(t('layerTimeScale'), -2, 2, typeof layer.timeScale === 'number' ? layer.timeScale : 1, 0.1, editorBody);
+  editor.phaseOffset = slider(t('layerPhaseOffset'), 0, 1, typeof layer.phaseOffset === 'number' ? layer.phaseOffset : 0, 0.01, editorBody);
 
   createDiv(t('motionSection')).parent(editorBody).addClass('ui-section-title').attribute('data-i18n', 'motionSection');
   editor.motionList = createDiv().parent(editorBody);
