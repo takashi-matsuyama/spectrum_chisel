@@ -354,6 +354,16 @@ canvas {
   color: var(--text-muted);
 }
 
+/* Disabled control (e.g. a layer op that would break an invariant: add/duplicate
+   past MAX_LAYERS, remove the last layer, or move past an end). */
+.ui-panel button:disabled,
+.ui-panel button:disabled:hover {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: var(--surface-2);
+  border-color: var(--border);
+}
+
 /* ---- Segmented control (mic / file) ------------------------------------- */
 .segmented {
   display: inline-flex;
