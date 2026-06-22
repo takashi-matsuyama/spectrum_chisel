@@ -4,9 +4,10 @@
 // and the interpreter draws (drawing/customPattern.js). It owns the in-memory
 // library (state.patternLibrary, keyed by content-addressed id) plus display
 // names (state.patternNames), persists them to localStorage, and provides the
-// sidebar UI: a library bar (new/duplicate/rename/delete), a single-layer editor
-// (primitive/generator + sliders + dropdown-only modulation routing), and the
-// per-band "use a custom pattern" picker.
+// sidebar UI: a library bar (new/duplicate/rename/delete), a layer stack (tabs +
+// add/duplicate/move/remove) whose active layer is edited with primitive/generator
+// + sliders + dropdown-only modulation routing, and the per-band "use a custom
+// pattern" picker.
 //
 // Editing recomputes the content id; bands referencing the old id are rewired,
 // so the stable UX handle is the name while the stable render handle is the id.
@@ -20,6 +21,7 @@ import {
   CURVES,
   MOTIONS,
   MAX_MOTIONS,
+  MAX_LAYERS,
   PATTERN_SPEC_VERSION,
   MAX_SIDES,
   normalizePatternSpec,
@@ -37,6 +39,8 @@ const MAX_EDITOR_MODS = 4;
 
 /** @type {string|null} The pattern currently open in the editor. */
 let currentId = null;
+/** Index of the layer the editor body is currently editing (0-based). */
+let activeLayerIndex = 0;
 /** @type {Array<{name: string, select: any}>} Per-band pickers to refresh. */
 const bandSelects = [];
 /** @type {any} */ let librarySelect = null;
@@ -145,51 +149,61 @@ function commitSpec(newSpec) {
 
 // --- editor ----------------------------------------------------------------
 
-/** Build the spec currently described by the editor controls. */
+/** Build the single layer currently described by the active-layer controls. */
+function readActiveLayer() {
+  return {
+    primitive: {
+      type: editor.primitive.value(),
+      size: editor.size.value(),
+      sides: editor.sides.value(),
+    },
+    generator: {
+      type: editor.generator.value(),
+      count: editor.count.value(),
+      radius: editor.radius.value(),
+      phase: 0,
+    },
+    rotation: 0,
+    scale: 1,
+    jitterRate: editor.jitterRate ? editor.jitterRate.value() : 0,
+    motions: editor.motions.map((m) => ({ kind: m.kind.value(), speed: m.speed.value(), depth: m.depth.value() })),
+    modulations: editor.mods.map((m) => {
+      const row = {
+        source: m.source.value(),
+        target: m.target.value(),
+        curve: m.curve.value(),
+        gain: m.gain.value(),
+        rate: m.rate.value(),
+        phase: m.phase.value(),
+      };
+      // Only emit the clamp window when the author enabled it, and only the
+      // side they moved inward: a slider at its end (-300/+300) means "no
+      // bound here" and is dropped, so an unclamped row stays byte-identical
+      // (keeping the pattern's id) and a one-sided clamp stays one-sided.
+      if (m.clamp.checked()) {
+        const lo = m.min.value();
+        const hi = m.max.value();
+        if (lo > -300) row.min = lo;
+        if (hi < 300) row.max = hi;
+      }
+      return row;
+    }),
+  };
+}
+
+/**
+ * Build the full spec from the stored pattern, replacing only the active layer
+ * with what the live editor controls describe. Non-active layers pass through
+ * unchanged, so editing one layer never perturbs the others and a single-layer
+ * pattern round-trips byte-for-byte (preserving its content id).
+ */
 function readEditorSpec() {
+  const stored = currentId ? state.patternLibrary[currentId] : null;
+  const layers = (stored ? stored.layers : []).map((lyr, i) => (i === activeLayerIndex ? readActiveLayer() : lyr));
   return {
     specVersion: PATTERN_SPEC_VERSION,
     seed: editor.seed,
-    layers: [
-      {
-        primitive: {
-          type: editor.primitive.value(),
-          size: editor.size.value(),
-          sides: editor.sides.value(),
-        },
-        generator: {
-          type: editor.generator.value(),
-          count: editor.count.value(),
-          radius: editor.radius.value(),
-          phase: 0,
-        },
-        rotation: 0,
-        scale: 1,
-        jitterRate: editor.jitterRate ? editor.jitterRate.value() : 0,
-        motions: editor.motions.map((m) => ({ kind: m.kind.value(), speed: m.speed.value(), depth: m.depth.value() })),
-        modulations: editor.mods.map((m) => {
-          const row = {
-            source: m.source.value(),
-            target: m.target.value(),
-            curve: m.curve.value(),
-            gain: m.gain.value(),
-            rate: m.rate.value(),
-            phase: m.phase.value(),
-          };
-          // Only emit the clamp window when the author enabled it, and only the
-          // side they moved inward: a slider at its end (-300/+300) means "no
-          // bound here" and is dropped, so an unclamped row stays byte-identical
-          // (keeping the pattern's id) and a one-sided clamp stays one-sided.
-          if (m.clamp.checked()) {
-            const lo = m.min.value();
-            const hi = m.max.value();
-            if (lo > -300) row.min = lo;
-            if (hi < 300) row.max = hi;
-          }
-          return row;
-        }),
-      },
-    ],
+    layers,
   };
 }
 
@@ -346,14 +360,21 @@ function addMotionRow(motion) {
   editor.motions.push(entry);
 }
 
-/** Rebuild the editor body for the pattern `currentId`. */
+/** Rebuild the editor body for the active layer of the pattern `currentId`. */
 function buildEditor() {
   editorBody.html('');
   editor = null;
   if (!currentId || !state.patternLibrary[currentId]) return;
-  const layer = state.patternLibrary[currentId].layers[0] || normalizePatternSpec({ layers: [{}] }).layers[0];
+  const spec = state.patternLibrary[currentId];
+  // A pattern switch or a layer removal can leave the index out of range.
+  if (activeLayerIndex >= spec.layers.length) activeLayerIndex = Math.max(0, spec.layers.length - 1);
+  if (activeLayerIndex < 0) activeLayerIndex = 0;
+  const layer = spec.layers[activeLayerIndex] || normalizePatternSpec({ layers: [{}] }).layers[0];
 
-  editor = { seed: state.patternLibrary[currentId].seed || 1, mods: [], modList: null, motions: [], motionList: null };
+  editor = { seed: spec.seed || 1, mods: [], modList: null, motions: [], motionList: null };
+
+  buildLayerBar(spec);
+
   editor.primitive = picker('Shape', PRIMITIVES, layer.primitive.type, editorBody);
   editor.generator = picker('Layout', GENERATORS, layer.generator.type, editorBody);
   editor.count = slider('Count', 1, 64, Math.min(64, layer.generator.count), 1, editorBody);
@@ -384,9 +405,112 @@ function buildEditor() {
 function selectPattern(id) {
   if (!state.patternLibrary[id]) return;
   currentId = id;
+  activeLayerIndex = 0;
   if (librarySelect) librarySelect.selected(id);
   buildEditor();
   requestPreview();
+}
+
+// --- layer stack -----------------------------------------------------------
+
+/**
+ * Build the layer tab bar plus the add/duplicate/move/remove controls, at the
+ * top of the editor body. The active tab reuses the engaged-button style
+ * (.btn.active); ops that would break an invariant (exceed MAX_LAYERS, remove
+ * the last layer, move past an end) are disabled.
+ * @param {any} spec  The current pattern spec (normalized).
+ */
+function buildLayerBar(spec) {
+  createDiv(t('patternLayers')).parent(editorBody).addClass('ui-section-title').attribute('data-i18n', 'patternLayers');
+  const tabs = createDiv().parent(editorBody).addClass('ui-subcontrols');
+  spec.layers.forEach((_, i) => {
+    // "Layer N" is composed with an index, so (like the motion/modulation rows)
+    // it carries no data-i18n key and is localized only at build time.
+    const tab = createButton(t('layerLabel') + ' ' + (i + 1)).parent(tabs);
+    if (i === activeLayerIndex) tab.addClass('btn').addClass('active');
+    tab.mousePressed(() => selectLayer(i));
+  });
+  const ops = createDiv().parent(editorBody).addClass('ui-subcontrols');
+  const atMax = spec.layers.length >= MAX_LAYERS;
+  const mkOp = (key, handler, disabled) => {
+    const b = createButton(t(key)).parent(ops).attribute('data-i18n', key);
+    if (disabled) b.attribute('disabled', '');
+    else b.mousePressed(handler);
+  };
+  mkOp('addLayer', onAddLayer, atMax);
+  mkOp('duplicateLayer', onDuplicateLayer, atMax);
+  mkOp('moveLayerUp', () => onMoveLayer(-1), activeLayerIndex === 0);
+  mkOp('moveLayerDown', () => onMoveLayer(1), activeLayerIndex >= spec.layers.length - 1);
+  mkOp('removeLayer', onRemoveLayer, spec.layers.length <= 1);
+}
+
+/** Switch the active layer. Pure UI navigation — no content change, no commit. */
+function selectLayer(i) {
+  if (!currentId) return;
+  const spec = state.patternLibrary[currentId];
+  if (i < 0 || i >= spec.layers.length || i === activeLayerIndex) return;
+  activeLayerIndex = i;
+  buildEditor();
+  requestPreview();
+}
+
+/** Append a fresh default layer (up to MAX_LAYERS) and make it active. */
+function onAddLayer() {
+  if (!currentId) return;
+  const spec = state.patternLibrary[currentId];
+  if (spec.layers.length >= MAX_LAYERS) return;
+  const fresh = normalizePatternSpec({
+    layers: [
+      {
+        primitive: { type: 'polygon', size: 24, sides: 3 },
+        generator: { type: 'radial', count: 6, radius: 80, phase: 0 },
+        rotation: 0,
+        scale: 1,
+        modulations: [{ source: 'energy', target: 'radius', curve: 'linear', gain: 120 }],
+      },
+    ],
+  }).layers[0];
+  activeLayerIndex = spec.layers.length; // the index the new layer will occupy
+  commitSpec({ ...spec, layers: [...spec.layers, fresh] });
+  buildEditor();
+}
+
+/** Duplicate the active layer in place (up to MAX_LAYERS); the copy becomes active. */
+function onDuplicateLayer() {
+  if (!currentId) return;
+  const spec = state.patternLibrary[currentId];
+  if (spec.layers.length >= MAX_LAYERS) return;
+  const layers = spec.layers.slice();
+  layers.splice(activeLayerIndex + 1, 0, spec.layers[activeLayerIndex]);
+  activeLayerIndex += 1;
+  commitSpec({ ...spec, layers });
+  buildEditor();
+}
+
+/** Swap the active layer with its neighbour (changes paint order and id). */
+function onMoveLayer(delta) {
+  if (!currentId) return;
+  const spec = state.patternLibrary[currentId];
+  const j = activeLayerIndex + delta;
+  if (j < 0 || j >= spec.layers.length) return;
+  const layers = spec.layers.slice();
+  const moved = layers[activeLayerIndex];
+  layers[activeLayerIndex] = layers[j];
+  layers[j] = moved;
+  activeLayerIndex = j;
+  commitSpec({ ...spec, layers });
+  buildEditor();
+}
+
+/** Remove the active layer. A pattern always keeps at least one layer. */
+function onRemoveLayer() {
+  if (!currentId) return;
+  const spec = state.patternLibrary[currentId];
+  if (spec.layers.length <= 1) return;
+  const layers = spec.layers.filter((_, i) => i !== activeLayerIndex);
+  if (activeLayerIndex >= layers.length) activeLayerIndex = layers.length - 1;
+  commitSpec({ ...spec, layers });
+  buildEditor();
 }
 
 // --- library bar actions ---------------------------------------------------

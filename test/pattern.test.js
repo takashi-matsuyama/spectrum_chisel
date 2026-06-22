@@ -121,6 +121,14 @@ describe('normalizePatternSpec', () => {
     expect(n.layers.every((l) => l.modulations.length <= MAX_MODULATIONS)).toBe(true);
   });
 
+  it('preserves the layer count without padding (1 stays 1, 3 stays 3)', () => {
+    // The layer-stack editor serializes only the layers the user actually has;
+    // normalize must never pad empty slots, or every single-layer pattern's
+    // content id would change.
+    expect(normalizePatternSpec({ layers: [layer()] }).layers).toHaveLength(1);
+    expect(normalizePatternSpec({ layers: [layer(), layer(), layer()] }).layers).toHaveLength(3);
+  });
+
   it('is idempotent', () => {
     const raw = { layers: [layer({ modulations: [{ source: 'energy', target: 'size', curve: 'sqrt', gain: 3 }] })] };
     const once = normalizePatternSpec(raw);
