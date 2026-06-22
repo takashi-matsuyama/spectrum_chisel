@@ -670,4 +670,24 @@ describe('per-layer time controls (timeScale / phaseOffset, Slice B)', () => {
     expect(fwd.rotation).toBeCloseTo(1, 6); // 0.01 * 100
     expect(rev.rotation).toBeCloseTo(-1, 6); // clock reversed
   });
+
+  it('negative timeScale keeps animated jitter deterministic and finite', () => {
+    // A negative timeScale drives animatedJitter with a negative frameCount
+    // (Math.floor of a negative phase); it must stay reproducible and never NaN.
+    const src = { energy: 0, time: 0, index: 0, constant: 1, frameCount: 100 };
+    const jittery = layer({ jitterRate: 6, modulations: [{ source: 'jitter', target: 'size', curve: 'linear', gain: 10 }] });
+    const a = resolveInstances({ ...jittery, timeScale: -1 }, src, 3, 0);
+    const b = resolveInstances({ ...jittery, timeScale: -1 }, src, 3, 0);
+    expect(a).toEqual(b); // reproducible across calls
+    expect(a.instances.every((p) => Number.isFinite(p.size))).toBe(true); // no NaN
+  });
+
+  it('applies phaseOffset at the [0, 1] boundaries', () => {
+    const src = { energy: 0, time: 0, index: 0, constant: 1, frameCount: 0 };
+    const mods = [{ source: 'time', target: 'rotation', curve: 'sin', gain: 1 }];
+    const lo = resolveInstances(layer({ phaseOffset: 0.001, modulations: mods }), src, 0, 0);
+    const hi = resolveInstances(layer({ phaseOffset: 1, modulations: mods }), src, 0, 0);
+    expect(lo.rotation).toBeCloseTo(Math.sin(0.001), 6);
+    expect(hi.rotation).toBeCloseTo(Math.sin(1), 6); // phaseOffset clamps at 1
+  });
 });
