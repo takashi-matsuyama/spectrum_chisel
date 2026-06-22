@@ -7,6 +7,7 @@ import {
   MAX_MOTIONS,
   MOTIONS,
   MOD_SOURCES,
+  CURVES,
   isValidPatternSpec,
   normalizePatternSpec,
   isSupportedSpecVersion,
@@ -533,5 +534,83 @@ describe('centroid modulation source (audio feature)', () => {
     const once = normalizePatternSpec(spec);
     expect(normalizePatternSpec(once)).toEqual(once); // normalize idempotent
     expect(patternId(once)).toBe(patternId(spec)); // stable across re-normalization
+  });
+});
+
+describe('envelope curve (Phase 2b)', () => {
+  it('CURVES includes envelope', () => {
+    expect(CURVES).toContain('envelope');
+  });
+
+  it('evalCurve maps the attack-release contour (unipolar, period 1)', () => {
+    // Quick linear attack over the first quarter, peaking at phase 0.25.
+    expect(evalCurve('envelope', 0)).toBeCloseTo(0, 10);
+    expect(evalCurve('envelope', 0.125)).toBeCloseTo(0.5, 10);
+    expect(evalCurve('envelope', 0.25)).toBeCloseTo(1, 10);
+    // Quadratic decay back to 0 by the end of the period.
+    expect(evalCurve('envelope', 0.625)).toBeCloseTo(0.25, 10);
+    expect(evalCurve('envelope', 1)).toBeCloseTo(0, 10);
+    // Periodic (period 1) and never leaves [0, 1].
+    expect(evalCurve('envelope', 1.25)).toBeCloseTo(evalCurve('envelope', 0.25), 10);
+    for (let x = 0; x < 1; x += 0.05) {
+      const y = evalCurve('envelope', x);
+      expect(y).toBeGreaterThanOrEqual(0);
+      expect(y).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('keeps the envelope curve through normalize', () => {
+    const n = normalizePatternSpec({ layers: [layer({ modulations: [{ source: 'time', target: 'scale', curve: 'envelope', gain: 1 }] })] });
+    expect(n.layers[0].modulations[0].curve).toBe('envelope');
+  });
+
+  it('the golden id is unchanged by CURVES growth', () => {
+    // CURVES is a membership gate, not serialized, so appending 'envelope' must
+    // not re-key the representative spec pinned by the centroid suite.
+    const spec = { layers: [layer({ modulations: [{ source: 'energy', target: 'radius', curve: 'linear', gain: 10 }] })] };
+    expect(patternId(spec)).toBe('pzpke21');
+  });
+});
+
+describe('per-routing clamp (residual e)', () => {
+  it('evalModulation clamps a row contribution to [min, max]', () => {
+    // constant source, linear curve -> contribution is exactly the gain.
+    const hi = [{ source: 'constant', target: 'radius', curve: 'linear', gain: 250, max: 100 }];
+    expect(evalModulation(hi, 'radius', 0, baseSources)).toBe(100); // 250 clamped down to max
+    const lo = [{ source: 'constant', target: 'radius', curve: 'linear', gain: -250, min: -40 }];
+    expect(evalModulation(lo, 'radius', 0, baseSources)).toBe(-40); // -250 clamped up to min
+    const inside = [{ source: 'constant', target: 'radius', curve: 'linear', gain: 30, min: -40, max: 100 }];
+    expect(evalModulation(inside, 'radius', 0, baseSources)).toBe(30); // untouched inside the window
+  });
+
+  it('an absent clamp leaves the contribution untouched (back-compat)', () => {
+    const m = [{ source: 'constant', target: 'radius', curve: 'linear', gain: 9999 }];
+    expect(evalModulation(m, 'radius', 0, baseSources)).toBe(9999);
+  });
+
+  it('normalizeModulation omits open clamps but keeps explicit bounds', () => {
+    const n = normalizePatternSpec({ layers: [layer({ modulations: [
+      { source: 'energy', target: 'radius', curve: 'linear', gain: 10, min: -10000, max: 10000 },
+      { source: 'energy', target: 'size', curve: 'linear', gain: 10, min: -40, max: 120 },
+    ] })] });
+    const [m0, m1] = n.layers[0].modulations;
+    expect(m0).not.toHaveProperty('min');
+    expect(m0).not.toHaveProperty('max');
+    expect(m1.min).toBe(-40);
+    expect(m1.max).toBe(120);
+  });
+
+  it('omitting the clamp preserves patternId; a bound changes it', () => {
+    const base = { layers: [layer({ modulations: [{ source: 'energy', target: 'radius', curve: 'linear', gain: 10 }] })] };
+    const open = { layers: [layer({ modulations: [{ source: 'energy', target: 'radius', curve: 'linear', gain: 10, min: -10000, max: 10000 }] })] };
+    expect(patternId(open)).toBe(patternId(base));
+    const bounded = { layers: [layer({ modulations: [{ source: 'energy', target: 'radius', curve: 'linear', gain: 10, max: 80 }] })] };
+    expect(patternId(bounded)).not.toBe(patternId(base));
+  });
+
+  it('normalize is idempotent with a clamp present', () => {
+    const raw = { layers: [layer({ modulations: [{ source: 'energy', target: 'radius', curve: 'linear', gain: 10, min: -40, max: 120 }] })] };
+    const once = normalizePatternSpec(raw);
+    expect(normalizePatternSpec(once)).toEqual(once);
   });
 });
