@@ -432,13 +432,17 @@ function buildLayerBar(spec) {
   });
   const ops = createDiv().parent(editorBody).addClass('ui-subcontrols');
   const atMax = spec.layers.length >= MAX_LAYERS;
+  // A 0-layer spec is only reachable via a malformed imported preset (the UI
+  // never creates one). In that state only Add is allowed, so it cannot
+  // synthesize a default layer by duplicating a non-existent active layer.
+  const empty = spec.layers.length === 0;
   const mkOp = (key, handler, disabled) => {
     const b = createButton(t(key)).parent(ops).attribute('data-i18n', key);
     if (disabled) b.attribute('disabled', '');
     else b.mousePressed(handler);
   };
   mkOp('addLayer', onAddLayer, atMax);
-  mkOp('duplicateLayer', onDuplicateLayer, atMax);
+  mkOp('duplicateLayer', onDuplicateLayer, atMax || empty);
   mkOp('moveLayerUp', () => onMoveLayer(-1), activeLayerIndex === 0);
   mkOp('moveLayerDown', () => onMoveLayer(1), activeLayerIndex >= spec.layers.length - 1);
   mkOp('removeLayer', onRemoveLayer, spec.layers.length <= 1);
@@ -480,6 +484,7 @@ function onDuplicateLayer() {
   if (!currentId) return;
   const spec = state.patternLibrary[currentId];
   if (spec.layers.length >= MAX_LAYERS) return;
+  if (!spec.layers[activeLayerIndex]) return; // nothing to copy (malformed 0-layer pattern)
   const layers = spec.layers.slice();
   layers.splice(activeLayerIndex + 1, 0, spec.layers[activeLayerIndex]);
   activeLayerIndex += 1;
