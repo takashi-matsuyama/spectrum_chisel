@@ -622,3 +622,72 @@ describe('per-routing clamp (residual e)', () => {
     expect(normalizePatternSpec(once)).toEqual(once);
   });
 });
+
+describe('per-layer time controls (timeScale / phaseOffset, Slice B)', () => {
+  it('omits timeScale=1 / phaseOffset=0 so existing patternIds are preserved', () => {
+    const withDefaults = normalizePatternSpec({ layers: [layer({ timeScale: 1, phaseOffset: 0 })] });
+    const without = normalizePatternSpec({ layers: [layer()] });
+    expect(withDefaults).toEqual(without);
+    expect(withDefaults.layers[0]).not.toHaveProperty('timeScale');
+    expect(withDefaults.layers[0]).not.toHaveProperty('phaseOffset');
+    expect(patternId(withDefaults)).toBe(patternId(without));
+  });
+
+  it('keeps non-default values and clamps them to range', () => {
+    const n = normalizePatternSpec({ layers: [layer({ timeScale: -5, phaseOffset: 2 })] });
+    expect(n.layers[0].timeScale).toBe(-2); // clamped to [-2, 2]
+    expect(n.layers[0].phaseOffset).toBe(1); // clamped to [0, 1]
+    expect(patternId(n)).not.toBe(patternId(normalizePatternSpec({ layers: [layer()] })));
+  });
+
+  it('normalize is idempotent with the time controls set', () => {
+    const once = normalizePatternSpec({ layers: [layer({ timeScale: -1, phaseOffset: 0.5 })] });
+    expect(normalizePatternSpec(once)).toEqual(once);
+  });
+
+  it('the identity (1, 0) resolves bit-for-bit like a layer without the fields', () => {
+    const src = { energy: 0.5, time: 3, index: 0, constant: 1, frameCount: 120 };
+    const mods = [{ source: 'time', target: 'rotation', curve: 'sin', gain: 1 }];
+    const plain = resolveInstances(layer({ modulations: mods }), src, 7, 0);
+    const ident = resolveInstances(layer({ timeScale: 1, phaseOffset: 0, modulations: mods }), src, 7, 0);
+    expect(ident).toEqual(plain);
+  });
+
+  it('phaseOffset shifts a time-driven modulation', () => {
+    const src = { energy: 0, time: 0, index: 0, constant: 1, frameCount: 0 };
+    const mods = [{ source: 'time', target: 'rotation', curve: 'sin', gain: 1 }];
+    const base = resolveInstances(layer({ modulations: mods }), src, 0, 0);
+    const shifted = resolveInstances(layer({ phaseOffset: 0.5, modulations: mods }), src, 0, 0);
+    expect(base.rotation).toBeCloseTo(0, 6); // sin(0)
+    expect(shifted.rotation).toBeCloseTo(Math.sin(0.5), 6); // sin(time + phaseOffset)
+  });
+
+  it('negative timeScale reverses a frameCount-driven motion', () => {
+    const src = { energy: 0, time: 0, index: 0, constant: 1, frameCount: 100 };
+    const mods = [{ source: 'frameCount', target: 'rotation', curve: 'linear', gain: 0.01 }];
+    const fwd = resolveInstances(layer({ timeScale: 1, modulations: mods }), src, 0, 0);
+    const rev = resolveInstances(layer({ timeScale: -1, modulations: mods }), src, 0, 0);
+    expect(fwd.rotation).toBeCloseTo(1, 6); // 0.01 * 100
+    expect(rev.rotation).toBeCloseTo(-1, 6); // clock reversed
+  });
+
+  it('negative timeScale keeps animated jitter deterministic and finite', () => {
+    // A negative timeScale drives animatedJitter with a negative frameCount
+    // (Math.floor of a negative phase); it must stay reproducible and never NaN.
+    const src = { energy: 0, time: 0, index: 0, constant: 1, frameCount: 100 };
+    const jittery = layer({ jitterRate: 6, modulations: [{ source: 'jitter', target: 'size', curve: 'linear', gain: 10 }] });
+    const a = resolveInstances({ ...jittery, timeScale: -1 }, src, 3, 0);
+    const b = resolveInstances({ ...jittery, timeScale: -1 }, src, 3, 0);
+    expect(a).toEqual(b); // reproducible across calls
+    expect(a.instances.every((p) => Number.isFinite(p.size))).toBe(true); // no NaN
+  });
+
+  it('applies phaseOffset at the [0, 1] boundaries', () => {
+    const src = { energy: 0, time: 0, index: 0, constant: 1, frameCount: 0 };
+    const mods = [{ source: 'time', target: 'rotation', curve: 'sin', gain: 1 }];
+    const lo = resolveInstances(layer({ phaseOffset: 0.001, modulations: mods }), src, 0, 0);
+    const hi = resolveInstances(layer({ phaseOffset: 1, modulations: mods }), src, 0, 0);
+    expect(lo.rotation).toBeCloseTo(Math.sin(0.001), 6);
+    expect(hi.rotation).toBeCloseTo(Math.sin(1), 6); // phaseOffset clamps at 1
+  });
+});

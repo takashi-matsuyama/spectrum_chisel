@@ -64,6 +64,8 @@ export const MOTIONS = ['orbit', 'pulse', 'breathe', 'drift', 'bloom', 'shimmer'
  * @property {Modulation[]} modulations
  * @property {Motion[]} [motions]   Named motion presets, expanded to modulations at resolve time.
  * @property {number} [jitterRate]  Optional animated-jitter speed (0 = frozen).
+ * @property {number} [timeScale]   Optional per-layer time multiplier (default 1; negative reverses).
+ * @property {number} [phaseOffset] Optional per-layer phase shift in `time` units (default 0).
  *
  * @typedef {Object} PatternSpec
  * @property {string} specVersion
@@ -154,6 +156,14 @@ export function seededUnit(seed, layerIndex, elementIndex, frameBucket = 0) {
  * 1 that is ~60 frames (a slow wander), at 30 it is ~2 frames (a fast shimmer).
  */
 const JITTER_RATE_SCALE = 1 / 60;
+
+/**
+ * The atelier / viewer / SVG time convention: the `time` source advances this
+ * much per frame (render.js: time = currentFrame * TIME_PER_FRAME, with
+ * frameCount = currentFrame). resolveInstances uses it so a layer's phaseOffset
+ * shifts the `time` and `frameCount` sources by the same wall-clock amount.
+ */
+const TIME_PER_FRAME = 0.005;
 
 /**
  * Time-animated jitter: a deterministic, smooth walk for the per-element
@@ -342,6 +352,14 @@ function normalizeLayer(raw) {
   if (motions.length) layer.motions = motions;
   const jitterRate = clampNum(src.jitterRate, 0, 30, 0);
   if (jitterRate !== 0) layer.jitterRate = jitterRate;
+  // Per-layer time controls: timeScale (negative reverses the layer's clock) and
+  // a phase shift. Omitted at their identity values (1 / 0) so layers that don't
+  // use them keep their byte-for-byte patternId — same discipline as motions /
+  // jitterRate above.
+  const timeScale = clampNum(src.timeScale, -2, 2, 1);
+  if (timeScale !== 1) layer.timeScale = timeScale;
+  const phaseOffset = clampNum(src.phaseOffset, 0, 1, 0);
+  if (phaseOffset !== 0) layer.phaseOffset = phaseOffset;
   return layer;
 }
 
@@ -488,9 +506,26 @@ export function expandMotions(layer) {
  * @returns {ResolvedLayer}
  */
 export function resolveInstances(layer, sources, seed = 0, layerIndex = 0) {
-  const fc = typeof sources.frameCount === 'number' ? sources.frameCount : 0;
+  // Per-layer time remap: timeScale multiplies the layer's whole clock (negative
+  // reverses every time/frameCount-driven motion); phaseOffset shifts its phase
+  // (in `time` units, with the frameCount source shifted by the same wall-clock
+  // amount via TIME_PER_FRAME so both clocks stay coherent). Applied to a local
+  // copy so the shared `sources` and every other layer are untouched, and so it
+  // also feeds animatedJitter below. At the identity (1, 0) `local` IS `sources`,
+  // keeping atelier == viewer == SVG bit-for-bit for layers that don't use it.
+  const ts = typeof layer.timeScale === 'number' ? layer.timeScale : 1;
+  const po = typeof layer.phaseOffset === 'number' ? layer.phaseOffset : 0;
+  const local =
+    ts === 1 && po === 0
+      ? sources
+      : {
+          ...sources,
+          time: (typeof sources.time === 'number' ? sources.time : 0) * ts + po,
+          frameCount: (typeof sources.frameCount === 'number' ? sources.frameCount : 0) * ts + po / TIME_PER_FRAME,
+        };
+  const fc = typeof local.frameCount === 'number' ? local.frameCount : 0;
   const { modulations: mods, jitterRate: jr } = expandMotions(layer);
-  const layerSources = { ...sources, index: 0, jitter: animatedJitter(seed, layerIndex, 0, fc, jr) };
+  const layerSources = { ...local, index: 0, jitter: animatedJitter(seed, layerIndex, 0, fc, jr) };
   const rotation = evalModulation(mods, 'rotation', layer.rotation, layerSources);
   const scale = evalModulation(mods, 'scale', layer.scale, layerSources);
   const strokeWeightMod = evalModulation(mods, 'strokeWeight', 0, layerSources);
@@ -517,7 +552,7 @@ export function resolveInstances(layer, sources, seed = 0, layerIndex = 0) {
   const instances = [];
   for (let i = 0; i < count; i++) {
     const index = count > 1 ? i / (count - 1) : 0;
-    const sourcesI = { ...sources, index, jitter: animatedJitter(seed, layerIndex, i, fc, jr) };
+    const sourcesI = { ...local, index, jitter: animatedJitter(seed, layerIndex, i, fc, jr) };
     const size = Math.max(0, evalModulation(mods, 'size', layer.primitive.size, sourcesI));
     const sides = clampInt(
       evalModulation(mods, 'sides', layer.primitive.sides, sourcesI),

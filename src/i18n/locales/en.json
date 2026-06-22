@@ -67,6 +67,8 @@
   "modulationMin": "min",
   "modulationMax": "max",
   "jitterRate": "Jitter rate",
+  "layerTimeScale": "Time scale",
+  "layerPhaseOffset": "Phase offset",
   "motionSection": "Motion",
   "addMotion": "Add motion",
   "removeMotion": "Remove",

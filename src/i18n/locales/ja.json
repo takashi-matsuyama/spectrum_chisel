@@ -67,6 +67,8 @@
   "modulationMin": "下限",
   "modulationMax": "上限",
   "jitterRate": "ジッター速度",
+  "layerTimeScale": "時間スケール",
+  "layerPhaseOffset": "位相オフセット",
   "motionSection": "モーション",
   "addMotion": "モーションを追加",
   "removeMotion": "削除",
