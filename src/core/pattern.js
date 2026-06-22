@@ -26,7 +26,7 @@ export const PRIMITIVES = ['point', 'line', 'polygon', 'ring', 'star', 'arc'];
 export const GENERATORS = ['single', 'radial', 'grid'];
 export const MOD_SOURCES = ['energy', 'time', 'index', 'constant', 'frameCount', 'jitter', 'centroid'];
 export const MOD_TARGETS = ['count', 'radius', 'size', 'rotation', 'scale', 'sides', 'strokeWeight', 'alpha', 'hueShift'];
-export const CURVES = ['linear', 'sqrt', 'square', 'smoothstep', 'sin', 'triangle', 'saw', 'pulse'];
+export const CURVES = ['linear', 'sqrt', 'square', 'smoothstep', 'sin', 'triangle', 'saw', 'pulse', 'envelope'];
 export const MOTIONS = ['orbit', 'pulse', 'breathe', 'drift', 'bloom', 'shimmer'];
 
 /**
@@ -37,6 +37,8 @@ export const MOTIONS = ['orbit', 'pulse', 'breathe', 'drift', 'bloom', 'shimmer'
  * @property {number} gain    Scalar applied to curve(drive) before accumulation.
  * @property {number} [rate]  Optional frequency scale on the drive value (default 1).
  * @property {number} [phase] Optional offset added to the drive value (default 0).
+ * @property {number} [min]   Optional lower clamp on this row's contribution (gain*curve).
+ * @property {number} [max]   Optional upper clamp on this row's contribution (gain*curve).
  *
  * @typedef {Object} Motion
  * @property {string} kind   One of MOTIONS.
@@ -203,6 +205,18 @@ export function evalCurve(curve, x) {
       return 2 * (x - Math.floor(x)) - 1;
     case 'pulse':
       return x - Math.floor(x) < 0.5 ? 1 : -1;
+    case 'envelope': {
+      // A looping attack-release contour in [0, 1]: a quick linear rise over the
+      // first quarter of the period, then a slower quadratic decay back to 0. The
+      // asymmetry gives a "pluck and fade" / breathing feel the symmetric waves
+      // (sin/triangle) and the linear saw cannot. Unipolar like the shaping
+      // curves, so with a positive gain it lifts a parameter off its baseline.
+      const frac = x - Math.floor(x);
+      const attack = 0.25;
+      if (frac < attack) return frac / attack;
+      const r = (frac - attack) / (1 - attack);
+      return (1 - r) * (1 - r);
+    }
     case 'linear':
     default:
       return x;
@@ -249,7 +263,12 @@ export function evalModulation(modulations, target, base, sources) {
   for (const m of modulations) {
     if (m.target !== target) continue;
     const drive = sourceValue(m.source, sources) * (m.rate ?? 1) + (m.phase ?? 0);
-    value += m.gain * evalCurve(m.curve, drive);
+    let contribution = m.gain * evalCurve(m.curve, drive);
+    // Optional per-row clamp. Absent bounds leave the contribution untouched, so
+    // unclamped rows are bit-for-bit identical to the pre-clamp behavior.
+    if (typeof m.min === 'number' && contribution < m.min) contribution = m.min;
+    if (typeof m.max === 'number' && contribution > m.max) contribution = m.max;
+    value += contribution;
   }
   return value;
 }
@@ -349,6 +368,14 @@ function normalizeModulation(raw) {
   const phase = clampNum(raw.phase, 0, 1, 0);
   if (rate !== 1) out.rate = rate;
   if (phase !== 0) out.phase = phase;
+  // min/max bound this row's contribution (gain*curve) to a window. Both are
+  // optional and omitted at the fully-open sentinels (-/+10000) so a spec
+  // without an explicit clamp keeps its patternId byte-for-byte and evaluates
+  // exactly as before — only an author-chosen bound is serialized and applied.
+  const min = clampNum(raw.min, -10000, 10000, -10000);
+  const max = clampNum(raw.max, -10000, 10000, 10000);
+  if (min !== -10000) out.min = min;
+  if (max !== 10000) out.max = max;
   return out;
 }
 

@@ -167,14 +167,27 @@ function readEditorSpec() {
         scale: 1,
         jitterRate: editor.jitterRate ? editor.jitterRate.value() : 0,
         motions: editor.motions.map((m) => ({ kind: m.kind.value(), speed: m.speed.value(), depth: m.depth.value() })),
-        modulations: editor.mods.map((m) => ({
-          source: m.source.value(),
-          target: m.target.value(),
-          curve: m.curve.value(),
-          gain: m.gain.value(),
-          rate: m.rate.value(),
-          phase: m.phase.value(),
-        })),
+        modulations: editor.mods.map((m) => {
+          const row = {
+            source: m.source.value(),
+            target: m.target.value(),
+            curve: m.curve.value(),
+            gain: m.gain.value(),
+            rate: m.rate.value(),
+            phase: m.phase.value(),
+          };
+          // Only emit the clamp window when the author enabled it, and only the
+          // side they moved inward: a slider at its end (-300/+300) means "no
+          // bound here" and is dropped, so an unclamped row stays byte-identical
+          // (keeping the pattern's id) and a one-sided clamp stays one-sided.
+          if (m.clamp.checked()) {
+            const lo = m.min.value();
+            const hi = m.max.value();
+            if (lo > -300) row.min = lo;
+            if (hi < 300) row.max = hi;
+          }
+          return row;
+        }),
       },
     ],
   };
@@ -224,9 +237,34 @@ function addModRow(mod) {
   const phaseRow = createDiv(t('modulationPhase') + ': ').parent(row);
   const phase = createSlider(0, 1, mod && typeof mod.phase === 'number' ? mod.phase : 0, 0.01).parent(phaseRow).addClass('ui-slider');
   const phaseSpan = createSpan(phase.value()).parent(phaseRow).addClass('ui-value');
+  // Optional per-row clamp: a labeled checkbox (the label is its accessible
+  // name) reveals min/max sliders. Enabled by default only when the loaded row
+  // already carries a bound, so existing (unclamped) patterns build an
+  // unchecked, hidden control and keep their id. Each slider end (-300/+300)
+  // means "no bound on this side": a slider left at its end is omitted on
+  // commit, so a one-sided or untouched clamp stays one-sided (no phantom bound,
+  // no patternId churn) — see readEditorSpec.
+  const hasClamp = !!(mod && (typeof mod.min === 'number' || typeof mod.max === 'number'));
+  const clamp = createCheckbox(t('modulationClamp'), hasClamp).parent(row);
+  const minRow = createDiv(t('modulationMin') + ': ').parent(row);
+  const min = createSlider(-300, 300, mod && typeof mod.min === 'number' ? mod.min : -300, 1).parent(minRow).addClass('ui-slider');
+  const minSpan = createSpan(min.value()).parent(minRow).addClass('ui-value');
+  const maxRow = createDiv(t('modulationMax') + ': ').parent(row);
+  const max = createSlider(-300, 300, mod && typeof mod.max === 'number' ? mod.max : 300, 1).parent(maxRow).addClass('ui-slider');
+  const maxSpan = createSpan(max.value()).parent(maxRow).addClass('ui-value');
+  const syncClamp = () => {
+    if (clamp.checked()) {
+      minRow.removeClass('hidden');
+      maxRow.removeClass('hidden');
+    } else {
+      minRow.addClass('hidden');
+      maxRow.addClass('hidden');
+    }
+  };
+  syncClamp();
   const del = createButton(t('deleteModulation')).parent(row).attribute('data-i18n', 'deleteModulation');
 
-  const entry = { source, target, curve, gain, rate, phase, row };
+  const entry = { source, target, curve, gain, rate, phase, clamp, min, max, row };
   const commit = () => commitSpec(readEditorSpec());
   source.changed(commit);
   target.changed(commit);
@@ -241,6 +279,29 @@ function addModRow(mod) {
   });
   phase.input(() => {
     phaseSpan.html(phase.value());
+    commit();
+  });
+  clamp.changed(() => {
+    syncClamp();
+    commit();
+  });
+  // Keep the window non-inverted (min <= max): a dragged bound pushes the other
+  // along rather than producing an inverted window that silently pins the
+  // contribution to one side.
+  min.input(() => {
+    if (min.value() > max.value()) {
+      max.value(min.value());
+      maxSpan.html(max.value());
+    }
+    minSpan.html(min.value());
+    commit();
+  });
+  max.input(() => {
+    if (max.value() < min.value()) {
+      min.value(max.value());
+      minSpan.html(min.value());
+    }
+    maxSpan.html(max.value());
     commit();
   });
   del.mousePressed(() => {
