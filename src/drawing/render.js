@@ -133,10 +133,12 @@ export function renderFrame(pg, currentFrame, spectrum, prevSpectrum, params, bo
  * @param {number} [boost]      Input gain multiplier.
  * @param {string|null} [bandFilter]  Plate filter forwarded to renderFrame (see
  *   there); null draws everything.
- * @returns {{spectrum: number[], params: object}|null} The spectrum that was
- *   drawn together with the params snapshot it was drawn with, or null if the
- *   frame was skipped (no data, near-silent, or previewing). The live caller
- *   forwards both to the viewer so params are collected only once per frame.
+ * @returns {{spectrum: number[], params: object, frameIndex: number}|null} The
+ *   spectrum that was drawn, the params snapshot it was drawn with, and the
+ *   recording-relative frame index it was drawn at, or null if the frame was
+ *   skipped (no data, near-silent, or previewing). The live caller forwards all
+ *   three to the viewer so params are collected only once per frame and the
+ *   viewer replays at the same frame index the atelier drew.
  */
 export function drawVisuals(pg, currentFrame, isForSVG = false, boost = 1, bandFilter = null) {
   let spectrum;
@@ -146,7 +148,18 @@ export function drawVisuals(pg, currentFrame, isForSVG = false, boost = 1, bandF
   } else {
     spectrum = state.fft.analyze();
     // Record history only while drawing is active.
-    if (state.isRecording) state.spectrumHistory.push(spectrum.slice());
+    if (state.isRecording) {
+      state.spectrumHistory.push(spectrum.slice());
+      // Drive autonomous motion (rotation, base spin, animatedJitter, and the
+      // time/frameCount modulation sources) from a recording-relative frame: the
+      // 1-based history index that every replay path already uses (SVG export,
+      // viewer late-join, resize replay). Aligning the atelier to it makes
+      // atelier == viewer == SVG agree in absolute phase, and keeps the
+      // autonomous-motion phase deterministic across runs — the index is
+      // independent of the browser's running frameCount (unlike storing the
+      // absolute frameCount, which would make that phase session-dependent).
+      currentFrame = state.spectrumHistory.length;
+    }
   }
 
   if (!spectrum) return null;
@@ -173,5 +186,5 @@ export function drawVisuals(pg, currentFrame, isForSVG = false, boost = 1, bandF
   renderFrame(pg, currentFrame, spectrum, prevSpectrum, params, boost, bandFilter);
 
   if (!isForSVG) state.prevSpectrum = spectrum.slice();
-  return { spectrum, params };
+  return { spectrum, params, frameIndex: currentFrame };
 }

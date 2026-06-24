@@ -137,8 +137,10 @@ function draw() {
   const micBoost = currentBoost();
   const rendered = drawVisuals(this, frameCount, false, micBoost);
   // Mirror each drawn frame to any open viewing window. drawVisuals already
-  // collected the params, so forward them instead of collecting a second time.
-  if (rendered) broadcastFrame(frameCount, rendered.spectrum, rendered.params, micBoost);
+  // collected the params and the recording-relative frame index, so forward
+  // those (the index, not the raw frameCount) instead of recomputing — the
+  // viewer then replays at the same index every other replay path uses.
+  if (rendered) broadcastFrame(rendered.frameIndex, rendered.spectrum, rendered.params, micBoost);
 }
 
 /**
