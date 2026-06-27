@@ -10,6 +10,13 @@ export const state = {
   fft: null,
   /** @type {number|null} Session id stamped on the first recorded frame. */
   sessionId: null,
+  /**
+   * @type {number|null} Per-artwork deterministic render seed, set with a
+   * crypto RNG on the first recorded frame and saved in presets/recipes. Drives
+   * every random/noise style (see drawing/render.js) so a render reproduces
+   * exactly. Null until a recording starts (and after reset).
+   */
+  renderSeed: null,
   /** @type {any} p5.AudioIn microphone. */
   mic: null,
   /** @type {any} p5.SoundFile for the loaded audio file. */
