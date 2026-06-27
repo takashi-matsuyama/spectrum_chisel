@@ -56,6 +56,14 @@ export function renderFrame(pg, currentFrame, spectrum, prevSpectrum, params, bo
   pg.scale(scaleFactor);
 
   const time = currentFrame * 0.005;
+  // Seed this buffer's PRNG per frame so random/noise styles replay identically
+  // for a given (renderSeed, frame) while still varying with the frame (motion
+  // is preserved). currentFrame is recording-relative (see drawVisuals), so the
+  // atelier, viewer, and SVG export all agree. Presets saved before renderSeed
+  // existed fall back to a fixed seed, preserving their prior look.
+  const renderSeed = params.renderSeed ?? 12345;
+  pg.randomSeed(renderSeed + currentFrame);
+  pg.noiseSeed(renderSeed + currentFrame);
   // This frame's timbral brightness in [0,1], shared by every band's custom
   // pattern as the `centroid` modulation source. A pure function of the raw
   // spectrum (pre-boost), so it is recomputed identically in the atelier, the

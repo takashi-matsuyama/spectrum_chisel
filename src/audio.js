@@ -158,6 +158,7 @@ export function toggleFileRecording() {
   if (state.isRecording) {
     if (state.spectrumHistory.length === 0) {
       state.sessionId = Date.now();
+      state.renderSeed = crypto.getRandomValues(new Uint32Array(1))[0] >>> 0;
       state.recordStartTime = millis();
       state.trimStart = state.soundFile.currentTime();
     }
@@ -183,6 +184,7 @@ export function toggleMicRecording() {
   if (state.isRecording) {
     if (state.spectrumHistory.length === 0) {
       state.sessionId = Date.now();
+      state.renderSeed = crypto.getRandomValues(new Uint32Array(1))[0] >>> 0;
       state.recordStartTime = millis();
     }
     state.mic.start();
@@ -226,6 +228,7 @@ export function stopAndReset() {
   state.prevSpectrum = [];
 
   state.sessionId = null;
+  state.renderSeed = null;
   select('#time-display').html('0.0s');
 
   if (state.currentInputMode === 'file' && state.soundFile && state.soundFile.isLoaded()) {

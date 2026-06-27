@@ -51,6 +51,10 @@ export function isValidPreset(preset) {
       return false;
     }
   }
+  // Optional deterministic render seed (presets predating it simply lack it).
+  if (preset.renderSeed !== undefined && typeof preset.renderSeed !== 'number') {
+    return false;
+  }
   return ['spectrumRing', 'spectrumDiff', 'bands'].every(
     (key) => preset[key] !== null && typeof preset[key] === 'object'
   );

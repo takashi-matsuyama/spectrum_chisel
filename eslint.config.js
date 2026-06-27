@@ -11,7 +11,7 @@ export default [
   { ignores: ['dist/**', 'node_modules/**', 'assets/**', '.vite/**'] },
   js.configs.recommended,
   {
-    files: ['**/*.js'],
+    files: ['**/*.js', '**/*.mjs'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'module',

@@ -90,6 +90,20 @@ describe('isValidPreset', () => {
     expect(isValidPreset({ ...validPreset, patternLibrary: null })).toBe(false);
     expect(isValidPreset({ ...validPreset, patternLibrary: 'x' })).toBe(false);
   });
+
+  it('accepts a preset carrying a numeric renderSeed', () => {
+    expect(isValidPreset({ ...validPreset, renderSeed: 12345 })).toBe(true);
+  });
+
+  it('still accepts an old preset that lacks renderSeed (back-compat)', () => {
+    expect('renderSeed' in validPreset).toBe(false);
+    expect(isValidPreset(validPreset)).toBe(true);
+  });
+
+  it('rejects a preset whose renderSeed is present but not a number', () => {
+    expect(isValidPreset({ ...validPreset, renderSeed: '12345' })).toBe(false);
+    expect(isValidPreset({ ...validPreset, renderSeed: null })).toBe(false);
+  });
 });
 
 describe('PRESET_VERSION', () => {
