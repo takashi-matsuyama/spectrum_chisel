@@ -6,7 +6,7 @@ import { state, uiComponents } from './state.js';
 import { BAND_CONFIG } from './core/bands.js';
 import { defaultBandColor } from './core/colors.js';
 import { drawFunctionMap } from './drawing/styles.js';
-import { downloadSVG, downloadSVGPlates, savePreset, loadPreset, generateTimestampedFilename } from './export.js';
+import { downloadSVG, downloadSVGPlates, savePreset, loadPreset, saveRecipe, loadRecipe, generateTimestampedFilename } from './export.js';
 import { openViewer } from './broadcast.js';
 import { supportedVideoFormat, hasViewerSupport, micUnavailableReason } from './capabilities.js';
 import { loadPatternLibrary, attachBandPatternControl, initComposerUI } from './composer.js';
@@ -82,6 +82,8 @@ export function createUI() {
   const presetRow = createDiv().parent(state.uiPanel);
   labeledButton('savePreset', savePreset, presetRow);
   labeledButton('loadPreset', loadPreset, presetRow);
+  labeledButton('saveRecipe', saveRecipe, presetRow);
+  labeledButton('loadRecipe', loadRecipe, presetRow);
 
   // Drawing mode + frame rate.
   sectionTitle('drawingMode', state.uiPanel);
