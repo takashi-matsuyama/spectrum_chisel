@@ -84,13 +84,16 @@ try {
     const r = await page.evaluate(async () => {
       const orig = window.save;
       let cap = null;
-      window.save = function (pg) {
-        const root = pg && pg.elt && pg.elt.svg;
-        cap = root ? root.outerHTML : null;
-      };
-      window.key = 's';
-      window.keyPressed();
-      window.save = orig;
+      try {
+        window.save = function (pg) {
+          const root = pg && pg.elt && pg.elt.svg;
+          cap = root ? root.outerHTML : null;
+        };
+        window.key = 's';
+        window.keyPressed();
+      } finally {
+        window.save = orig;
+      }
       if (cap == null) return { error: 'no svg captured' };
       const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(cap));
       const hash = Array.from(new Uint8Array(buf)).map((x) => x.toString(16).padStart(2, '0')).join('');
@@ -105,8 +108,10 @@ try {
     console.log(`Run ${i + 1}: ${r.len} bytes  sha=${r.hash.slice(0, 16)}`);
   }
 
+  // Every run must succeed AND agree; a failed capture (null) must fail the
+  // check, not be silently dropped by filter(Boolean).
   const valid = hashes.filter(Boolean);
-  const allSame = valid.length >= 2 && valid.every((h) => h === valid[0]);
+  const allSame = valid.length === RUNS && valid.every((h) => h === valid[0]);
   console.log(`\n[determinism] FRAMES=${FRAMES} SCULPT=${SCULPT} SEED=${SEED}: ${allSame ? '✓ byte-identical' : '✗ MISMATCH'}`);
   if (!allSame) failed = true;
 } finally {

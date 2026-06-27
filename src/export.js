@@ -263,11 +263,11 @@ export function loadPreset() {
       }
       if (degraded) alert(t('alertPatternMissing'));
 
-      // Restore the deterministic render seed. Presets predating it lack the
-      // field; those leave renderSeed unset and fall back in render.js.
-      if (typeof preset.renderSeed === 'number') {
-        state.renderSeed = preset.renderSeed;
-      }
+      // Restore the deterministic render seed, normalizing on every load: a
+      // preset predating it (or one saved before recording) omits the field, so
+      // reset to null and let render.js fall back — never inherit the seed from
+      // a previously loaded preset.
+      state.renderSeed = typeof preset.renderSeed === 'number' ? preset.renderSeed : null;
 
       // Refresh the composer + per-band pattern pickers: p5 .value() fires no
       // change event, so the merged library and restored assignments must be

@@ -21,7 +21,7 @@ import { findPattern, resolveLibraryClosure } from './core/pattern.js';
  *     alpha: number, gain: number, threshold: number,
  *     intensityGain: number, angleSpeed: number,
  *   }>,
- *   renderSeed: number|null,
+ *   renderSeed?: number,
  * }}
  */
 export function collectRenderParams() {
@@ -73,8 +73,10 @@ export function collectRenderParams() {
     bands,
     // Per-artwork deterministic seed (set at record start). Drives every
     // random/noise style via render.js and rides along in presets/recipes so a
-    // render reproduces exactly. Null for live params that never recorded.
-    renderSeed: state.renderSeed,
+    // render reproduces exactly. Omitted (not stored as null) before any
+    // recording, so a saved preset stays valid and render.js uses its fixed
+    // fallback. Mirrors the patternLibrary omit-default below.
+    ...(state.renderSeed != null ? { renderSeed: state.renderSeed } : {}),
     // Self-contained closure of exactly the patterns the bands reference, so the
     // viewer renders from params alone (no local-library lookup) and presets are
     // shareable. Omitted entirely when no band uses a custom pattern.
