@@ -411,12 +411,19 @@ async function verifyRecipeIntegrity(recipe) {
 
 // Load a recipe and statically reproduce it: restore the params, the recorded
 // history and seed, then replay the whole history onto the canvas (sculpture).
-// Reads raw bytes so deserializeRecipe can transparently handle both the gzipped
-// (.json.gz) and the legacy plain-.json formats.
+// Uses a raw file input (not p5 createFileInput) so we read the bytes ourselves
+// and deserializeRecipe handles both the gzipped (.json.gz) and legacy plain-.json
+// formats — and EVERY failure (unreadable, not gzip/JSON, malformed) reaches the
+// catch below. (p5's createFileInput pre-parses application/json in its own reader
+// callback, so a malformed .json would throw outside our handler.)
 export function loadRecipe() {
-  const input = createFileInput(async (file) => {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.addEventListener('change', async () => {
+    const file = input.files && input.files[0];
+    if (!file) return;
     try {
-      const bytes = new Uint8Array(await file.file.arrayBuffer());
+      const bytes = new Uint8Array(await file.arrayBuffer());
       const recipe = await deserializeRecipe(bytes);
       if (!isValidRecipe(recipe)) {
         console.warn('Not a valid recipe; skipping load.', recipe);
@@ -450,11 +457,9 @@ export function loadRecipe() {
       // Unreadable file, not gzip/JSON, or malformed: treat as an invalid recipe.
       console.warn('Could not read this recipe file.', err);
       alert(t('alertRecipeInvalid'));
-    } finally {
-      input.remove();
     }
   });
-  input.elt.click();
+  input.click();
 }
 
 /**

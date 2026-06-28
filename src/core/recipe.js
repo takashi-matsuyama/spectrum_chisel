@@ -177,8 +177,14 @@ export function supportsGzip() {
 /** Pump bytes through a (De)CompressionStream and collect the result. */
 async function streamThrough(stream, bytes) {
   const writer = stream.writable.getWriter();
-  writer.write(bytes);
-  writer.close();
+  // Write then close. Neutralize THIS promise's rejection: on corrupt input both
+  // ends of the stream error, and the meaningful error surfaces through the read
+  // loop below (and reaches the caller). An unawaited write/close rejection would
+  // otherwise become an unhandledrejection.
+  writer
+    .write(bytes)
+    .then(() => writer.close())
+    .catch(() => {});
   const chunks = [];
   const reader = stream.readable.getReader();
   for (;;) {

@@ -326,6 +326,18 @@ describe('serializeRecipe / deserializeRecipe (gzip storage)', () => {
     expect(isValidRecipe(back)).toBe(true);
   });
 
+  it('rejects (does not hang) on corrupt gzip bytes', async () => {
+    // gzip magic + garbage body — the read side errors; the write-side rejection
+    // is internally swallowed so it never escapes as an unhandledrejection.
+    const corrupt = new Uint8Array([0x1f, 0x8b, 0x08, 0x00, 0xff, 0xff, 0x00, 0x01]);
+    await expect(deserializeRecipe(corrupt)).rejects.toThrow();
+  });
+
+  it('rejects on non-gzip, non-JSON bytes', async () => {
+    const garbage = new TextEncoder().encode('not a recipe at all {');
+    await expect(deserializeRecipe(garbage)).rejects.toThrow();
+  });
+
   it('reports gzip support (CompressionStream present in this runtime)', () => {
     expect(supportsGzip()).toBe(true);
   });
