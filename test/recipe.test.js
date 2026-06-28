@@ -165,6 +165,29 @@ describe('formatEdition / isValidEdition', () => {
     expect(isValidEdition(5)).toBe(false);
     expect(isValidEdition(null)).toBe(false);
   });
+
+  it('rejects non-canonical (leading-zero) editions so the valid set == formatEdition output', () => {
+    // A leading-zero form would re-normalize on load->save and silently change
+    // the contentHash; rejecting it keeps isValidEdition aligned with formatEdition.
+    expect(isValidEdition('01/1')).toBe(false);
+    expect(isValidEdition('1/05')).toBe(false);
+    expect(isValidEdition('00/1')).toBe(false);
+  });
+
+  it('rejects editions beyond the safe-integer range', () => {
+    expect(isValidEdition('99999999999999999999/99999999999999999999')).toBe(false);
+  });
+
+  it('every formatEdition output is itself a valid edition (round-trip closure)', () => {
+    for (const [i, n] of [
+      [1, 1],
+      [3, 7],
+      [10, 10],
+      [1, 1000],
+    ]) {
+      expect(isValidEdition(formatEdition(i, n))).toBe(true);
+    }
+  });
 });
 
 describe('stableStringify', () => {

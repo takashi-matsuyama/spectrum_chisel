@@ -338,9 +338,15 @@ export async function saveRecipe() {
   // independent of the importer's input mode / mic-boost slider.
   const boost = state.currentInputMode === 'mic' ? select('#mic-boost-slider').value() : 1;
   const { title, edition } = collectRecipeMetadata();
+  // Snapshot the history now: computeContentHash awaits an async digest, during
+  // which the draw loop (if still recording) could push more frames onto the
+  // live array. Hashing one frame set but saving another would make the recipe
+  // fail its own integrity check on reload. A shallow copy freezes the frame set
+  // (frames are never mutated in place after being pushed).
+  const spectrumHistory = state.spectrumHistory.slice();
   const recipe = buildRecipe({
     params: collectRenderParams(),
-    spectrumHistory: state.spectrumHistory,
+    spectrumHistory,
     seed: state.renderSeed,
     boost,
     createdAt: new Date().toISOString(),
@@ -411,8 +417,11 @@ export function loadRecipe() {
       replaySculpture(window, boost);
       console.log('Recipe loaded and reproduced.');
       // Integrity check runs after reproduction (non-blocking): a tampered recipe
-      // still reproduces, but the mismatch is surfaced for provenance.
-      verifyRecipeIntegrity(recipe);
+      // still reproduces, but the mismatch is surfaced for provenance. Swallow
+      // any digest failure so it stays a warning, never an unhandled rejection.
+      verifyRecipeIntegrity(recipe).catch((err) => {
+        console.warn('Recipe integrity check failed (non-fatal):', err);
+      });
     } else {
       alert(t('alertSelectJson'));
     }

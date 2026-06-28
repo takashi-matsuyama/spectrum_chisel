@@ -77,19 +77,24 @@ export function formatEdition(index, total) {
 }
 
 /**
- * Validate an edition string of the form 'n/N': both parts positive integers
- * with 1 <= n <= N. Rejects floats, zero/negatives, and any other shape.
+ * Validate an edition string of the form 'n/N': both parts positive integers in
+ * canonical form (no leading zeros), with 1 <= n <= N and within the safe-integer
+ * range. The accepted set is exactly what formatEdition emits, so a valid edition
+ * survives a load -> save round-trip without re-normalizing (which would change
+ * the contentHash). Rejects floats, zero/negatives, leading zeros, and any other
+ * shape.
  * @param {any} edition
  * @returns {boolean}
  */
 export function isValidEdition(edition) {
   if (typeof edition !== 'string') return false;
-  const match = /^(\d+)\/(\d+)$/.exec(edition);
+  // [1-9]\d* rules out leading zeros and zero/empty parts in one step.
+  const match = /^([1-9]\d*)\/([1-9]\d*)$/.exec(edition);
   if (!match) return false;
   const index = Number(match[1]);
   const total = Number(match[2]);
-  if (!Number.isInteger(index) || !Number.isInteger(total)) return false;
-  return index >= 1 && total >= 1 && index <= total;
+  if (!Number.isSafeInteger(index) || !Number.isSafeInteger(total)) return false;
+  return index <= total;
 }
 
 // --- Deterministic content hash (authenticity attachment point, Slice D) ----
