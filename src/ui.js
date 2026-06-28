@@ -6,7 +6,15 @@ import { state, uiComponents } from './state.js';
 import { BAND_CONFIG } from './core/bands.js';
 import { defaultBandColor } from './core/colors.js';
 import { drawFunctionMap } from './drawing/styles.js';
-import { downloadSVG, downloadSVGPlates, savePreset, loadPreset, saveRecipe, loadRecipe, generateTimestampedFilename } from './export.js';
+import {
+  downloadSVG,
+  downloadSVGPlates,
+  savePreset,
+  loadPreset,
+  saveRecipe,
+  loadRecipe,
+  generateTimestampedFilename,
+} from './export.js';
 import { openViewer } from './broadcast.js';
 import { supportedVideoFormat, hasViewerSupport, micUnavailableReason } from './capabilities.js';
 import { loadPatternLibrary, attachBandPatternControl, initComposerUI } from './composer.js';
@@ -85,6 +93,28 @@ export function createUI() {
   labeledButton('saveRecipe', saveRecipe, presetRow);
   labeledButton('loadRecipe', loadRecipe, presetRow);
 
+  // Edition metadata baked into a saved recipe (Slice D): a free-text title and
+  // an 'n/N' edition (unique piece = 1/1). saveRecipe reads these; loadRecipe
+  // restores them. They also feed the deterministic contentHash.
+  const recipeMetaRow = createDiv().parent(state.uiPanel).addClass('ui-subcontrols');
+  createSpan(t('recipeTitle') + ': ')
+    .parent(recipeMetaRow)
+    .attribute('data-i18n', 'recipeTitle');
+  const titleInput = createInput('').parent(recipeMetaRow).addClass('ui-input');
+  createSpan(t('recipeEdition') + ': ')
+    .parent(recipeMetaRow)
+    .attribute('data-i18n', 'recipeEdition');
+  const editionIndexInput = createInput('1', 'number')
+    .parent(recipeMetaRow)
+    .addClass('ui-input-num');
+  createSpan(' / ').parent(recipeMetaRow);
+  const editionTotalInput = createInput('1', 'number')
+    .parent(recipeMetaRow)
+    .addClass('ui-input-num');
+  editionIndexInput.attribute('min', '1');
+  editionTotalInput.attribute('min', '1');
+  uiComponents.recipeMeta = { titleInput, editionIndexInput, editionTotalInput };
+
   // Drawing mode + frame rate.
   sectionTitle('drawingMode', state.uiPanel);
   uiComponents.sculptureModeCheckbox = tagCheckbox(
@@ -94,7 +124,9 @@ export function createUI() {
 
   const frameRateRow = createDiv('Frame Rate: ').parent(state.uiPanel);
   state.frameRateSlider = createSlider(1, 60, 15, 1).parent(frameRateRow).addClass('ui-slider');
-  const frameRateValueSpan = createSpan(state.frameRateSlider.value()).parent(frameRateRow).addClass('ui-value');
+  const frameRateValueSpan = createSpan(state.frameRateSlider.value())
+    .parent(frameRateRow)
+    .addClass('ui-value');
   state.frameRateSlider.input(() => frameRateValueSpan.html(state.frameRateSlider.value()));
 
   // Global spectrum layers.
@@ -150,12 +182,47 @@ export function createUI() {
     drawSelector.selected(band.defFunc);
     uiComponents[name].drawSelector = drawSelector;
     const defaultWeight = drawFunctionMap[band.defFunc].defaultWeight;
-    uiComponents[name].strokeSlider = createSliderWithLabel('Stroke', 0.1, 5, defaultWeight, 0.1, section);
+    uiComponents[name].strokeSlider = createSliderWithLabel(
+      'Stroke',
+      0.1,
+      5,
+      defaultWeight,
+      0.1,
+      section
+    );
     uiComponents[name].alphaSlider = createSliderWithLabel('Alpha', 0, 255, 20, 1, section);
-    uiComponents[name].gainSlider = createSliderWithLabel('Gain', 0.1, 5.0, DEFAULT_BAND_ENERGY.gain, 0.01, section);
-    uiComponents[name].thresholdSlider = createSliderWithLabel('Threshold', 0, 255, DEFAULT_BAND_ENERGY.threshold, 1, section);
-    uiComponents[name].intensityGainSlider = createSliderWithLabel('IntensityGain', 0.0, 5.0, 1.0, 0.01, section);
-    uiComponents[name].angleSpeedSlider = createSliderWithLabel('AngleSpeed', 0.0, 5.0, 1.0, 0.01, section);
+    uiComponents[name].gainSlider = createSliderWithLabel(
+      'Gain',
+      0.1,
+      5.0,
+      DEFAULT_BAND_ENERGY.gain,
+      0.01,
+      section
+    );
+    uiComponents[name].thresholdSlider = createSliderWithLabel(
+      'Threshold',
+      0,
+      255,
+      DEFAULT_BAND_ENERGY.threshold,
+      1,
+      section
+    );
+    uiComponents[name].intensityGainSlider = createSliderWithLabel(
+      'IntensityGain',
+      0.0,
+      5.0,
+      1.0,
+      0.01,
+      section
+    );
+    uiComponents[name].angleSpeedSlider = createSliderWithLabel(
+      'AngleSpeed',
+      0.0,
+      5.0,
+      1.0,
+      0.01,
+      section
+    );
 
     drawSelector.changed(() => {
       const selectedKey = drawSelector.value();
