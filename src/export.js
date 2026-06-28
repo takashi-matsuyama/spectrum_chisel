@@ -298,10 +298,14 @@ export function saveRecipe() {
     alert(t('alertNoHistoryForRecipe'));
     return;
   }
+  // Capture the gain at record time so the recipe reproduces self-contained,
+  // independent of the importer's input mode / mic-boost slider.
+  const boost = state.currentInputMode === 'mic' ? select('#mic-boost-slider').value() : 1;
   const recipe = buildRecipe({
     params: collectRenderParams(),
     spectrumHistory: state.spectrumHistory,
     seed: state.renderSeed,
+    boost,
     createdAt: new Date().toISOString(),
   });
   saveJSON(recipe, `sc-recipe-${Date.now()}.json`);
@@ -319,13 +323,20 @@ export function loadRecipe() {
         input.remove();
         return;
       }
+      // Stop any live recording/playback first, so the draw loop cannot append
+      // live FFT frames to the restored history and corrupt the reproduction.
+      state.isRecording = false;
+      state.isPlaying = false;
+      noLoop();
       applyPresetToUi(recipe.params);
       state.spectrumHistory = recipe.spectrumHistory;
       state.renderSeed = recipe.seed;
       uiComponents.sculptureModeCheckbox.checked(true);
-      // Static reproduction: clear the canvas, then replay every recorded frame.
+      // Static reproduction: clear the canvas, then replay every recorded frame
+      // with the recipe's own boost so it reproduces self-contained (back-compat:
+      // recipes saved before boost existed fall back to 1).
       background(0);
-      const boost = state.currentInputMode === 'mic' ? select('#mic-boost-slider').value() : 1;
+      const boost = Number.isFinite(recipe.boost) ? recipe.boost : 1;
       replaySculpture(window, boost);
       console.log('Recipe loaded and reproduced.');
     } else {

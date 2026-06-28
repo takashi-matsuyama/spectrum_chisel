@@ -18,14 +18,17 @@ export const RENDERER_VERSION = '1.1.0';
  * @param {object} args.params              collectRenderParams() snapshot.
  * @param {number[][]} args.spectrumHistory Recorded spectrum frames.
  * @param {number|null} args.seed           Deterministic render seed.
+ * @param {number} args.boost               Input gain captured at record time so
+ *                                          the recipe reproduces self-contained.
  * @param {string} args.createdAt           ISO timestamp.
  * @returns {object}
  */
-export function buildRecipe({ params, spectrumHistory, seed, createdAt }) {
+export function buildRecipe({ params, spectrumHistory, seed, boost, createdAt }) {
   return {
     recipeVersion: RECIPE_VERSION,
     rendererVersion: RENDERER_VERSION,
     seed,
+    boost,
     spectrumHistory,
     params,
     metadata: { createdAt },
@@ -42,6 +45,10 @@ export function buildRecipe({ params, spectrumHistory, seed, createdAt }) {
 export function isValidRecipe(data) {
   if (!data || typeof data !== 'object') return false;
   if (!Array.isArray(data.spectrumHistory) || data.spectrumHistory.length === 0) return false;
-  if (typeof data.seed !== 'number') return false;
+  // Every frame must be an array — replay does spectrum.reduce / indexing on it,
+  // which would throw on a non-array frame.
+  if (!data.spectrumHistory.every((frame) => Array.isArray(frame))) return false;
+  // The seed feeds the PRNG; a non-finite seed (Infinity/NaN) would poison it.
+  if (!Number.isFinite(data.seed)) return false;
   return isValidPreset(data.params);
 }

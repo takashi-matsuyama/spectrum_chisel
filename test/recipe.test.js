@@ -21,17 +21,18 @@ const validRecipe = {
 
 describe('buildRecipe', () => {
   it('assembles a recipe with versions and the supplied fields', () => {
-    const r = buildRecipe({ params: validPresetBody, spectrumHistory: [[1]], seed: 7, createdAt: 'X' });
+    const r = buildRecipe({ params: validPresetBody, spectrumHistory: [[1]], seed: 7, boost: 2, createdAt: 'X' });
     expect(r.recipeVersion).toBe(RECIPE_VERSION);
     expect(r.rendererVersion).toBe(RENDERER_VERSION);
     expect(r.seed).toBe(7);
+    expect(r.boost).toBe(2);
     expect(r.spectrumHistory).toEqual([[1]]);
     expect(r.params).toBe(validPresetBody);
     expect(r.metadata).toEqual({ createdAt: 'X' });
   });
 
   it('round-trips through JSON (preserves history, seed, params)', () => {
-    const r = buildRecipe({ params: validPresetBody, spectrumHistory: [[1, 2]], seed: 9, createdAt: 'X' });
+    const r = buildRecipe({ params: validPresetBody, spectrumHistory: [[1, 2]], seed: 9, boost: 1, createdAt: 'X' });
     const parsed = JSON.parse(JSON.stringify(r));
     expect(isValidRecipe(parsed)).toBe(true);
     expect(parsed.seed).toBe(9);
@@ -61,9 +62,16 @@ describe('isValidRecipe', () => {
     expect(isValidRecipe({ ...validRecipe, spectrumHistory: 'x' })).toBe(false);
   });
 
-  it('rejects a non-numeric seed', () => {
+  it('rejects a spectrumHistory whose frames are not arrays', () => {
+    expect(isValidRecipe({ ...validRecipe, spectrumHistory: [{}] })).toBe(false);
+    expect(isValidRecipe({ ...validRecipe, spectrumHistory: [1, 2] })).toBe(false);
+  });
+
+  it('rejects a non-numeric or non-finite seed', () => {
     expect(isValidRecipe({ ...validRecipe, seed: '12345' })).toBe(false);
     expect(isValidRecipe({ ...validRecipe, seed: null })).toBe(false);
+    expect(isValidRecipe({ ...validRecipe, seed: Infinity })).toBe(false);
+    expect(isValidRecipe({ ...validRecipe, seed: NaN })).toBe(false);
   });
 
   it('rejects an invalid preset body', () => {
