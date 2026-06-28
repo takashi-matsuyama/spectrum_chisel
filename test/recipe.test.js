@@ -9,6 +9,9 @@ import {
   computeContentHash,
   isValidEdition,
   formatEdition,
+  serializeRecipe,
+  deserializeRecipe,
+  supportsGzip,
 } from '../src/core/recipe.js';
 import pkg from '../package.json';
 
@@ -279,5 +282,63 @@ describe('computeContentHash', () => {
     const before = await computeContentHash(recipe);
     const reEdition = { ...recipe, metadata: { ...recipe.metadata, edition: '2/10' } };
     expect(await computeContentHash(reEdition)).not.toBe(before);
+  });
+});
+
+describe('serializeRecipe / deserializeRecipe (gzip storage)', () => {
+  // A recipe whose spectrumHistory dominates the size, like a real recording.
+  const big = buildRecipe({
+    params: validPresetBody,
+    spectrumHistory: Array.from({ length: 200 }, (_, f) =>
+      Array.from({ length: 512 }, (_, b) => (b + f) % 256)
+    ),
+    seed: 12345,
+    boost: 1,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    title: 'Aurora',
+    edition: '1/10',
+  });
+
+  it('round-trips a recipe through gzip losslessly', async () => {
+    const bytes = await serializeRecipe(big);
+    expect(bytes[0]).toBe(0x1f); // gzip magic
+    expect(bytes[1]).toBe(0x8b);
+    const back = await deserializeRecipe(bytes);
+    expect(back).toEqual(big);
+  });
+
+  it('gzip output is markedly smaller than the raw JSON', async () => {
+    const raw = new TextEncoder().encode(JSON.stringify(big)).length;
+    const gz = (await serializeRecipe(big)).length;
+    expect(gz).toBeLessThan(raw / 3);
+  });
+
+  it('preserves the contentHash across the round-trip (format-independent)', async () => {
+    const before = await computeContentHash(big);
+    const back = await deserializeRecipe(await serializeRecipe(big));
+    expect(await computeContentHash(back)).toBe(before);
+  });
+
+  it('deserializes a legacy plain-JSON (non-gzip) recipe (back-compat)', async () => {
+    const plain = new TextEncoder().encode(JSON.stringify(validRecipe));
+    const back = await deserializeRecipe(plain);
+    expect(back).toEqual(validRecipe);
+    expect(isValidRecipe(back)).toBe(true);
+  });
+
+  it('rejects (does not hang) on corrupt gzip bytes', async () => {
+    // gzip magic + garbage body — the read side errors; the write-side rejection
+    // is internally swallowed so it never escapes as an unhandledrejection.
+    const corrupt = new Uint8Array([0x1f, 0x8b, 0x08, 0x00, 0xff, 0xff, 0x00, 0x01]);
+    await expect(deserializeRecipe(corrupt)).rejects.toThrow();
+  });
+
+  it('rejects on non-gzip, non-JSON bytes', async () => {
+    const garbage = new TextEncoder().encode('not a recipe at all {');
+    await expect(deserializeRecipe(garbage)).rejects.toThrow();
+  });
+
+  it('reports gzip support (CompressionStream present in this runtime)', () => {
+    expect(supportsGzip()).toBe(true);
   });
 });

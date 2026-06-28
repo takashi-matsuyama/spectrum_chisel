@@ -11,6 +11,9 @@ import {
   computeContentHash,
   formatEdition,
   isValidEdition,
+  serializeRecipe,
+  deserializeRecipe,
+  supportsGzip,
 } from './core/recipe.js';
 import { parseLibrary, instanceCount, isSupportedSpecVersion } from './core/pattern.js';
 import { derivePlateSet, combinePlatesSvg } from './core/plates.js';
@@ -356,7 +359,26 @@ export async function saveRecipe() {
   // Bind everything above into a deterministic digest. We do not sign in-app —
   // a certificate/signature/NFT scheme can attest to this hash later.
   recipe.metadata.contentHash = await computeContentHash(recipe);
-  saveJSON(recipe, `sc-recipe-${Date.now()}.json`);
+  const stem = `sc-recipe-${Date.now()}`;
+  if (!supportsGzip()) {
+    // Older browsers without CompressionStream: fall back to uncompressed JSON
+    // (loadRecipe reads both formats). Functionally identical, just larger.
+    console.warn('CompressionStream unavailable; saving an uncompressed .json recipe.');
+    saveJSON(recipe, `${stem}.json`);
+    return;
+  }
+  // gzip the recipe (~7x smaller; spectrumHistory dominates). Reuses the binary
+  // download pattern from downloadSVGPlates.
+  const bytes = await serializeRecipe(recipe);
+  const blob = new Blob([bytes], { type: 'application/gzip' });
+  const url = URL.createObjectURL(blob);
+  const a = createA(url, '');
+  a.elt.download = `${stem}.json.gz`;
+  a.elt.click();
+  setTimeout(() => {
+    a.remove();
+    URL.revokeObjectURL(url);
+  }, 0);
 }
 
 // Restore a recipe's edition metadata (title / 'n/N') into the UI inputs so a
@@ -389,14 +411,23 @@ async function verifyRecipeIntegrity(recipe) {
 
 // Load a recipe and statically reproduce it: restore the params, the recorded
 // history and seed, then replay the whole history onto the canvas (sculpture).
+// Uses a raw file input (not p5 createFileInput) so we read the bytes ourselves
+// and deserializeRecipe handles both the gzipped (.json.gz) and legacy plain-.json
+// formats — and EVERY failure (unreadable, not gzip/JSON, malformed) reaches the
+// catch below. (p5's createFileInput pre-parses application/json in its own reader
+// callback, so a malformed .json would throw outside our handler.)
 export function loadRecipe() {
-  const input = createFileInput((file) => {
-    if (file.type === 'application' && file.subtype === 'json') {
-      const recipe = file.data;
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.addEventListener('change', async () => {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const recipe = await deserializeRecipe(bytes);
       if (!isValidRecipe(recipe)) {
         console.warn('Not a valid recipe; skipping load.', recipe);
         alert(t('alertRecipeInvalid'));
-        input.remove();
         return;
       }
       // Stop any live recording/playback first, so the draw loop cannot append
@@ -422,12 +453,13 @@ export function loadRecipe() {
       verifyRecipeIntegrity(recipe).catch((err) => {
         console.warn('Recipe integrity check failed (non-fatal):', err);
       });
-    } else {
-      alert(t('alertSelectJson'));
+    } catch (err) {
+      // Unreadable file, not gzip/JSON, or malformed: treat as an invalid recipe.
+      console.warn('Could not read this recipe file.', err);
+      alert(t('alertRecipeInvalid'));
     }
-    input.remove();
   });
-  input.elt.click();
+  input.click();
 }
 
 /**
