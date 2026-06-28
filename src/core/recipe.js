@@ -154,3 +154,77 @@ export async function computeContentHash(recipe) {
     .join('');
   return `sha256:${hex}`;
 }
+
+// --- Storage serialization (gzip) -------------------------------------------
+//
+// The recipe's spectrumHistory (512 int-0..255 bins per recorded frame) makes a
+// raw JSON recipe heavy (~2.5MB/min @30fps). gzip shrinks it ~7x and is lossless,
+// so storage is decoupled from the logical recipe: serialize gzips the canonical
+// JSON, deserialize transparently handles both gzipped and plain-JSON bytes (the
+// pre-compression Slice A/D recipes). The logical recipe — and therefore its
+// contentHash — is identical either way, so authenticity is format-independent.
+// Web Streams (CompressionStream/DecompressionStream) work in the browser and in
+// Node, so these stay unit-testable.
+
+const GZIP_MAGIC_0 = 0x1f;
+const GZIP_MAGIC_1 = 0x8b;
+
+/** Whether this runtime can gzip (older browsers lack CompressionStream). */
+export function supportsGzip() {
+  return typeof globalThis.CompressionStream === 'function';
+}
+
+/** Pump bytes through a (De)CompressionStream and collect the result. */
+async function streamThrough(stream, bytes) {
+  const writer = stream.writable.getWriter();
+  writer.write(bytes);
+  writer.close();
+  const chunks = [];
+  const reader = stream.readable.getReader();
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+  }
+  const total = chunks.reduce((n, c) => n + c.length, 0);
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const c of chunks) {
+    out.set(c, offset);
+    offset += c.length;
+  }
+  return out;
+}
+
+async function gzipText(str) {
+  return streamThrough(new CompressionStream('gzip'), new TextEncoder().encode(str));
+}
+
+async function gunzipToText(bytes) {
+  const out = await streamThrough(new DecompressionStream('gzip'), bytes);
+  return new TextDecoder().decode(out);
+}
+
+/**
+ * Serialize a logical recipe to gzipped JSON bytes for storage/distribution.
+ * @param {object} recipe
+ * @returns {Promise<Uint8Array>}
+ */
+export async function serializeRecipe(recipe) {
+  return gzipText(JSON.stringify(recipe));
+}
+
+/**
+ * Deserialize stored recipe bytes back to a logical recipe. Detects gzip by its
+ * magic bytes; otherwise decodes as plain UTF-8 JSON (back-compat with the
+ * pre-compression .json recipes). The caller validates the result.
+ * @param {Uint8Array} bytes
+ * @returns {Promise<object>}
+ */
+export async function deserializeRecipe(bytes) {
+  const json =
+    bytes.length >= 2 && bytes[0] === GZIP_MAGIC_0 && bytes[1] === GZIP_MAGIC_1
+      ? await gunzipToText(bytes)
+      : new TextDecoder().decode(bytes);
+  return JSON.parse(json);
+}
