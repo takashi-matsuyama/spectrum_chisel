@@ -5,7 +5,13 @@ import { state, uiComponents } from './state.js';
 import { BAND_CONFIG, bandNames } from './core/bands.js';
 import { buildTimestampedFilename } from './core/filename.js';
 import { detectBandIncompatibility, isValidPreset, PRESET_VERSION } from './core/preset.js';
-import { buildRecipe, isValidRecipe } from './core/recipe.js';
+import {
+  buildRecipe,
+  isValidRecipe,
+  computeContentHash,
+  formatEdition,
+  isValidEdition,
+} from './core/recipe.js';
 import { parseLibrary, instanceCount, isSupportedSpecVersion } from './core/pattern.js';
 import { derivePlateSet, combinePlatesSvg } from './core/plates.js';
 import { drawVisuals, replaySculpture } from './drawing/render.js';
@@ -19,7 +25,15 @@ import { t } from './i18n/index.js';
 const SVG_NODE_WARN_THRESHOLD = 200000;
 // Upper-bound sources for the estimate: max energy, centroid (both [0,1]) and
 // jitter maximize resolved counts so the warning stays a true upper bound.
-const SVG_ESTIMATE_SOURCES = { energy: 1, time: 0, index: 0, constant: 1, frameCount: 0, jitter: 1, centroid: 1 };
+const SVG_ESTIMATE_SOURCES = {
+  energy: 1,
+  time: 0,
+  index: 0,
+  constant: 1,
+  frameCount: 0,
+  jitter: 1,
+  centroid: 1,
+};
 
 /**
  * Estimate the vector node count of an SVG export so a huge sculpture is a
@@ -34,7 +48,10 @@ function estimateSvgNodes(params, frames) {
   BAND_CONFIG.forEach((band) => {
     const bp = params.bands[band.name];
     if (!bp || !bp.enabled) return;
-    const spec = bp.drawFunc === 'drawCustomPattern' && params.patternLibrary && params.patternLibrary[bp.customPatternId];
+    const spec =
+      bp.drawFunc === 'drawCustomPattern' &&
+      params.patternLibrary &&
+      params.patternLibrary[bp.customPatternId];
     perFrame += spec ? instanceCount(spec, SVG_ESTIMATE_SOURCES) : 1;
   });
   if (params.spectrumRing && params.spectrumRing.enabled) perFrame += BAND_CONFIG.length;
@@ -290,10 +307,29 @@ export function loadPreset() {
   input.elt.click();
 }
 
+// Read the edition title / 'n/N' from the UI inputs, falling back to safe
+// defaults so a recipe always carries well-formed metadata. An out-of-range or
+// malformed edition (e.g. index > total) is reported and clamped to a unique
+// piece rather than poisoning the recipe.
+function collectRecipeMetadata() {
+  const meta = uiComponents.recipeMeta;
+  const title = meta ? String(meta.titleInput.value()).trim() : '';
+  let index = meta ? Math.trunc(Number(meta.editionIndexInput.value())) : 1;
+  let total = meta ? Math.trunc(Number(meta.editionTotalInput.value())) : 1;
+  let edition = formatEdition(index, total);
+  if (!isValidEdition(edition)) {
+    console.warn('Invalid edition input; defaulting to a unique piece (1/1).', { index, total });
+    edition = '1/1';
+  }
+  return { title, edition };
+}
+
 // Save a reproducible recipe: the recorded spectrum history + seed + params +
 // renderer version, so the artwork re-renders deterministically without the
 // audio. Requires a recording (history); a params-only snapshot is savePreset.
-export function saveRecipe() {
+// Async: stamps a deterministic SHA-256 contentHash (the attachment point any
+// authenticity scheme attests to) over the canonicalized recipe.
+export async function saveRecipe() {
   if (state.spectrumHistory.length === 0) {
     alert(t('alertNoHistoryForRecipe'));
     return;
@@ -301,14 +337,54 @@ export function saveRecipe() {
   // Capture the gain at record time so the recipe reproduces self-contained,
   // independent of the importer's input mode / mic-boost slider.
   const boost = state.currentInputMode === 'mic' ? select('#mic-boost-slider').value() : 1;
+  const { title, edition } = collectRecipeMetadata();
+  // Snapshot the history now: computeContentHash awaits an async digest, during
+  // which the draw loop (if still recording) could push more frames onto the
+  // live array. Hashing one frame set but saving another would make the recipe
+  // fail its own integrity check on reload. A shallow copy freezes the frame set
+  // (frames are never mutated in place after being pushed).
+  const spectrumHistory = state.spectrumHistory.slice();
   const recipe = buildRecipe({
     params: collectRenderParams(),
-    spectrumHistory: state.spectrumHistory,
+    spectrumHistory,
     seed: state.renderSeed,
     boost,
     createdAt: new Date().toISOString(),
+    title,
+    edition,
   });
+  // Bind everything above into a deterministic digest. We do not sign in-app —
+  // a certificate/signature/NFT scheme can attest to this hash later.
+  recipe.metadata.contentHash = await computeContentHash(recipe);
   saveJSON(recipe, `sc-recipe-${Date.now()}.json`);
+}
+
+// Restore a recipe's edition metadata (title / 'n/N') into the UI inputs so a
+// re-save round-trips it. Back-compat: recipes saved before Slice D lack these.
+function applyRecipeMetadataToUi(metadata = {}) {
+  const meta = uiComponents.recipeMeta;
+  if (!meta) return;
+  meta.titleInput.value(typeof metadata.title === 'string' ? metadata.title : '');
+  const edition = isValidEdition(metadata.edition) ? metadata.edition : '1/1';
+  const [index, total] = edition.split('/');
+  meta.editionIndexInput.value(Number(index));
+  meta.editionTotalInput.value(Number(total));
+}
+
+// Verify a loaded recipe against its stamped contentHash (tamper-evidence /
+// provenance, not a gate): recompute the canonical digest and warn on mismatch.
+// Recipes saved before Slice D carry no contentHash and are skipped silently.
+async function verifyRecipeIntegrity(recipe) {
+  const stamped = recipe.metadata && recipe.metadata.contentHash;
+  if (!stamped) return;
+  const recomputed = await computeContentHash(recipe);
+  if (recomputed !== stamped) {
+    console.warn('Recipe contentHash mismatch — the recipe was modified after it was saved.', {
+      stamped,
+      recomputed,
+    });
+    alert(t('alertRecipeTampered'));
+  }
 }
 
 // Load a recipe and statically reproduce it: restore the params, the recorded
@@ -329,6 +405,7 @@ export function loadRecipe() {
       state.isPlaying = false;
       noLoop();
       applyPresetToUi(recipe.params);
+      applyRecipeMetadataToUi(recipe.metadata);
       state.spectrumHistory = recipe.spectrumHistory;
       state.renderSeed = recipe.seed;
       uiComponents.sculptureModeCheckbox.checked(true);
@@ -339,6 +416,12 @@ export function loadRecipe() {
       const boost = Number.isFinite(recipe.boost) ? recipe.boost : 1;
       replaySculpture(window, boost);
       console.log('Recipe loaded and reproduced.');
+      // Integrity check runs after reproduction (non-blocking): a tampered recipe
+      // still reproduces, but the mismatch is surfaced for provenance. Swallow
+      // any digest failure so it stays a warning, never an unhandled rejection.
+      verifyRecipeIntegrity(recipe).catch((err) => {
+        console.warn('Recipe integrity check failed (non-fatal):', err);
+      });
     } else {
       alert(t('alertSelectJson'));
     }
