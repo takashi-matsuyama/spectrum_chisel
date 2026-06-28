@@ -196,3 +196,17 @@ export function drawVisuals(pg, currentFrame, isForSVG = false, boost = 1, bandF
   if (!isForSVG) state.prevSpectrum = spectrum.slice();
   return { spectrum, params, frameIndex: currentFrame };
 }
+
+/**
+ * Replay the recorded spectrum history onto a graphics target in order
+ * (sculpture mode): every stored frame is redrawn deterministically. Shared by
+ * the canvas resize replay and recipe import. The caller clears the background
+ * first; this only draws.
+ * @param {any} pg          p5 graphics target (usually the main canvas/window).
+ * @param {number} [boost]  Input gain multiplier.
+ */
+export function replaySculpture(pg, boost = 1) {
+  for (let i = 0; i < state.spectrumHistory.length; i++) {
+    drawVisuals(pg, i + 1, true, boost);
+  }
+}

@@ -7,7 +7,7 @@ import 'p5/lib/addons/p5.sound.js';
 import 'p5.js-svg';
 
 import { state, uiComponents } from './state.js';
-import { drawVisuals } from './drawing/render.js';
+import { drawVisuals, replaySculpture } from './drawing/render.js';
 import {
   initMic,
   setupSoundControls,
@@ -162,10 +162,7 @@ function resizeToContainer() {
   background(0);
   const isSculpture = uiComponents.sculptureModeCheckbox && uiComponents.sculptureModeCheckbox.checked();
   if (isSculpture && state.spectrumHistory.length > 0) {
-    const boost = currentBoost();
-    for (let i = 0; i < state.spectrumHistory.length; i++) {
-      drawVisuals(window, i + 1, true, boost);
-    }
+    replaySculpture(window, currentBoost());
   }
 }
 

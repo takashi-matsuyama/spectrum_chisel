@@ -5,9 +5,10 @@ import { state, uiComponents } from './state.js';
 import { BAND_CONFIG, bandNames } from './core/bands.js';
 import { buildTimestampedFilename } from './core/filename.js';
 import { detectBandIncompatibility, isValidPreset, PRESET_VERSION } from './core/preset.js';
+import { buildRecipe, isValidRecipe } from './core/recipe.js';
 import { parseLibrary, instanceCount, isSupportedSpecVersion } from './core/pattern.js';
 import { derivePlateSet, combinePlatesSvg } from './core/plates.js';
-import { drawVisuals } from './drawing/render.js';
+import { drawVisuals, replaySculpture } from './drawing/render.js';
 import { collectRenderParams } from './params.js';
 import { syncComposerToState } from './composer.js';
 import { t } from './i18n/index.js';
@@ -165,116 +166,179 @@ export function savePreset() {
   saveJSON(preset, `sc-preset-${Date.now()}.json`);
 }
 
+/**
+ * Apply a preset body (also a recipe's `.params`) to the UI and state: warn on
+ * band-layout incompatibility, restore globals/bands/library/renderSeed, refresh
+ * the slider labels, and re-sync the composer. The caller validates the shape.
+ * @param {object} preset
+ */
+function applyPresetToUi(preset) {
+  // Presets saved before the rainbow redesign use the old band names; warn that
+  // those band settings will not apply (global settings still do).
+  const compat = detectBandIncompatibility(preset, bandNames());
+  if (!compat.compatible) {
+    console.warn('Preset band layout differs from the current bands.', compat);
+    alert(t('alertPresetIncompatible'));
+  }
+
+  uiComponents.sculptureModeCheckbox.checked(preset.sculptureMode);
+  state.frameRateSlider.value(preset.frameRate);
+
+  state.spectrumRingCheckbox.checked(preset.spectrumRing.enabled);
+  uiComponents.ring.gainSlider.value(preset.spectrumRing.gain);
+  uiComponents.ring.thresholdSlider.value(preset.spectrumRing.threshold);
+
+  state.spectrumDiffCheckbox.checked(preset.spectrumDiff.enabled);
+  uiComponents.diff.gainSlider.value(preset.spectrumDiff.gain);
+  uiComponents.diff.thresholdSlider.value(preset.spectrumDiff.threshold);
+  uiComponents.diff.colorPicker.value(preset.spectrumDiff.color);
+
+  // Merge any custom patterns the preset carries into the in-memory library
+  // before restoring band assignments. Content-addressed ids make the merge
+  // collision-safe (same content -> same id, different content -> different id).
+  if (preset.patternLibrary) {
+    state.patternLibrary = { ...state.patternLibrary, ...parseLibrary(preset.patternLibrary) };
+  }
+
+  BAND_CONFIG.forEach((band) => {
+    const name = band.name;
+    const bandPreset = preset.bands[name];
+    if (bandPreset) {
+      uiComponents[name].enabledCheckbox.checked(bandPreset.enabled);
+      uiComponents[name].colorPicker.value(bandPreset.color);
+      // A custom-pattern assignment lives in state (drawCustomPattern is not a
+      // selector option); otherwise restore the built-in selection and drop any
+      // stale assignment. The composer slice refreshes its own assign-to-band
+      // affordance explicitly (p5 .value() fires no event).
+      if (bandPreset.drawFunc === 'drawCustomPattern' && bandPreset.customPatternId) {
+        state.bandPatterns[name] = bandPreset.customPatternId;
+      } else {
+        delete state.bandPatterns[name];
+        uiComponents[name].drawSelector.value(bandPreset.drawFunc);
+      }
+      uiComponents[name].strokeSlider.value(bandPreset.stroke);
+      uiComponents[name].alphaSlider.value(bandPreset.alpha);
+      uiComponents[name].gainSlider.value(bandPreset.gain);
+      uiComponents[name].thresholdSlider.value(bandPreset.threshold);
+      uiComponents[name].intensityGainSlider.value(bandPreset.intensityGain);
+      uiComponents[name].angleSpeedSlider.value(bandPreset.angleSpeed);
+    }
+  });
+
+  // Refresh the value label next to every slider.
+  const sliders = selectAll('.ui-slider');
+  sliders.forEach((slider) => {
+    const valueSpan = slider.elt.nextElementSibling;
+    if (valueSpan && valueSpan.tagName === 'SPAN') {
+      valueSpan.innerHTML = slider.value();
+    }
+  });
+
+  // The Frame Rate slider has its own value label too.
+  const frameRateValueSpan = state.frameRateSlider.elt.nextElementSibling;
+  if (frameRateValueSpan && frameRateValueSpan.tagName === 'SPAN') {
+    frameRateValueSpan.innerHTML = state.frameRateSlider.value();
+  }
+
+  // Graceful degradation: a band may reference a custom pattern that the merged
+  // library lacks (dropped on parse) or that a newer spec version authored. Such
+  // bands render their built-in style (render.js falls back); clear dangling
+  // assignments and notify once.
+  let degraded = false;
+  for (const band of Object.keys(state.bandPatterns)) {
+    const spec = state.patternLibrary[state.bandPatterns[band]];
+    if (!spec) {
+      delete state.bandPatterns[band];
+      degraded = true;
+    } else if (!isSupportedSpecVersion(spec)) {
+      degraded = true;
+    }
+  }
+  if (degraded) alert(t('alertPatternMissing'));
+
+  // Restore the deterministic render seed, normalizing on every load: a preset
+  // predating it (or one saved before recording) omits the field, so reset to
+  // null and let render.js fall back — never inherit the seed from a previously
+  // loaded preset.
+  state.renderSeed = typeof preset.renderSeed === 'number' ? preset.renderSeed : null;
+
+  // Refresh the composer + per-band pattern pickers: p5 .value() fires no change
+  // event, so the merged library and restored assignments must be re-synced.
+  syncComposerToState();
+}
+
 // Load a JSON preset and apply it to the UI.
 export function loadPreset() {
   const input = createFileInput((file) => {
     if (file.type === 'application' && file.subtype === 'json') {
       const preset = file.data;
-
-      // Reject a malformed or unrelated JSON file before reading its fields, so
-      // a missing global layer or bands map cannot throw mid-load.
+      // Reject a malformed or unrelated JSON file before reading its fields, so a
+      // missing global layer or bands map cannot throw mid-load.
       if (!isValidPreset(preset)) {
         console.warn('Preset is missing required fields; skipping load.', preset);
         alert(t('alertPresetInvalid'));
         input.remove();
         return;
       }
-
-      // Presets saved before the rainbow redesign use the old band names; warn
-      // that those band settings will not apply (global settings still do).
-      const compat = detectBandIncompatibility(preset, bandNames());
-      if (!compat.compatible) {
-        console.warn('Preset band layout differs from the current bands.', compat);
-        alert(t('alertPresetIncompatible'));
-      }
-
-      uiComponents.sculptureModeCheckbox.checked(preset.sculptureMode);
-      state.frameRateSlider.value(preset.frameRate);
-
-      state.spectrumRingCheckbox.checked(preset.spectrumRing.enabled);
-      uiComponents.ring.gainSlider.value(preset.spectrumRing.gain);
-      uiComponents.ring.thresholdSlider.value(preset.spectrumRing.threshold);
-
-      state.spectrumDiffCheckbox.checked(preset.spectrumDiff.enabled);
-      uiComponents.diff.gainSlider.value(preset.spectrumDiff.gain);
-      uiComponents.diff.thresholdSlider.value(preset.spectrumDiff.threshold);
-      uiComponents.diff.colorPicker.value(preset.spectrumDiff.color);
-
-      // Merge any custom patterns the preset carries into the in-memory library
-      // before restoring band assignments. Content-addressed ids make the merge
-      // collision-safe (same content -> same id, different content -> different id).
-      if (preset.patternLibrary) {
-        state.patternLibrary = { ...state.patternLibrary, ...parseLibrary(preset.patternLibrary) };
-      }
-
-      BAND_CONFIG.forEach((band) => {
-        const name = band.name;
-        const bandPreset = preset.bands[name];
-        if (bandPreset) {
-          uiComponents[name].enabledCheckbox.checked(bandPreset.enabled);
-          uiComponents[name].colorPicker.value(bandPreset.color);
-          // A custom-pattern assignment lives in state (drawCustomPattern is not
-          // a selector option); otherwise restore the built-in selection and
-          // drop any stale assignment. The composer slice refreshes its own
-          // assign-to-band affordance explicitly (p5 .value() fires no event).
-          if (bandPreset.drawFunc === 'drawCustomPattern' && bandPreset.customPatternId) {
-            state.bandPatterns[name] = bandPreset.customPatternId;
-          } else {
-            delete state.bandPatterns[name];
-            uiComponents[name].drawSelector.value(bandPreset.drawFunc);
-          }
-          uiComponents[name].strokeSlider.value(bandPreset.stroke);
-          uiComponents[name].alphaSlider.value(bandPreset.alpha);
-          uiComponents[name].gainSlider.value(bandPreset.gain);
-          uiComponents[name].thresholdSlider.value(bandPreset.threshold);
-          uiComponents[name].intensityGainSlider.value(bandPreset.intensityGain);
-          uiComponents[name].angleSpeedSlider.value(bandPreset.angleSpeed);
-        }
-      });
-
-      // Refresh the value label next to every slider.
-      const sliders = selectAll('.ui-slider');
-      sliders.forEach((slider) => {
-        const valueSpan = slider.elt.nextElementSibling;
-        if (valueSpan && valueSpan.tagName === 'SPAN') {
-          valueSpan.innerHTML = slider.value();
-        }
-      });
-
-      // The Frame Rate slider has its own value label too.
-      const frameRateValueSpan = state.frameRateSlider.elt.nextElementSibling;
-      if (frameRateValueSpan && frameRateValueSpan.tagName === 'SPAN') {
-        frameRateValueSpan.innerHTML = state.frameRateSlider.value();
-      }
-
-      // Graceful degradation: a band may reference a custom pattern that the
-      // merged library lacks (dropped on parse) or that a newer spec version
-      // authored. Such bands render their built-in style (render.js falls back);
-      // clear dangling assignments and notify once.
-      let degraded = false;
-      for (const band of Object.keys(state.bandPatterns)) {
-        const spec = state.patternLibrary[state.bandPatterns[band]];
-        if (!spec) {
-          delete state.bandPatterns[band];
-          degraded = true;
-        } else if (!isSupportedSpecVersion(spec)) {
-          degraded = true;
-        }
-      }
-      if (degraded) alert(t('alertPatternMissing'));
-
-      // Restore the deterministic render seed, normalizing on every load: a
-      // preset predating it (or one saved before recording) omits the field, so
-      // reset to null and let render.js fall back — never inherit the seed from
-      // a previously loaded preset.
-      state.renderSeed = typeof preset.renderSeed === 'number' ? preset.renderSeed : null;
-
-      // Refresh the composer + per-band pattern pickers: p5 .value() fires no
-      // change event, so the merged library and restored assignments must be
-      // re-synced explicitly.
-      syncComposerToState();
-
+      applyPresetToUi(preset);
       console.log('Preset loaded successfully.');
+    } else {
+      alert(t('alertSelectJson'));
+    }
+    input.remove();
+  });
+  input.elt.click();
+}
+
+// Save a reproducible recipe: the recorded spectrum history + seed + params +
+// renderer version, so the artwork re-renders deterministically without the
+// audio. Requires a recording (history); a params-only snapshot is savePreset.
+export function saveRecipe() {
+  if (state.spectrumHistory.length === 0) {
+    alert(t('alertNoHistoryForRecipe'));
+    return;
+  }
+  // Capture the gain at record time so the recipe reproduces self-contained,
+  // independent of the importer's input mode / mic-boost slider.
+  const boost = state.currentInputMode === 'mic' ? select('#mic-boost-slider').value() : 1;
+  const recipe = buildRecipe({
+    params: collectRenderParams(),
+    spectrumHistory: state.spectrumHistory,
+    seed: state.renderSeed,
+    boost,
+    createdAt: new Date().toISOString(),
+  });
+  saveJSON(recipe, `sc-recipe-${Date.now()}.json`);
+}
+
+// Load a recipe and statically reproduce it: restore the params, the recorded
+// history and seed, then replay the whole history onto the canvas (sculpture).
+export function loadRecipe() {
+  const input = createFileInput((file) => {
+    if (file.type === 'application' && file.subtype === 'json') {
+      const recipe = file.data;
+      if (!isValidRecipe(recipe)) {
+        console.warn('Not a valid recipe; skipping load.', recipe);
+        alert(t('alertRecipeInvalid'));
+        input.remove();
+        return;
+      }
+      // Stop any live recording/playback first, so the draw loop cannot append
+      // live FFT frames to the restored history and corrupt the reproduction.
+      state.isRecording = false;
+      state.isPlaying = false;
+      noLoop();
+      applyPresetToUi(recipe.params);
+      state.spectrumHistory = recipe.spectrumHistory;
+      state.renderSeed = recipe.seed;
+      uiComponents.sculptureModeCheckbox.checked(true);
+      // Static reproduction: clear the canvas, then replay every recorded frame
+      // with the recipe's own boost so it reproduces self-contained (back-compat:
+      // recipes saved before boost existed fall back to 1).
+      background(0);
+      const boost = Number.isFinite(recipe.boost) ? recipe.boost : 1;
+      replaySculpture(window, boost);
+      console.log('Recipe loaded and reproduced.');
     } else {
       alert(t('alertSelectJson'));
     }
