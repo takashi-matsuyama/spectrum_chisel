@@ -16,6 +16,7 @@ import {
   generateTimestampedFilename,
 } from './export.js';
 import { openViewer } from './broadcast.js';
+import { playRecipe, pauseRecipe, restartRecipe } from './playback.js';
 import { supportedVideoFormat, hasViewerSupport, micUnavailableReason } from './capabilities.js';
 import { loadPatternLibrary, attachBandPatternControl, initComposerUI } from './composer.js';
 import { t, switchLocale, getLocale, supportedLocales } from './i18n/index.js';
@@ -114,6 +115,17 @@ export function createUI() {
   editionIndexInput.attribute('min', '1');
   editionTotalInput.attribute('min', '1');
   uiComponents.recipeMeta = { titleInput, editionIndexInput, editionTotalInput };
+
+  // Dynamic recipe playback (Slice B): replay a loaded recipe over time. Disabled
+  // until a recipe is loaded (loadRecipe arms them; stopAndReset disables them).
+  sectionTitle('recipePlayback', state.uiPanel);
+  const recipePlayRow = createDiv().parent(state.uiPanel);
+  uiComponents.playRecipeBtn = labeledButton('playRecipe', playRecipe, recipePlayRow);
+  uiComponents.pauseRecipeBtn = labeledButton('pauseRecipe', pauseRecipe, recipePlayRow);
+  uiComponents.restartRecipeBtn = labeledButton('restartRecipe', restartRecipe, recipePlayRow);
+  uiComponents.playRecipeBtn.elt.disabled = true;
+  uiComponents.pauseRecipeBtn.elt.disabled = true;
+  uiComponents.restartRecipeBtn.elt.disabled = true;
 
   // Drawing mode + frame rate.
   sectionTitle('drawingMode', state.uiPanel);

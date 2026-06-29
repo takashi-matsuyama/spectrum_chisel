@@ -17,9 +17,10 @@ import {
   toggleFileRecording,
 } from './audio.js';
 import { createUI, initLanguageToggle, applyCapabilityNotices } from './ui.js';
-import { downloadSVG, generateTimestampedFilename } from './export.js';
+import { downloadSVG, generateTimestampedFilename, renderBoost } from './export.js';
 import { toggleVideoRecording } from './recording.js';
 import { broadcastFrame, broadcastSync, onViewerHello, openViewer } from './broadcast.js';
+import { advanceReplay } from './playback.js';
 import { collectRenderParams } from './params.js';
 import { addPattern } from './core/pattern.js';
 import { applyStaticTranslations } from './i18n/index.js';
@@ -38,7 +39,9 @@ function currentBoost() {
 function sendStateToViewer(viewerId) {
   const params = collectRenderParams();
   const history = params.sculptureMode ? state.spectrumHistory.map((s) => Array.from(s)) : null;
-  broadcastSync({ viewerId, params, boost: currentBoost(), history });
+  // renderBoost() so a late-joining viewer replays a loaded recipe at the recipe's
+  // own boost (matching the canvas), not the live mic boost.
+  broadcastSync({ viewerId, params, boost: renderBoost(), history });
 }
 
 function setup() {
@@ -97,8 +100,15 @@ function setup() {
 }
 
 function draw() {
-  if (!state.isPlaying && !state.isRecording) {
+  if (!state.isPlaying && !state.isRecording && !state.isReplaying) {
     noLoop();
+    return;
+  }
+
+  // Dynamic recipe playback (atelier-local) owns the frame: advance and draw one
+  // recorded frame, independent of the live audio/recording path below.
+  if (state.isReplaying) {
+    advanceReplay(this);
     return;
   }
 
@@ -162,7 +172,9 @@ function resizeToContainer() {
   background(0);
   const isSculpture = uiComponents.sculptureModeCheckbox && uiComponents.sculptureModeCheckbox.checked();
   if (isSculpture && state.spectrumHistory.length > 0) {
-    replaySculpture(window, currentBoost());
+    // renderBoost() so a loaded recipe re-renders at the recipe's boost on resize,
+    // matching its on-canvas reproduction (not the live mic boost).
+    replaySculpture(window, renderBoost());
   }
 }
 
