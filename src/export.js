@@ -20,6 +20,7 @@ import { derivePlateSet, combinePlatesSvg } from './core/plates.js';
 import { drawVisuals, replaySculpture } from './drawing/render.js';
 import { collectRenderParams } from './params.js';
 import { syncComposerToState } from './composer.js';
+import { enableReplayControls } from './playback.js';
 import { t } from './i18n/index.js';
 
 // Above this many estimated vector nodes, a sculpture SVG export is warned about
@@ -62,6 +63,19 @@ function estimateSvgNodes(params, frames) {
   return perFrame * Math.max(1, frames);
 }
 
+/**
+ * The input gain to render the CURRENT spectrum history with. A loaded recipe
+ * carries its own record-time boost (state.replayBoost) so it reproduces
+ * self-contained; otherwise use the live input gain (mic-boost slider in mic
+ * mode, 1 for file). Shared by SVG/plate export and the canvas resize replay so a
+ * loaded recipe reproduces identically everywhere, matching its dynamic playback.
+ * @returns {number}
+ */
+export function renderBoost() {
+  if (state.recipeLoaded) return state.replayBoost;
+  return state.currentInputMode === 'mic' ? select('#mic-boost-slider').value() : 1;
+}
+
 export function downloadSVG() {
   console.log('Starting SVG export...');
   noLoop();
@@ -77,19 +91,19 @@ export function downloadSVG() {
   svg.colorMode(HSB, 360, 100, 100);
   svg.background(0);
 
-  const micBoostForSVG = state.currentInputMode === 'mic' ? select('#mic-boost-slider').value() : 1;
+  const boostForSVG = renderBoost();
 
   if (uiComponents.sculptureModeCheckbox.checked()) {
     // Sculpture mode: render the full history.
     console.log('Exporting in Sculpture Mode (full history)...');
     for (let i = 0; i < state.spectrumHistory.length; i++) {
-      drawVisuals(svg, i + 1, true, micBoostForSVG);
+      drawVisuals(svg, i + 1, true, boostForSVG);
     }
   } else {
     // Afterimage mode: render only the latest frame.
     console.log('Exporting in Live Mode (snapshot)...');
     if (state.spectrumHistory.length > 0) {
-      drawVisuals(svg, state.spectrumHistory.length, true, micBoostForSVG);
+      drawVisuals(svg, state.spectrumHistory.length, true, boostForSVG);
     }
   }
 
@@ -138,7 +152,7 @@ export function downloadSVGPlates() {
     alert(t('alertSvgLarge'));
   }
 
-  const micBoostForSVG = state.currentInputMode === 'mic' ? select('#mic-boost-slider').value() : 1;
+  const boostForSVG = renderBoost();
 
   const plates = [];
   descriptors.forEach((d) => {
@@ -147,10 +161,10 @@ export function downloadSVGPlates() {
     // No background: a transparent ground so the plates register when overlaid.
     if (sculpture) {
       for (let i = 0; i < state.spectrumHistory.length; i++) {
-        drawVisuals(svg, i + 1, true, micBoostForSVG, d.filter);
+        drawVisuals(svg, i + 1, true, boostForSVG, d.filter);
       }
     } else if (state.spectrumHistory.length > 0) {
-      drawVisuals(svg, state.spectrumHistory.length, true, micBoostForSVG, d.filter);
+      drawVisuals(svg, state.spectrumHistory.length, true, boostForSVG, d.filter);
     }
     // p5.js-svg exposes the root <svg> as elt.svg (its own save() serializes the
     // same node); elt has no querySelector. Take its inner markup (an empty
@@ -430,22 +444,40 @@ export function loadRecipe() {
         alert(t('alertRecipeInvalid'));
         return;
       }
-      // Stop any live recording/playback first, so the draw loop cannot append
-      // live FFT frames to the restored history and corrupt the reproduction.
+      // Stop any live recording/playback or dynamic replay first, so the draw
+      // loop cannot append live FFT frames to (or replay over) the restored
+      // history and corrupt the reproduction.
       state.isRecording = false;
       state.isPlaying = false;
+      state.isReplaying = false;
       noLoop();
       applyPresetToUi(recipe.params);
       applyRecipeMetadataToUi(recipe.metadata);
       state.spectrumHistory = recipe.spectrumHistory;
       state.renderSeed = recipe.seed;
-      uiComponents.sculptureModeCheckbox.checked(true);
-      // Static reproduction: clear the canvas, then replay every recorded frame
-      // with the recipe's own boost so it reproduces self-contained (back-compat:
-      // recipes saved before boost existed fall back to 1).
-      background(0);
+      // Honor the recipe's own drawing mode (applyPresetToUi already set the
+      // checkbox from recipe.params.sculptureMode; ?? true keeps a hand-made or
+      // pre-sculptureMode recipe on the accumulating default).
+      const sculpture = recipe.params.sculptureMode ?? true;
+      uiComponents.sculptureModeCheckbox.checked(sculpture);
+      // Capture the playback cadence/gain so dynamic playback (Slice B) reproduces
+      // the recording in real time. frameRate is guaranteed numeric by
+      // isValidRecipe; boost falls back to 1 for recipes saved before it existed.
       const boost = Number.isFinite(recipe.boost) ? recipe.boost : 1;
-      replaySculpture(window, boost);
+      state.replayFrameRate = recipe.params.frameRate ?? 30;
+      state.replayBoost = boost;
+      // Static reproduction: clear the canvas, then show the finished image with
+      // the recipe's own boost so it reproduces self-contained. Sculpture replays
+      // the whole accumulated history; afterimage shows the last frame as a still
+      // of the dynamic piece (its true motion is the dynamic Play below).
+      background(0);
+      if (sculpture) {
+        replaySculpture(window, boost);
+      } else if (state.spectrumHistory.length > 0) {
+        drawVisuals(window, state.spectrumHistory.length, true, boost);
+      }
+      // Arm the dynamic playback controls now that a recipe is loaded.
+      enableReplayControls();
       console.log('Recipe loaded and reproduced.');
       // Integrity check runs after reproduction (non-blocking): a tampered recipe
       // still reproduces, but the mismatch is surfaced for provenance. Swallow

@@ -4,6 +4,7 @@
 import { state } from './state.js';
 import { toggleVideoRecording, stopVideoRecording } from './recording.js';
 import { broadcastClear } from './broadcast.js';
+import { resetReplayControls } from './playback.js';
 import { micUnavailableReason } from './capabilities.js';
 import { t, applyLabel } from './i18n/index.js';
 
@@ -154,6 +155,11 @@ export function toggleFilePlayback() {
 export function toggleFileRecording() {
   if (!state.soundFile || !state.soundFile.isLoaded()) return;
 
+  // Recording and dynamic replay are mutually exclusive (both drive draw() and
+  // share spectrumHistory): stop any replay and disable its controls so the live
+  // recording owns the draw loop and replay can't be started mid-recording.
+  resetReplayControls();
+
   state.isRecording = !state.isRecording;
   if (state.isRecording) {
     if (state.spectrumHistory.length === 0) {
@@ -177,6 +183,9 @@ export function toggleMicRecording() {
     return;
   }
   if (getAudioContext().state !== 'running') userStartAudio();
+
+  // Stop any replay and disable its controls (see toggleFileRecording).
+  resetReplayControls();
 
   state.isRecording = !state.isRecording;
   state.isPlaying = state.isRecording;
@@ -222,6 +231,9 @@ export function stopAndReset() {
   applyLabel(select('#play-pause-btn'), 'play');
   applyLabel(select('#mic-record-btn'), 'startDrawing');
   applyLabel(select('#file-record-btn'), 'startDrawing');
+
+  // No recipe is loaded anymore: stop and disable dynamic playback.
+  resetReplayControls();
 
   background(0);
   state.spectrumHistory = [];

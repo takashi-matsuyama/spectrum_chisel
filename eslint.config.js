@@ -23,7 +23,7 @@ export default [
   },
   {
     // p5 global-mode shell: relies on globals provided by p5 at runtime.
-    files: ['src/main.js', 'src/audio.js', 'src/ui.js', 'src/composer.js', 'src/export.js', 'src/recording.js', 'src/view.js', 'src/drawing/**/*.js'],
+    files: ['src/main.js', 'src/audio.js', 'src/ui.js', 'src/composer.js', 'src/export.js', 'src/playback.js', 'src/recording.js', 'src/view.js', 'src/drawing/**/*.js'],
     languageOptions: {
       globals: {
         p5: 'readonly',

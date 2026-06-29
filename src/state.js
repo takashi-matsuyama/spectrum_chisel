@@ -68,6 +68,27 @@ export const state = {
   /** Whether video recording is active. */
   isVideoRecording: false,
 
+  // Dynamic recipe playback (atelier-local): replay a loaded recipe's history
+  // one recorded frame per draw() tick, so the artwork is re-carved over time
+  // rather than shown as a finished still. See playback.js.
+  /** Whether dynamic recipe playback is active. */
+  isReplaying: false,
+  /** Current 1-based history index during playback (0 = at the start). */
+  replayIndex: 0,
+  /** Playback frame rate, captured from recipe.params.frameRate at load. */
+  replayFrameRate: 30,
+  /** Playback input gain, captured from recipe.boost for faithful reproduction. */
+  replayBoost: 1,
+  /**
+   * Whether the current spectrumHistory came from a loaded recipe (vs a live
+   * recording). When true, every render of that history — dynamic playback, SVG
+   * and color-plate export, the canvas resize replay, and viewer late-join —
+   * uses `replayBoost` (the recipe's record-time gain) instead of the live mic
+   * boost, so a loaded recipe reproduces self-contained everywhere, not just on
+   * the canvas. Set on recipe load, cleared on reset and when a recording starts.
+   */
+  recipeLoaded: false,
+
   // UI element singletons, assigned in createUI().
   /** @type {any} */
   uiPanel: null,
