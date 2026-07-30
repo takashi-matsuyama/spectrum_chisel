@@ -105,6 +105,18 @@ output, and `wrangler deploy` uploads it.
 4. Deploy. Every push to the production branch then rebuilds and redeploys
    automatically.
 
+Wrangler is pinned as a devDependency, so `npx wrangler deploy` runs that exact
+version instead of whatever is current — a new Wrangler release cannot change
+how a deploy behaves on its own.
+
+`wrangler.jsonc` also declares `workers_dev: false` and `preview_urls: true`.
+Wrangler asserts that state on **every** deploy, so it has to live in the config
+rather than in the dashboard: with custom domains managed in the dashboard (no
+`routes` here), Wrangler would otherwise default the public `*.workers.dev` URL
+back on. Access control for the remaining preview hostnames is a dashboard-only
+setting that `wrangler deploy` never touches — `pnpm verify:exposure` probes the
+live result of both halves from the outside.
+
 The site is served over HTTPS, so the microphone works and the app is
 installable. `public/_headers` (copied into `dist/`) keeps the service worker,
 its registration script, the manifest, and the page navigations uncached so a
