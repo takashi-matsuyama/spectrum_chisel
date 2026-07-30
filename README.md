@@ -118,8 +118,9 @@ setting that `wrangler deploy` never touches — `pnpm verify:exposure` probes t
 live result of both halves from the outside. Neither switch is observable from
 outside, though — Access hides whatever it fronts, and a 404 only says `/` is not
 serving — so the probe reports `UNVERIFIED` wherever it cannot prove the state
-and passes only on a response that does. `UNVERIFIED` means "no exposure seen,
-not proven off"; the dashboard or the control-plane API has the actual state.
+and passes only on a response that does. `UNVERIFIED` means "no unintended
+exposure seen, not proven off"; the dashboard or the control-plane API has the
+actual state.
 
 The site is served over HTTPS, so the microphone works and the app is
 installable. `public/_headers` (copied into `dist/`) keeps the service worker,

@@ -23,7 +23,7 @@
 // produces. Those checks report UNVERIFIED rather than PASS — the dashboard or
 // the control-plane API has the actual state. A check passes only when the
 // response proves the intended state, and anything unexpected fails rather than
-// being waved through, so UNVERIFIED means "no exposure seen, not proven off".
+// being waved through, so UNVERIFIED means "no unintended exposure seen, not proven off".
 //
 // Run:
 //   WORKERS_DEV_SUBDOMAIN=<account-subdomain> pnpm verify:exposure
@@ -127,7 +127,7 @@ const checks = [
         return {
           state: 'unverified',
           detail:
-            '404 and not this app — nothing is serving `/` here, but that does not prove `workers_dev` is off (an enabled Worker with a broken `/` looks the same). Confirm the toggle in the dashboard or via the control-plane API.',
+            '404, and not this app — `/` did not serve this app, which is all the response shows: it does not prove `workers_dev` is off, because an enabled Worker whose `/` 404s answers the same way. Confirm the toggle in the dashboard or via the control-plane API.',
         };
       }
       if (isAccessLogin(r)) {
@@ -187,6 +187,6 @@ if (tally.fail > 0) {
 }
 console.log(
   tally.unverified > 0
-    ? `\nNo public exposure was observed, but ${tally.unverified} of ${checks.length} checks could not be proven from outside (see UNVERIFIED above) — the dashboard or the control-plane API has the actual state.`
+    ? `\nNo unintended public exposure was observed, but ${tally.unverified} of ${checks.length} checks could not be proven from outside (see UNVERIFIED above) — the dashboard or the control-plane API has the actual state.`
     : `\nExposure is as intended (${checks.length}/${checks.length} verified).`
 );
