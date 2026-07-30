@@ -16,12 +16,14 @@
 // This probe is the missing half: it asserts the intended exposure from the
 // outside. Run it after a deploy, or whenever the dashboard was touched.
 //
-// What it cannot prove, by construction: Cloudflare Access answers before Worker
-// routing does, so on a hostname that Access fronts, the `workers_dev` /
-// `preview_urls` booleans themselves are invisible from outside. Those checks
-// report UNVERIFIED rather than PASS — read the dashboard or the control-plane
-// API for the actual state. A check only passes when the response proves the
-// intended state; anything unexpected fails rather than being waved through.
+// What it cannot prove, by construction: neither switch is observable from
+// outside. Cloudflare Access answers before Worker routing does, so on a
+// hostname Access fronts, nothing behind it is visible at all; and a 404 only
+// says that `/` is not serving, which an enabled Worker with a broken `/` also
+// produces. Those checks report UNVERIFIED rather than PASS — the dashboard or
+// the control-plane API has the actual state. A check passes only when the
+// response proves the intended state, and anything unexpected fails rather than
+// being waved through, so UNVERIFIED means "no exposure seen, not proven off".
 //
 // Run:
 //   WORKERS_DEV_SUBDOMAIN=<account-subdomain> pnpm verify:exposure
@@ -117,12 +119,15 @@ const checks = [
       // layer instead of the Worker: 404, and never this app's markup. (The
       // plain-text form of that error is `error code: 1042`, but whether you get
       // it or the HTML error page depends on the HTTP version negotiated, so
-      // only the status and the absence of the marker are asserted. This Worker
-      // serves index.html at `/`, so a live one cannot answer 404 here.)
+      // only the status and the absence of the marker are asserted.) A 404 does
+      // not prove `workers_dev: false` though — the same response comes back
+      // from a Worker that is enabled but whose `/` is broken, while its other
+      // paths keep serving — so this is as far as the outside can see.
       if (r.status === 404 && !r.body.includes(APP_MARKER)) {
         return {
-          state: 'pass',
-          detail: '404 from Cloudflare, not from this Worker — workers.dev is not serving',
+          state: 'unverified',
+          detail:
+            '404 and not this app — nothing is serving `/` here, but that does not prove `workers_dev` is off (an enabled Worker with a broken `/` looks the same). Confirm the toggle in the dashboard or via the control-plane API.',
         };
       }
       if (isAccessLogin(r)) {
@@ -182,6 +187,6 @@ if (tally.fail > 0) {
 }
 console.log(
   tally.unverified > 0
-    ? `\nNothing is publicly exposed, but ${tally.unverified} of ${checks.length} checks could not be verified from outside (see UNVERIFIED above).`
+    ? `\nNo public exposure was observed, but ${tally.unverified} of ${checks.length} checks could not be proven from outside (see UNVERIFIED above) — the dashboard or the control-plane API has the actual state.`
     : `\nExposure is as intended (${checks.length}/${checks.length} verified).`
 );

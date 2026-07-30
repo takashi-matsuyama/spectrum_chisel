@@ -115,9 +115,11 @@ rather than in the dashboard: with custom domains managed in the dashboard (no
 `routes` here), Wrangler would otherwise default the public `*.workers.dev` URL
 back on. Access control for the remaining preview hostnames is a dashboard-only
 setting that `wrangler deploy` never touches — `pnpm verify:exposure` probes the
-live result of both halves from the outside. Access answers before Worker routing
-does, so what it fronts it also hides: those checks report `UNVERIFIED` rather
-than `PASS`, and only a response that proves the intended state passes.
+live result of both halves from the outside. Neither switch is observable from
+outside, though — Access hides whatever it fronts, and a 404 only says `/` is not
+serving — so the probe reports `UNVERIFIED` wherever it cannot prove the state
+and passes only on a response that does. `UNVERIFIED` means "no exposure seen,
+not proven off"; the dashboard or the control-plane API has the actual state.
 
 The site is served over HTTPS, so the microphone works and the app is
 installable. `public/_headers` (copied into `dist/`) keeps the service worker,
