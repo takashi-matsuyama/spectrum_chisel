@@ -12,6 +12,15 @@
   // `wrangler deploy` targets it directly instead of relying on Workers Builds
   // to override the name (which also stopped the recurring auto-fix PRs).
   "name": "studio-spectrum-chisel",
+  // Custom domains live in the Cloudflare dashboard (the deploy token has no
+  // zone scope), so this config declares no `routes`. Wrangler reads "no
+  // routes" as "publish to workers.dev" and POSTs the subdomain state on every
+  // deploy, so both keys must be explicit: without them a deploy re-enables the
+  // public *.workers.dev URL. Preview URLs stay on for pre-release checks and
+  // are gated by Cloudflare Access in the dashboard (Access has no Wrangler
+  // key, and `wrangler deploy` never touches it).
+  "workers_dev": false,
+  "preview_urls": true,
   "compatibility_date": "2026-06-15",
   "assets": {
     "directory": "./dist"
