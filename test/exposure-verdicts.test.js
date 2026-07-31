@@ -15,13 +15,14 @@ import {
 const MARKER = '<title>Spectrum Chisel</title>';
 const ACCESS_LOGIN = 'https://acct.cloudflareaccess.com/cdn-cgi/access/login/host?kid=x';
 
-const [customDomain, productionDev, preview] = createChecks({
+const checks = createChecks({
   worker: 'studio-spectrum-chisel',
   marker: MARKER,
   customDomainUrl: 'https://studio.example.test/',
   productionDevUrl: 'https://worker.subdomain.workers.dev/',
   previewProbeUrl: 'https://exposure-probe-worker.subdomain.workers.dev/',
 });
+const [customDomain, productionDev, preview] = checks;
 
 /**
  * @param {number} status
@@ -48,6 +49,36 @@ describe('isAccessLogin', () => {
     expect(isAccessLogin(seen(302))).toBe(false);
     expect(isAccessLogin(seen(302, '', 'not a url'))).toBe(false);
   });
+
+  it('pins the redirect range at both ends', () => {
+    // Widening either bound would let a non-redirect that merely carries the
+    // Access Location count as the gate.
+    expect(isAccessLogin(seen(301, '', ACCESS_LOGIN))).toBe(true);
+    expect(isAccessLogin(seen(299, '', ACCESS_LOGIN))).toBe(false);
+    expect(isAccessLogin(seen(400, '', ACCESS_LOGIN))).toBe(false);
+    expect(isAccessLogin(seen(404, '', ACCESS_LOGIN))).toBe(false);
+    expect(isAccessLogin(seen(500, '', ACCESS_LOGIN))).toBe(false);
+  });
+});
+
+describe('readBody', () => {
+  // The runner hands the verdict an empty body unless the check asked for one, so
+  // a verdict that reads the body must be paired with readBody. Without this the
+  // table can stay correct while the probe stops seeing markers: a workers.dev
+  // URL serving this app under a 404 would slip from FAIL to UNVERIFIED.
+  /** @param {(typeof checks)[number]} check */
+  const readsTheBody = (check) =>
+    [200, 404].some((status) => {
+      const withMarker = check.verdict(seen(status, `<html>${MARKER}</html>`));
+      const withoutMarker = check.verdict(seen(status, ''));
+      return withMarker.state !== withoutMarker.state || withMarker.detail !== withoutMarker.detail;
+    });
+
+  for (const check of checks) {
+    it(`${check.name}: readBody matches whether the verdict reads it`, () => {
+      expect(Boolean(check.readBody)).toBe(readsTheBody(check));
+    });
+  }
 });
 
 describe('custom domain check', () => {
@@ -148,6 +179,23 @@ describe('summarize', () => {
       exitCode: 1,
       line: '1 of 3 checks FAILED.',
     });
+  });
+
+  it('exits non-zero on failures with nothing unverified beside them', () => {
+    // The worst case — the production URL and the preview hostnames both public —
+    // has no unverified check in the tally at all.
+    expect(summarize({ pass: 1, unverified: 0, fail: 2 }, 3)).toEqual({
+      exitCode: 1,
+      line: '2 of 3 checks FAILED.',
+    });
+    expect(summarize({ pass: 0, unverified: 0, fail: 3 }, 3)).toEqual({
+      exitCode: 1,
+      line: '3 of 3 checks FAILED.',
+    });
+  });
+
+  it('never reports more verified checks than actually passed', () => {
+    expect(summarize({ pass: 2, unverified: 0, fail: 0 }, 3).line).toContain('(2/3 verified)');
   });
 });
 

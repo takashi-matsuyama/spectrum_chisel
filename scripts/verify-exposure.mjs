@@ -98,4 +98,7 @@ for (const check of checks) {
 
 const { exitCode, line } = summarize(tally, checks.length);
 console.log(`\n${line}`);
-process.exit(exitCode);
+// Set the code and let the process end on its own: process.exit() can cut off a
+// stdout write that has not flushed yet, which is exactly the closing summary
+// when the output is a pipe.
+process.exitCode = exitCode;

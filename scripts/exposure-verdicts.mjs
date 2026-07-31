@@ -174,5 +174,7 @@ export function summarize(tally, total) {
       line: `No unintended public exposure was observed, but ${tally.unverified} of ${total} checks could not be proven from outside (see UNVERIFIED above) — the dashboard or the control-plane API has the actual state.`,
     };
   }
-  return { exitCode: 0, line: `Exposure is as intended (${total}/${total} verified).` };
+  // Counted from the tally, not from `total`, so a run that somehow produced
+  // fewer verdicts than checks cannot report a full house.
+  return { exitCode: 0, line: `Exposure is as intended (${tally.pass}/${total} verified).` };
 }
