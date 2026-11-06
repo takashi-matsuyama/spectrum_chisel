@@ -100,7 +100,7 @@ output, and `wrangler deploy` uploads it.
 3. Set the build configuration:
     -   **Build command**: `pnpm build`
     -   **Deploy command**: `npx wrangler deploy`
-    -   **Node version**: 20.19 or newer (set a `NODE_VERSION` environment
+    -   **Node version**: 22 or newer (set a `NODE_VERSION` environment
         variable if the default is older).
 4. Deploy. Every push to the production branch then rebuilds and redeploys
    automatically.
