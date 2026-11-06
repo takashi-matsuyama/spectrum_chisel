@@ -1,0 +1,29 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  checks:
+    # The same four checks CONTRIBUTING.md asks for before a pull request.
+    # The live exposure probe (pnpm verify:exposure) and the browser
+    # determinism check (pnpm verify:determinism) stay out of CI on purpose:
+    # the first reads production, the second needs a local Chrome and dev server.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.32.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm build
