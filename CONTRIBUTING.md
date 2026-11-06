@@ -23,7 +23,7 @@ pnpm dev       # → http://localhost:5173
 
 Prerequisites:
 
-- Node.js **>= 20.19.0**
+- Node.js **>= 22.0.0**
 - pnpm (pinned via the `packageManager` field / lockfile)
 - Git
 
