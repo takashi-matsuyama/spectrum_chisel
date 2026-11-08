@@ -1,0 +1,87 @@
+name: Preview export smoke
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+  checks: read
+concurrency:
+  group: preview-export-smoke-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  export:
+    # Saves every export (video, SVG, colour plates, PNG, preset, recipe) from
+    # the Workers Builds preview of the pull request's head commit — the
+    # production build — and checks the files. These are the p5 / DOM /
+    # download paths that the Node checks in ci.yml never execute.
+    #
+    # The preview URLs sit behind Cloudflare Access, so the run authenticates
+    # with an Access service token from the repository secrets. Pull requests
+    # from forks get neither a preview build nor the secrets, so they skip it.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      WORKER: studio-spectrum-chisel
+    steps:
+      - name: Require the Access service token
+        env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: |
+          if [ -z "$CF_ACCESS_CLIENT_ID" ] || [ -z "$CF_ACCESS_CLIENT_SECRET" ]; then
+            echo "::error::CF_ACCESS_CLIENT_ID and CF_ACCESS_CLIENT_SECRET are not available to this run. Dependabot pull requests read Dependabot secrets, not Actions secrets."
+            exit 1
+          fi
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.32.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Wait for the Workers Builds preview
+        id: preview
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          name="Workers Builds: $WORKER"
+          query="check_name=$(jq -rn --arg n "$name" '$n|@uri')"
+          for _ in $(seq 1 60); do
+            run=$(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/check-runs?$query" --jq '.check_runs | max_by(.id) // empty')
+            status=$(jq -r '.status // empty' <<<"$run")
+            if [ "$status" = completed ]; then
+              conclusion=$(jq -r '.conclusion' <<<"$run")
+              if [ "$conclusion" != success ]; then
+                echo "::error::$name ended $conclusion, so there is no preview to test."
+                exit 1
+              fi
+              # The version-pinned Preview URL, not the branch alias: the alias
+              # moves when the branch gets another push.
+              url=$(jq -r '.output.summary // ""' <<<"$run" | grep -oE 'Preview URL: https://[^[:space:])]+' | head -n 1 | sed 's/^Preview URL: //')
+              if [ -z "$url" ]; then
+                echo "::error::$name finished without a Preview URL in its summary."
+                exit 1
+              fi
+              host=${url#https://}
+              host=${host%%/*}
+              # The host names the account's workers.dev subdomain; keep it out of the log.
+              echo "::add-mask::$host"
+              echo "url=https://$host/" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "Waiting for $name (${status:-not started yet})"
+            sleep 15
+          done
+          echo "::error::$name did not finish within 15 minutes."
+          exit 1
+      - name: Save every export from the preview
+        env:
+          BASE_URL: ${{ steps.preview.outputs.url }}
+          CHROME_PATH: /usr/bin/google-chrome
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: pnpm verify:export
