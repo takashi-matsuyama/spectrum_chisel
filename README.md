@@ -122,6 +122,22 @@ and passes only on a response that does. `UNVERIFIED` means "no unintended
 exposure seen, not proven off"; the dashboard or the control-plane API has the
 actual state.
 
+Pull requests from branches of this repository also exercise their preview
+build: `.github/workflows/preview-smoke.yml` waits for the Workers Builds
+preview of the pull request's head commit and runs `pnpm verify:export` against
+it, which saves every export (video, SVG, colour plates, PNG, preset, recipe) in
+a headless Chrome and checks the files. Pull requests from forks get no preview
+build, so the job skips them, and the result is a status check on the pull
+request: it blocks a merge only if branch protection requires it. The preview
+hostnames sit behind Access, so the run authenticates with an Access **service
+token**: create one in Zero Trust (Access controls → Service credentials →
+Service Tokens), add a policy with the **Service Auth** action that includes it
+to the Access application covering the Worker's preview URLs, and store its
+Client ID and Client Secret as the repository secrets `CF_ACCESS_CLIENT_ID` and
+`CF_ACCESS_CLIENT_SECRET` — as Dependabot secrets too, or Dependabot's pull
+requests fail the check. The script sends the token only to the preview's own
+origin and blocks every other request.
+
 The site is served over HTTPS, so the microphone works and the app is
 installable. `public/_headers` (copied into `dist/`) keeps the service worker,
 its registration script, the manifest, and the page navigations uncached so a

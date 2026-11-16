@@ -9,13 +9,16 @@ permissions:
 jobs:
   checks:
     # The same four checks CONTRIBUTING.md asks for before a pull request.
-    # The live exposure probe (pnpm verify:exposure) and the browser
-    # determinism check (pnpm verify:determinism) stay out of CI on purpose:
-    # the first reads production, the second needs a local Chrome and dev server.
+    # The export paths (p5 / DOM / downloads) are out of reach of these Node
+    # checks; preview-smoke.yml drives them in Chrome against each pull
+    # request's preview build. The live exposure probe (pnpm verify:exposure)
+    # and the browser determinism check (pnpm verify:determinism) stay out of
+    # CI on purpose: the first reads production, the second relies on a
+    # dev-only test seam.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
         with:
           version: 10.32.1
       - uses: actions/setup-node@v4

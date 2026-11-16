@@ -17,6 +17,7 @@
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
     "verify:determinism": "node scripts/verify-determinism.mjs",
+    "verify:export": "node scripts/verify-export.mjs",
     "verify:exposure": "node scripts/verify-exposure.mjs"
   },
   "dependencies": {

@@ -38,6 +38,19 @@ pnpm lint        # ESLint
 pnpm build       # Vite production build
 ```
 
+If you touch an export path (SVG, colour plates, PNG, presets, recipes, video),
+also run the browser smoke test. It drives the app in a headless Google Chrome
+(set `CHROME_PATH` if Chrome is not in the default macOS location):
+
+```bash
+pnpm dev             # in one terminal
+pnpm verify:export   # in another
+```
+
+Pull requests from branches of this repository run it in CI against their
+Cloudflare preview build. Pull requests from forks do not, so say in the
+description that you ran it.
+
 ## Code conventions
 
 - **JavaScript (ES modules) with JSDoc types**, checked by `tsc --checkJs`. There
